@@ -5,7 +5,7 @@
  * 📋 规划师 → ✍️ 作家 → 📝 编辑 → 🔍 连续性检查
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   plannerAgent as generateOutline,
   autoWriteNovel,
@@ -46,6 +45,7 @@ const ab = StyleSheet.create({
 export default function AutoWriteScreen({ navigation, route }: Props) {
   const routeNovelId = route.params?.novelId as string | undefined;
   const [novelId, setNovelId] = useState(routeNovelId || '');
+  const [loadingNovel, setLoadingNovel] = useState(!routeNovelId);
   const [phase, setPhase] = useState<'input' | 'outline' | 'writing' | 'complete'>('input');
   const [userInput, setUserInput] = useState('');
   const [outline, setOutline] = useState<Outline | null>(null);
@@ -55,15 +55,26 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
   const [result, setResult] = useState<{ success: boolean; chaptersWritten: number; errors: string[]; continuityIssues: string[] } | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  useFocusEffect(useCallback(() => {
-    if (!novelId) {
+  // 加载第一本小说
+  useEffect(() => {
+    if (!routeNovelId) {
+      setLoadingNovel(true);
       getNovels().then(novels => {
-        if (novels.length > 0) setNovelId(novels[0].id);
+        if (novels.length > 0) {
+          setNovelId(novels[0].id);
+        }
+        setLoadingNovel(false);
+      }).catch(() => {
+        setLoadingNovel(false);
       });
     }
-  }, []));
+  }, [routeNovelId]);
 
   const handleGenerateOutline = async () => {
+    if (loadingNovel) {
+      Alert.alert('提示', '正在加载作品信息，请稍候...');
+      return;
+    }
     if (!novelId) {
       Alert.alert('提示', '请先创建一部作品');
       navigation.goBack();
@@ -74,35 +85,46 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
       return;
     }
     setIsGenerating(true);
-    setPhase('outline');
-    const res = await generateOutline(novelId, userInput, {
-      onProgress: (p) => setProgress(p),
-    });
-    setIsGenerating(false);
-    if (typeof res === 'string') {
-      Alert.alert('生成失败', res);
+    try {
+      const res = await generateOutline(novelId, userInput, {
+        onProgress: (p) => setProgress(p),
+      });
+      if (typeof res === 'string') {
+        Alert.alert('生成失败', res);
+        setPhase('input');
+        return;
+      }
+      setOutline(res);
+      setPhase('outline');
+    } catch (e: any) {
+      Alert.alert('错误', e.message || '生成大纲失败');
       setPhase('input');
-      return;
+    } finally {
+      setIsGenerating(false);
     }
-    setOutline(res);
-    setPhase('outline');
   };
 
   const handleStartWriting = async () => {
     if (!outline || !novelId) return;
     setIsWriting(true);
     setPhase('writing');
-    const res = await autoWriteNovel(novelId, outline, {
-      onProgress: (p) => {
-        setProgress(p);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-      },
-      onAgentLog: () => {},
-      onError: () => {},
-    });
-    setIsWriting(false);
-    setResult(res);
-    setPhase('complete');
+    try {
+      const res = await autoWriteNovel(novelId, outline, {
+        onProgress: (p) => {
+          setProgress(p);
+          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        },
+        onAgentLog: () => {},
+        onError: () => {},
+      });
+      setResult(res);
+      setPhase('complete');
+    } catch (e: any) {
+      Alert.alert('错误', e.message || '写作失败');
+      setPhase('outline');
+    } finally {
+      setIsWriting(false);
+    }
   };
 
   const renderInputPhase = () => (
@@ -142,14 +164,19 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
         />
       </View>
       <TouchableOpacity
-        style={[s.primaryBtn, isGenerating && s.primaryBtnDisabled]}
+        style={[s.primaryBtn, (isGenerating || loadingNovel) && s.primaryBtnDisabled]}
         onPress={handleGenerateOutline}
-        disabled={isGenerating}
+        disabled={isGenerating || loadingNovel}
       >
         {isGenerating ? (
           <View style={s.loadingRow}>
             <ActivityIndicator color={T.text} size="small" />
             <Text style={s.primaryBtnText}>规划师正在构思...</Text>
+          </View>
+        ) : loadingNovel ? (
+          <View style={s.loadingRow}>
+            <ActivityIndicator color={T.text} size="small" />
+            <Text style={s.primaryBtnText}>加载中...</Text>
           </View>
         ) : (
           <Text style={s.primaryBtnText}>生成大纲 {ICON.arrow}</Text>

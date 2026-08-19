@@ -96,6 +96,17 @@ export default function SettingsScreen({ navigation }: Props) {
 
       {/* Ollama */}
       <Text style={styles.section}>🏠 Ollama 本地</Text>
+      <TouchableOpacity style={styles.ollamaStartBtn} onPress={async () => {
+        try {
+          const { Linking } = await import('react-native');
+          await Linking.openURL('https://termux.com');
+          Alert.alert('💡 提示', '请在 Termux 中执行：ollama serve &\n\n执行后返回 App 点击「测试连接」验证');
+        } catch {
+          Alert.alert('⚠️ 无法打开 Termux', '请手动打开 Termux 并执行：ollama serve &');
+        }
+      }}>
+        <Text style={styles.ollamaStartBtnText}>⚡ 一键启动 Ollama</Text>
+      </TouchableOpacity>
       <Text style={styles.label}>Ollama 地址</Text>
       <TextInput style={styles.input} value={ollamaUrl} onChangeText={setOllamaUrl} placeholder="http://localhost:11434" placeholderTextColor="#555" autoCapitalize="none" />
       <Text style={styles.label}>Ollama 模型（留空=不使用本地）</Text>
@@ -152,6 +163,8 @@ const styles = StyleSheet.create({
   saveBtnText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
   backupBtn: { backgroundColor: COLORS.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   backupBtnText: { fontSize: 15, color: COLORS.text },
+  ollamaStartBtn: { backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 12 },
+  ollamaStartBtnText: { fontSize: 14, fontWeight: '600', color: '#000' },
   footer: { alignItems: 'center', marginTop: 40, width: '100%' },
   footerText: { fontSize: 14, color: COLORS.sub },
   footerSub: { fontSize: 12, color: '#555', marginTop: 4 },

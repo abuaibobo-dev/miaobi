@@ -140,6 +140,25 @@ export async function saveSnapshot(s: MemorySnapshot): Promise<void> {
   await save(`snap.${s.novelId}`, list);
 }
 
+
+// ============================================================
+// 快照创建（便捷函数）
+// ============================================================
+
+export async function createMemorySnapshot(novelId: string, label: string, chapterNumber: number, volumeNumber: number): Promise<MemorySnapshot> {
+  const snap: MemorySnapshot = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+    novelId,
+    label,
+    chapterNumber,
+    volumeNumber,
+    data: JSON.stringify({ timestamp: new Date().toISOString() }),
+    createdAt: new Date().toISOString(),
+  };
+  await saveSnapshot(snap);
+  return snap;
+}
+
 // ============================================================
 // 对话历史（per novel）
 // ============================================================

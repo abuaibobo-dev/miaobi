@@ -8,126 +8,109 @@ export interface LLMMessage {
 export interface LLMResponse {
   content: string;
   error?: string;
+  provider?: string;
 }
 
 /**
- * 调用 DeepSeek API（兼容 OpenAI 格式）
+ * 智能路由：Ollama 优先 → DeepSeek 云端
  */
 export async function chatCompletion(messages: LLMMessage[]): Promise<LLMResponse> {
-  const settings = await getSettings();
-  if (!settings.apiKey) {
-    return { content: '', error: '未配置 API Key，请在设置中填写 DeepSeek API Key。' };
+  const settings = await getSettings() as any;
+
+  // ★ 优先尝试 Ollama 本地
+  if (settings.ollamaModel && settings.ollamaUrl) {
+    const ollamaResult = await callOllama(settings.ollamaUrl, settings.ollamaModel, messages);
+    if (!ollamaResult.error) {
+      return { ...ollamaResult, provider: `ollama/${settings.ollamaModel}` };
+    }
+    // Ollama 失败，降级到 DeepSeek
+    console.log('Ollama failed, falling back to DeepSeek:', ollamaResult.error);
   }
 
-  const url = `${settings.baseUrl}/v1/chat/completions`;
+  // DeepSeek 云端
+  if (!settings.apiKey) {
+    return { content: '', error: '未配置 API Key。请在设置中填写 DeepSeek API Key 或配置 Ollama 本地模型。' };
+  }
+  return callDeepSeek(settings.baseUrl, settings.apiKey, settings.model, messages, settings.temperature, settings.maxTokens);
+}
 
+/**
+ * 调用 Ollama 本地模型
+ */
+async function callOllama(baseUrl: string, model: string, messages: LLMMessage[]): Promise<LLMResponse> {
+  try {
+    const res = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return { content: '', error: `Ollama ${res.status}: ${err}` };
+    }
+    const data = await res.json();
+    return { content: data.message?.content || '' };
+  } catch (e: any) {
+    return { content: '', error: `Ollama 连接失败: ${e.message}` };
+  }
+}
+
+/**
+ * 调用 DeepSeek 云端（兼容 OpenAI 格式）
+ */
+async function callDeepSeek(
+  baseUrl: string, apiKey: string, model: string,
+  messages: LLMMessage[], temperature: number, maxTokens: number
+): Promise<LLMResponse> {
+  const url = `${baseUrl}/v1/chat/completions`;
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        messages,
-        temperature: settings.temperature,
-        max_tokens: settings.maxTokens,
-        stream: false,
-      }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: false }),
+      signal: AbortSignal.timeout(120000),
     });
-
     if (!res.ok) {
       const err = await res.text();
       return { content: '', error: `API 错误 ${res.status}: ${err}` };
     }
-
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    return { content };
+    return { content: data.choices?.[0]?.message?.content || '' };
   } catch (e: any) {
     return { content: '', error: `网络错误: ${e.message || e}` };
   }
 }
 
 /**
- * 流式调用（SSE）
+ * 检查 API 连接
  */
-export async function* chatStream(messages: LLMMessage[]): AsyncGenerator<string, void, unknown> {
-  const settings = await getSettings();
-  if (!settings.apiKey) {
-    yield '❌ 未配置 API Key';
-    return;
-  }
+export async function checkApiKey(): Promise<{ valid: boolean; error?: string; provider?: string }> {
+  const settings = await getSettings() as any;
 
-  const url = `${settings.baseUrl}/v1/chat/completions`;
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: settings.model,
-        messages,
-        temperature: settings.temperature,
-        max_tokens: settings.maxTokens,
-        stream: true,
-      }),
-    });
-
-    if (!res.ok) {
-      yield `❌ API 错误 ${res.status}`;
-      return;
-    }
-
-    const reader = res.body?.getReader();
-    if (!reader) return;
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') return;
-          try {
-            const json = JSON.parse(data);
-            const token = json.choices?.[0]?.delta?.content;
-            if (token) yield token;
-          } catch {}
-        }
+  // 先试 Ollama
+  if (settings.ollamaModel && settings.ollamaUrl) {
+    try {
+      const res = await fetch(`${settings.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        return { valid: true, provider: `ollama/${settings.ollamaModel}` };
       }
-    }
-  } catch (e: any) {
-    yield `❌ 网络错误: ${e.message || e}`;
+    } catch {}
   }
-}
 
-/**
- * 检查 API Key 是否有效
- */
-export async function checkApiKey(): Promise<{ valid: boolean; balance?: number; error?: string }> {
-  const settings = await getSettings();
+  // 再试 DeepSeek
   if (!settings.apiKey) return { valid: false, error: '未配置 API Key' };
-
   try {
-    const res = await chatCompletion([
+    const result = await chatCompletion([
       { role: 'system', content: '回复ok' },
       { role: 'user', content: 'ping' },
     ]);
-    if (res.error) return { valid: false, error: res.error };
-    return { valid: true };
+    if (result.error) return { valid: false, error: result.error };
+    return { valid: true, provider: result.provider || 'deepseek' };
   } catch (e: any) {
     return { valid: false, error: e.message };
   }

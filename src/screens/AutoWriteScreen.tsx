@@ -14,7 +14,6 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import {
   plannerAgent as generateOutline,
@@ -25,6 +24,7 @@ import {
 } from '../lib/autoWriteEngine';
 import { getNovels } from '../lib/storage';
 import { T, ICON } from '../lib/theme';
+import { CapsuleToast } from '../components/CapsuleAlert';
 
 type Props = any;
 
@@ -52,6 +52,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
   const [progress, setProgress] = useState<AutoWriteProgress | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
+  const [toast, setToast] = useState('');
   const [result, setResult] = useState<{ success: boolean; chaptersWritten: number; errors: string[]; continuityIssues: string[] } | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -72,16 +73,16 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
 
   const handleGenerateOutline = async () => {
     if (loadingNovel) {
-      Alert.alert('提示', '正在加载作品信息，请稍候...');
+      setToast('正在加载作品信息，请稍候...');
       return;
     }
     if (!novelId) {
-      Alert.alert('提示', '请先创建一部作品');
+      setToast('请先创建一部作品');
       navigation.goBack();
       return;
     }
     if (!userInput.trim()) {
-      Alert.alert('提示', '请输入你的小说灵感或设定');
+      setToast('请输入你的小说灵感或设定');
       return;
     }
     setIsGenerating(true);
@@ -90,14 +91,14 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
         onProgress: (p) => setProgress(p),
       });
       if (typeof res === 'string') {
-        Alert.alert('生成失败', res);
+        setToast('生成失败：' + res);
         setPhase('input');
         return;
       }
       setOutline(res);
       setPhase('outline');
     } catch (e: any) {
-      Alert.alert('错误', e.message || '生成大纲失败');
+      setToast('生成大纲失败：' + e.message);
       setPhase('input');
     } finally {
       setIsGenerating(false);
@@ -120,7 +121,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
       setResult(res);
       setPhase('complete');
     } catch (e: any) {
-      Alert.alert('错误', e.message || '写作失败');
+      setToast('写作失败：' + e.message);
       setPhase('outline');
     } finally {
       setIsWriting(false);
@@ -311,7 +312,8 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
         {phase === 'outline' && renderOutlinePhase()}
         {phase === 'writing' && renderWritingPhase()}
         {phase === 'complete' && renderCompletePhase()}
-      </ScrollView>
+      <CapsuleToast visible={!!toast} text={toast} onHide={() => setToast('')} />
+    </ScrollView>
     </View>
   );
 }

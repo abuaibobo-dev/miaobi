@@ -98,8 +98,7 @@ export interface NovelSettings {
   model: string;
   temperature: number;
   maxTokens: number;
-  ollamaUrl: string;
-  ollamaModel: string;
+
 }
 
 export interface AppState {

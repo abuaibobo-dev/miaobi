@@ -11,10 +11,6 @@ import { T } from '../lib/theme';
 import { checkBalance } from '../lib/llm';
 import type { NovelSettings } from '../types/novel';
 
-const COLORS = {
-  bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0', danger: '#FF0044',
-};
 
 type Props = any;
 
@@ -102,7 +98,7 @@ export default function SettingsScreen({ navigation }: Props) {
         ))}
       </View>
 
-      {/* 余额 */}余额 */}
+      {/* 余额 */}
       <TouchableOpacity style={styles.balanceBtn} onPress={handleCheckBalance} disabled={balanceLoading}>
         <Text style={styles.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? `💰 余额：¥${balance.toFixed(2)}` : '💰 查询余额'}</Text>
       </TouchableOpacity>
@@ -135,32 +131,32 @@ export default function SettingsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flex: 1, backgroundColor: T.bg },
   content: { padding: 20, paddingBottom: 40 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 50, paddingBottom: 16 },
-  backBtn: { fontSize: 14, color: COLORS.accent, width: 40 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text },
-  section: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginTop: 20, marginBottom: 12 },
-  label: { fontSize: 13, color: COLORS.sub, marginBottom: 6, marginTop: 10 },
-  input: { backgroundColor: COLORS.card, borderRadius: 10, padding: 12, fontSize: 15, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border },
+  backBtn: { fontSize: 14, color: T.accent, width: 40 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: T.text },
+  section: { fontSize: 16, fontWeight: '600', color: T.text, marginTop: 20, marginBottom: 12 },
+  label: { fontSize: 13, color: T.textSec, marginBottom: 6, marginTop: 10 },
+  input: { backgroundColor: T.card, borderRadius: 10, padding: 12, fontSize: 15, color: T.text, borderWidth: 1, borderColor: T.border },
   hint: { fontSize: 12, color: '#666', marginTop: 4 },
   tempRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  tempChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  tempChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  tempText: { fontSize: 13, color: COLORS.sub },
+  tempChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
+  tempChipActive: { backgroundColor: T.accent, borderColor: T.accent },
+  tempText: { fontSize: 13, color: T.textSec },
   tempTextActive: { color: '#000', fontWeight: '600' },
   testResult: { fontSize: 14, textAlign: 'center', marginTop: 16 },
-  testOk: { color: COLORS.accent },
-  testFail: { color: COLORS.danger },
-  testBtn: { marginTop: 16, backgroundColor: COLORS.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  testBtnText: { fontSize: 15, color: COLORS.text },
-  saveBtn: { marginTop: 12, backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  testOk: { color: T.accent },
+  testFail: { color: T.accentRed },
+  testBtn: { marginTop: 16, backgroundColor: T.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: T.border },
+  testBtnText: { fontSize: 15, color: T.text },
+  saveBtn: { marginTop: 12, backgroundColor: T.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   saveBtnText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
-  backupBtn: { backgroundColor: COLORS.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  backupBtnText: { fontSize: 15, color: COLORS.text },
+  backupBtn: { backgroundColor: T.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: T.border },
+  backupBtnText: { fontSize: 15, color: T.text },
   balanceBtn: { backgroundColor: T.card, borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: T.border, marginTop: 12 },
   balanceBtnText: { fontSize: 14, color: T.accent, fontWeight: '600' },
   footer: { alignItems: 'center', marginTop: 40, width: '100%' },
-  footerText: { fontSize: 14, color: COLORS.sub },
+  footerText: { fontSize: 14, color: T.textSec },
   footerSub: { fontSize: 12, color: '#555', marginTop: 4 },
 });

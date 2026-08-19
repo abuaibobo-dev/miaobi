@@ -9,8 +9,11 @@ import { getChapters, getCharacters, getForeshadowing, getSnapshots, saveChapter
 import { exportAsTxt, exportAsMarkdown, exportChapter } from '../lib/export';
 import { getWritingStats } from '../lib/writingStats';
 import { getIdeas, addIdea, deleteIdea, type Idea } from '../lib/ideas';
-import { getFormatList, formatForPublish, getFormatGuide, type PublishFormat } from '../lib/publishFormats';
 import { truncate, formatTime } from '../lib/utils';
+import ForeshadowBoard from '../components/ForeshadowBoard';
+import CharacterCard from '../components/CharacterCard';
+import StoryTimeline from '../components/StoryTimeline';
+import { CapsuleToast } from '../components/CapsuleAlert';
 import type { NovelProject, Chapter, Character, Foreshadowing, MemorySnapshot } from '../types/novel';
 
 const COLORS = {
@@ -19,7 +22,7 @@ const COLORS = {
 };
 
 type Props = any;
-type TabKey = 'chapters' | 'volumes' | 'characters' | 'foreshadowing' | 'memory' | 'stats' | 'ideas' | 'relations' | 'search';
+type TabKey = 'chapters' | 'volumes' | 'characters' | 'foreshadowing' | 'timeline' | 'memory' | 'stats' | 'ideas' | 'relations' | 'search';
 
 export default function NovelDetailScreen({ navigation, route }: Props) {
   const { novelId } = route.params;
@@ -34,6 +37,7 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Chapter[]>([]);
+  const [toast, setToast] = useState('');
   const [newIdea, setNewIdea] = useState('');
 
   // 编辑弹窗
@@ -41,10 +45,6 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
   const [editChapter, setEditChapter] = useState<Chapter | null>(null);
   const [editBody, setEditBody] = useState('');
 
-  // 发布弹窗
-  const [publishModal, setPublishModal] = useState(false);
-  const [publishContent, setPublishContent] = useState('');
-  const [publishFormat, setPublishFormat] = useState<PublishFormat>('standard');
 
   // 视角设置
   const [pov, setPov] = useState(novel?.styleGuide?.includes('第一人称') ? 'first' : novel?.styleGuide?.includes('第三人称') ? 'third' : 'third');
@@ -83,16 +83,9 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
     await saveChapter(updated);
     setEditModal(false);
     reload();
-    Alert.alert('✅ 已保存');
+    setToast('✅ 已保存');
   };
 
-  // 发布导出
-  const handlePublish = async (fmt: PublishFormat) => {
-    setPublishFormat(fmt);
-    const content = await formatForPublish(novelId, fmt);
-    setPublishContent(content);
-    setPublishModal(true);
-  };
 
   // 灵感
   const handleAddIdea = async () => {
@@ -133,6 +126,7 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
     { key: 'memory', label: `🧠 ${snapshots.length}` },
     { key: 'stats', label: `📊 统计` },
     { key: 'ideas', label: `💡 ${ideas.length}` },
+    { key: 'timeline', label: `📅 时间线` },
     { key: 'relations', label: `🕸️ 关系` },
     { key: 'search', label: `🔍` },
   ];
@@ -144,7 +138,6 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
         <Text style={styles.headerTitle} numberOfLines={1}>{novel.title}</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={() => navigation.navigate('Chat', { novelId })}><Text style={styles.iconBtn}>💬</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => handlePublish('standard')}><Text style={styles.iconBtn}>📤</Text></TouchableOpacity>
         </View>
       </View>
 
@@ -160,7 +153,7 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
           {[
             { label: '📄 TXT', fn: () => exportAsTxt(novelId) },
             { label: '📝 MD', fn: () => exportAsMarkdown(novelId) },
-            { label: '📸 快照', fn: async () => { await createMemorySnapshot(novelId, `手动快照 — 第${novel.totalChapters}章`, novel.totalChapters, novel.currentVolume); reload(); Alert.alert('✅ 快照已创建'); } },
+            { label: '📸 快照', fn: async () => { await createMemorySnapshot(novelId, `手动快照 — 第${novel.totalChapters}章`, novel.totalChapters, novel.currentVolume); reload(); setToast('✅ 快照已创建'); } },
           ].map(a => (
             <TouchableOpacity key={a.label} style={styles.actionBtn} onPress={a.fn}>
               <Text style={styles.actionText}>{a.label}</Text>
@@ -218,32 +211,28 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
 
         {/* Characters */}
         {tab === 'characters' && (
-          <FlatList data={characters} keyExtractor={c => c.id} contentContainerStyle={styles.list}
-            ListEmptyComponent={<Text style={styles.empty}>还没有角色</Text>}
-            renderItem={({ item }) => (
-              <View style={styles.card}>
-                <View style={styles.cardRow}><Text style={styles.cardTitle}>{item.name}</Text><Text style={[styles.cardBadge, item.status === 'active' ? { color: COLORS.accent } : { color: COLORS.danger }]}>{item.status}</Text></View>
-                <Text style={styles.cardSummary}>性格：{item.traits}</Text>
-                <Text style={styles.cardSummary}>当前：{item.currentState}</Text>
-              </View>
-            )}
+          <CharacterCard
+            characters={characters}
+            onUpdateDialogueStyle={async (charId, style) => {
+              const ch = characters.find(c => c.id === charId);
+              if (ch) {
+                ch.dialogueStyle = style;
+                const Store = require('../lib/storage');
+                await Store.saveCharacter(ch);
+                reload();
+              }
+            }}
           />
         )}
 
         {/* Foreshadowing */}
         {tab === 'foreshadowing' && (
-          <FlatList data={foreshadowing} keyExtractor={f => f.id} contentContainerStyle={styles.list}
-            ListEmptyComponent={<Text style={styles.empty}>还没有伏笔</Text>}
-            renderItem={({ item }) => {
-              const emoji: Record<string, string> = { planted: '🌱', developing: '🌿', resolving: '🔄', resolved: '✅', abandoned: '❌' };
-              return (
-                <View style={styles.card}>
-                  <View style={styles.cardRow}><Text style={styles.cardTitle}>{emoji[item.status]} {item.title}</Text><Text style={styles.cardBadge}>{item.status}</Text></View>
-                  <Text style={styles.cardSummary}>{item.description}</Text>
-                </View>
-              );
-            }}
-          />
+          <ForeshadowBoard items={foreshadowing} />
+        )}
+
+        {/* Timeline */}
+        {tab === 'timeline' && (
+          <StoryTimeline chapters={chapters} />
         )}
 
         {/* Memory */}
@@ -353,26 +342,6 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
         </View>
       </Modal>
 
-      {/* Publish Modal - 胶囊 */}
-      <Modal visible={publishModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.capsuleModal}>
-            <Text style={styles.capsuleTitle}>📤 发布导出</Text>
-            <ScrollView horizontal style={{ marginBottom: 8 }} showsHorizontalScrollIndicator={false}>
-              {getFormatList().map(f => (
-                <TouchableOpacity key={f.key} style={[styles.formatChip, publishFormat === f.key && styles.formatChipActive]} onPress={() => handlePublish(f.key)}>
-                  <Text style={[styles.formatText, publishFormat === f.key && styles.formatTextActive]}>{f.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <Text style={styles.formatGuide}>{getFormatGuide(publishFormat)}</Text>
-            <TextInput style={styles.publishPreview} value={publishContent} multiline readOnly textAlignVertical="top" />
-            <TouchableOpacity style={[styles.capsuleBtnConfirm, { marginTop: 10 }]} onPress={() => { setPublishModal(false); Alert.alert('✅ 已生成', '可复制内容到目标平台'); }}>
-              <Text style={styles.capsuleBtnConfirmText}>复制使用</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -449,10 +418,4 @@ const styles = StyleSheet.create({
   capsuleBtnConfirmText: { fontSize: 13, fontWeight: '600', color: '#000' },
   editInput: { backgroundColor: COLORS.bg, borderRadius: 12, padding: 12, color: COLORS.text, fontSize: 14, lineHeight: 20, minHeight: 180, borderWidth: 1, borderColor: COLORS.border },
   formatRow: { marginBottom: 8 },
-  formatChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#2A2A2A', marginRight: 6 },
-  formatChipActive: { backgroundColor: COLORS.accent },
-  formatText: { fontSize: 12, color: COLORS.sub },
-  formatTextActive: { color: '#000', fontWeight: '600' },
-  formatGuide: { fontSize: 12, color: COLORS.sub, marginBottom: 8 },
-  publishPreview: { backgroundColor: COLORS.bg, borderRadius: 8, padding: 10, color: COLORS.text, fontSize: 12, lineHeight: 16, maxHeight: 200, borderWidth: 1, borderColor: COLORS.border },
 });

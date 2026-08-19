@@ -1,18 +1,11 @@
 import React, { useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { createNovel } from '../lib/novelMemory';
 import { getSettings } from '../lib/storage';
-// navigation types simplified
-
-const COLORS = {
-  bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0',
-};
+import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
+import { T, ICON } from '../lib/theme';
 
 type Props = any;
-
 const GENRES = ['玄幻', '言情', '悬疑', '科幻', '历史', '武侠', '都市', '恐怖', '奇幻', '其他'];
 
 export default function CreateNovelScreen({ navigation }: Props) {
@@ -20,116 +13,91 @@ export default function CreateNovelScreen({ navigation }: Props) {
   const [genre, setGenre] = useState('');
   const [synopsis, setSynopsis] = useState('');
   const [styleGuide, setStyleGuide] = useState('');
+  const [protagonist, setProtagonist] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState('');
+  const [confirmModal, setConfirmModal] = useState(false);
 
   const handleCreate = async () => {
-    if (!title.trim()) { Alert.alert('提示', '请输入书名'); return; }
-    if (!genre) { Alert.alert('提示', '请选择类型'); return; }
-
+    if (!title.trim()) { setToast('请输入书名'); return; }
+    if (!genre) { setToast('请选择类型'); return; }
     const settings = await getSettings();
-    if (!settings.apiKey) {
-      Alert.alert('提示', '请先在设置中配置 DeepSeek API Key', [
-        { text: '去设置', onPress: () => navigation.navigate('Settings') },
-        { text: '继续', onPress: () => doCreate() },
-      ]);
-      return;
-    }
+    if (!settings.apiKey) { setConfirmModal(true); return; }
     await doCreate();
   };
 
   const doCreate = async () => {
     setLoading(true);
     try {
-      const novel = await createNovel(title.trim(), genre, synopsis.trim(), styleGuide.trim());
+      const novel = await createNovel(title.trim(), genre, synopsis.trim(), styleGuide.trim() + (protagonist.trim() ? '\n\n## 主角人设\n' + protagonist.trim() : ''));
       navigation.replace('NovelDetail', { novelId: novel.id });
-    } catch (e: any) {
-      Alert.alert('创建失败', e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { setToast('创建失败：' + e.message); }
+    finally { setLoading(false); }
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.header}>✨ 创建新作品</Text>
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
+      {/* Header */}
+      <View style={s.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+          <Text style={s.backIcon}>{ICON.back}</Text>
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>创建新作品</Text>
+        <View style={{ width: 36 }} />
+      </View>
 
-      <Text style={styles.label}>书名 *</Text>
-      <TextInput
-        style={styles.input}
-        value={title}
-        onChangeText={setTitle}
-        placeholder="给你的小说起个名字"
-        placeholderTextColor="#555"
-      />
+      {/* Title */}
+      <Text style={s.label}>书名 *</Text>
+      <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder="给你的小说起个名字" placeholderTextColor={T.textMuted} />
 
-      <Text style={styles.label}>类型 *</Text>
-      <View style={styles.genreGrid}>
+      {/* Genre */}
+      <Text style={s.label}>类型 *</Text>
+      <View style={s.genreGrid}>
         {GENRES.map(g => (
-          <TouchableOpacity
-            key={g}
-            style={[styles.genreChip, genre === g && styles.genreChipActive]}
-            onPress={() => setGenre(g)}
-          >
-            <Text style={[styles.genreText, genre === g && styles.genreTextActive]}>{g}</Text>
+          <TouchableOpacity key={g} style={[s.genreChip, genre === g && s.genreActive]} onPress={() => setGenre(g)} activeOpacity={0.7}>
+            <Text style={[s.genreTxt, genre === g && s.genreTxtActive]}>{g}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={styles.label}>简介</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={synopsis}
-        onChangeText={setSynopsis}
-        placeholder="一句话描述你的故事核心"
-        placeholderTextColor="#555"
-        multiline
-        numberOfLines={3}
-      />
+      {/* Synopsis */}
+      <Text style={s.label}>简介</Text>
+      <TextInput style={[s.input, s.textArea]} value={synopsis} onChangeText={setSynopsis} placeholder="一句话描述你的故事核心" placeholderTextColor={T.textMuted} multiline numberOfLines={3} />
 
-      <Text style={styles.label}>风格指南（可选）</Text>
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        value={styleGuide}
-        onChangeText={setStyleGuide}
-        placeholder="如：第一人称，节奏紧凑，对话多，少用形容词"
-        placeholderTextColor="#555"
-        multiline
-        numberOfLines={3}
-      />
+      {/* Style */}
+      <Text style={s.label}>风格指南</Text>
+      <TextInput style={[s.input, s.textArea]} value={styleGuide} onChangeText={setStyleGuide} placeholder="如：第一人称，节奏紧凑，对话多" placeholderTextColor={T.textMuted} multiline numberOfLines={3} />
 
-      <TouchableOpacity
-        style={[styles.createBtn, loading && styles.createBtnDisabled]}
-        onPress={handleCreate}
-        disabled={loading}
-      >
-        <Text style={styles.createBtnText}>{loading ? '创建中...' : '开始创作 🚀'}</Text>
+      {/* Protagonist */}
+      <Text style={s.label}>👤 主角人设</Text>
+      <TextInput style={[s.input, s.textArea, { minHeight: 100 }]} value={protagonist} onChangeText={setProtagonist} placeholder="姓名/年龄/职业/性格/背景/外貌/目标" placeholderTextColor={T.textMuted} multiline numberOfLines={6} />
+
+      {/* Submit */}
+      <TouchableOpacity style={[s.submitBtn, loading && { opacity: 0.5 }]} onPress={handleCreate} disabled={loading} activeOpacity={0.8}>
+        <Text style={s.submitTxt}>{loading ? '创建中...' : '开始创作 →'}</Text>
       </TouchableOpacity>
+
+      <CapsuleToast visible={!!toast} text={toast} onHide={() => setToast('')} />
+      <CapsuleAlert visible={confirmModal} title="提示" message="请先在设置中配置 DeepSeek API Key" confirmText="去设置" onCancel={() => setConfirmModal(false)} onConfirm={() => { setConfirmModal(false); navigation.navigate('Settings'); }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  content: { padding: 20, paddingBottom: 40 },
-  header: { fontSize: 22, fontWeight: 'bold', color: COLORS.text, marginBottom: 24 },
-  label: { fontSize: 14, color: COLORS.sub, marginBottom: 8, marginTop: 16 },
-  input: {
-    backgroundColor: COLORS.card, borderRadius: 10, padding: 14, fontSize: 16,
-    color: COLORS.text, borderWidth: 1, borderColor: COLORS.border,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: T.bg },
+  content: { padding: T.sp.xl, paddingBottom: 40 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 50, paddingBottom: T.sp.lg },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
+  backIcon: { fontSize: 18, color: T.accent },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: T.text },
+  label: { fontSize: 13, color: T.textSec, marginBottom: 6, marginTop: 16, fontWeight: '600' },
+  input: { backgroundColor: T.card, borderRadius: T.r.md, padding: 14, fontSize: 15, color: T.text, borderWidth: 1, borderColor: T.border },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   genreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  genreChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-  },
-  genreChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  genreText: { fontSize: 14, color: COLORS.sub },
-  genreTextActive: { color: '#000', fontWeight: '600' },
-  createBtn: {
-    marginTop: 30, backgroundColor: COLORS.accent, borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center',
-  },
-  createBtnDisabled: { opacity: 0.5 },
-  createBtnText: { fontSize: 16, fontWeight: 'bold', color: '#000' },
+  genreChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: T.r.full, backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
+  genreActive: { backgroundColor: T.accent, borderColor: T.accent },
+  genreTxt: { fontSize: 13, color: T.textSec },
+  genreTxtActive: { color: '#FFF', fontWeight: '700' },
+  submitBtn: { marginTop: 32, backgroundColor: T.accent, borderRadius: T.r.md, paddingVertical: 16, alignItems: 'center' },
+  submitTxt: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 });

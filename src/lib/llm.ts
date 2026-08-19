@@ -1,4 +1,5 @@
 import { getSettings } from './storage';
+import { INTIMATE_SYSTEM_PROMPT, INTIMATE_USER_PREFIX, shouldUseLocalModel } from './intimatePrompt';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -22,7 +23,7 @@ export async function chatCompletion(messages: LLMMessage[]): Promise<LLMRespons
 
   if (shouldUseLocal) {
     // 敏感内容 → 本地 Ollama（无审查）
-    const ollamaResult = await callOllama(settings.ollamaUrl, settings.ollamaModel, messages);
+    const ollamaResult = await callOllama(settings.ollamaUrl, settings.ollamaModel, buildLocalPrompt(messages));
     if (!ollamaResult.error) {
       return { ...ollamaResult, provider: `ollama/${settings.ollamaModel}` };
     }
@@ -40,14 +41,28 @@ export async function chatCompletion(messages: LLMMessage[]): Promise<LLMRespons
  * 检测对话是否涉及敏感内容（亲密/激情/成人场景）
  */
 function isSensitiveContent(messages: LLMMessage[]): boolean {
-  const keywords = ['亲密', '激情', '床', '吻', '拥抱', '身体', '肌肤', '温度', '呼吸', '缠绵',
-    '脱', '衣服', '裸', '欲望', '欲望', '情欲', '缠绵', '翻云覆雨', '云雨', '鱼水之欢',
-    '胸', '腰', '腿', '唇', '舌头', '抚摸', '触碰', '摩擦', '挑逗', '诱惑',
-    '做爱', '性爱', '上床', '同床', '缠绵', '温存', '床戏', '激情戏'];
   const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-  const lastSystemMsg = messages.filter(m => m.role === 'system').pop();
-  const text = (lastUserMsg?.content || '') + (lastSystemMsg?.content || '');
-  return keywords.some(k => text.includes(k));
+  const text = lastUserMsg?.content || '';
+  return shouldUseLocalModel(text);
+}
+
+/**
+ * 为本地模型构建专属 prompt（敏感内容用文学级 prompt）
+ */
+function buildLocalPrompt(messages: LLMMessage[]): LLMMessage[] {
+  const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+  const userText = lastUserMsg?.content || '';
+  
+  if (shouldUseLocalModel(userText)) {
+    // 敏感内容：用专属 prompt 替换 system prompt
+    const nonSystemMsgs = messages.filter(m => m.role !== 'system');
+    return [
+      { role: 'system', content: INTIMATE_SYSTEM_PROMPT },
+      ...nonSystemMsgs.slice(0, -1),
+      { role: 'user', content: INTIMATE_USER_PREFIX + userText },
+    ];
+  }
+  return messages;
 }
 
 /**
@@ -113,6 +128,31 @@ async function callDeepSeek(
 /**
  * 检查 API 连接
  */
+
+/**
+ * 查询 DeepSeek 余额
+ */
+export async function checkBalance(): Promise<{ balance?: number; currency?: string; error?: string }> {
+  const settings = await getSettings() as any;
+  if (!settings.apiKey) return { error: '未配置 API Key' };
+  try {
+    const res = await fetch('https://api.deepseek.com/user/balance', {
+      headers: { 'Authorization': `Bearer ${settings.apiKey}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return { error: `HTTP ${res.status}` };
+    const data = await res.json();
+    // DeepSeek 返回格式: { balance_infos: [{ total_balance, currency }] }
+    const info = data.balance_infos?.[0];
+    if (info) {
+      return { balance: info.total_balance, currency: info.currency || 'CNY' };
+    }
+    return { error: '无法解析余额数据' };
+  } catch (e: any) {
+    return { error: e.message || '查询失败' };
+  }
+}
+
 export async function checkApiKey(): Promise<{ valid: boolean; error?: string; provider?: string }> {
   const settings = await getSettings() as any;
 

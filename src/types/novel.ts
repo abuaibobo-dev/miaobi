@@ -36,6 +36,7 @@ export interface Character {
   firstAppearance: number;
   lastAppearance: number;
   status: 'active' | 'dead' | 'missing' | 'inactive';
+  dialogueStyle?: string;
   updatedAt: string;
 }
 

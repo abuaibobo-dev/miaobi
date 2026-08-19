@@ -89,7 +89,8 @@ export async function upsertCharacter(
   traits: string,
   backstory: string,
   currentState: string,
-  chapterNumber: number
+  chapterNumber: number,
+  dialogueStyle?: string
 ): Promise<Character> {
   const chars = await Store.getCharacters(novelId);
   const existing = chars.find(c => c.name === name);
@@ -97,6 +98,7 @@ export async function upsertCharacter(
     existing.traits = traits || existing.traits;
     existing.backstory = backstory || existing.backstory;
     existing.currentState = currentState || existing.currentState;
+    if (dialogueStyle) existing.dialogueStyle = dialogueStyle;
     existing.lastAppearance = Math.max(existing.lastAppearance, chapterNumber);
     existing.updatedAt = new Date().toISOString();
     await Store.saveCharacter(existing);
@@ -109,6 +111,7 @@ export async function upsertCharacter(
     traits,
     backstory,
     currentState,
+    dialogueStyle: dialogueStyle || '',
     firstAppearance: chapterNumber,
     lastAppearance: chapterNumber,
     status: 'active',
@@ -224,12 +227,37 @@ export async function buildSystemPrompt(novelId: string, nextChapterNumber: numb
 
 ${WRITING_BIBLE}
 
+每章目标字数：5000字左右（4500-5500字均可），不要少于4000字，写够再停。
+
 核心规则：
 1. 不要重复已写内容
 2. 角色设定已冻结，不擅自修改
 3. 伏笔必须回收
 4. 保持文风一致
 5. 每章结束后输出 JSON 更新指令
+
+【对话规则】
+- 每个角色的说话方式必须不同：用口癖、句式、语气词、用词习惯区分
+- 角色 A 说话简短直接，角色 B 说话绕弯含蓄——这才是好对话
+- 不要用"他说""她说"开头，用动作/表情/语气标签代替
+- 对话中穿插微动作：端起杯子、转头看窗外、手指敲桌子
+- 争吵场景用短句+打断，温情场景用长句+沉默
+
+【创作纪律 — 极其重要】
+- 绝对不要复读用户给出的关键词或提示词。用户说"月光"，你不要整段写月光。关键词只是灵感种子，不是内容本身。
+- 每章必须引入至少2个全新元素：新场景、新角色、新物件、新冲突、新伏笔，不能只围绕已有内容打转。
+- 情节必须有推进：每章结束时，故事状态必须和开头不同。如果删掉这一章不影响后续，说明这章没有存在价值。
+- 对话不能千篇一律：不同角色说话方式必须不同，不能所有人说话风格一样。
+- 禁止水字数：不要用大段环境描写凑字数，每一段环境描写都必须推动情节或暗示伏笔。
+- 写到第3章以后，必须开始埋冲突和转折，不能一直平淡叙述。
+
+【思考过程】每次回答前，先在最开头输出思考过程，格式如下：
+🧠 思考中：
+- [推理步骤1]
+- [推理步骤2]
+- [推理步骤3]
+- [结论]
+思考过程不超过5行，简洁有力。思考完成后空一行再写正文。
 
 【重要】每章写完后，必须在最后输出一个完整的 JSON 代码块，格式必须严格如下（不要省略任何括号或逗号）：
 \`\`\`json

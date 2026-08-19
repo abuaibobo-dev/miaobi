@@ -1,96 +1,71 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, StatusBar,
-} from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-// navigation types simplified
 import { getNovels, deleteNovel } from '../lib/storage';
 import { truncate, formatTime } from '../lib/utils';
+import CapsuleAlert from '../components/CapsuleAlert';
+import { T, ICON } from '../lib/theme';
 import type { NovelProject } from '../types/novel';
-
-const COLORS = {
-  bg: '#0D0D0D',
-  card: '#1A1A1A',
-  border: '#2A2A2A',
-  text: '#FFFFFF',
-  sub: '#888888',
-  accent: '#66D9A0',
-  danger: '#FF0044',
-};
 
 type Props = any;
 
 export default function HomeScreen({ navigation }: Props) {
   const [novels, setNovels] = useState<NovelProject[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<NovelProject | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      getNovels().then(setNovels);
-    }, [])
-  );
-
-  const handleDelete = (novel: NovelProject) => {
-    Alert.alert(
-      '删除小说',
-      `确定删除「${novel.title}」？所有章节和记忆将被清除。`,
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '删除', style: 'destructive',
-          onPress: async () => {
-            await deleteNovel(novel.id);
-            setNovels(prev => prev.filter(n => n.id !== novel.id));
-          },
-        },
-      ]
-    );
-  };
-
-  const handleNew = () => {
-    navigation.navigate('CreateNovel');
-  };
-
-  const handleOpen = (novel: NovelProject) => {
-    navigation.navigate('NovelDetail', { novelId: novel.id });
-  };
+  useFocusEffect(useCallback(() => { getNovels().then(setNovels); }, []));
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0D0D0D" />
+    <View style={s.container}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>✍️ 妙笔</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.settingsBtn}>
-          <Text style={styles.settingsText}>⚙️</Text>
+      <View style={s.header}>
+        <View style={s.headerLeft}>
+          <Text style={s.logoIcon}>{ICON.logo}</Text>
+          <Text style={s.logoText}>妙笔</Text>
+        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={s.iconBtn}>
+          <Text style={s.iconBtnText}>{ICON.settings}</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Subtitle */}
+      {novels.length > 0 && (
+        <Text style={s.subtitle}>共 {novels.length} 部作品</Text>
+      )}
+
       {/* Novel List */}
       {novels.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📖</Text>
-          <Text style={styles.emptyTitle}>还没有作品</Text>
-          <Text style={styles.emptySub}>点击下方按钮，开始你的第一部小说</Text>
+        <View style={s.empty}>
+          <Text style={s.emptyIcon}>{ICON.book}</Text>
+          <Text style={s.emptyTitle}>开始创作</Text>
+          <Text style={s.emptySub}>你的第一部小说，从这里出发</Text>
         </View>
       ) : (
         <FlatList
           data={novels}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => handleOpen(item)}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <TouchableOpacity onPress={() => handleDelete(item)}>
-                  <Text style={styles.deleteBtn}>🗑️</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.cardGenre}>{item.genre}</Text>
-              <Text style={styles.cardSynopsis}>{truncate(item.synopsis, 60)}</Text>
-              <View style={styles.cardFooter}>
-                <Text style={styles.cardMeta}>📝 {item.totalChapters}章</Text>
-                <Text style={styles.cardMeta}>📅 {formatTime(item.updatedAt)}</Text>
+          contentContainerStyle={s.list}
+          renderItem={({ item, index }) => (
+            <TouchableOpacity style={s.card} onPress={() => navigation.navigate('NovelDetail', { novelId: item.id })} activeOpacity={0.7}>
+              {/* 顶部装饰线 */}
+              <View style={[s.cardAccent, { backgroundColor: index % 3 === 0 ? T.accent : index % 3 === 1 ? T.accentPink : T.accentBlue }]} />
+              <View style={s.cardBody}>
+                <View style={s.cardRow}>
+                  <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
+                  <TouchableOpacity onPress={() => setDeleteTarget(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Text style={s.cardDelete}>{ICON.delete}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={s.cardGenreRow}>
+                  <View style={s.genreBadge}>
+                    <Text style={s.genreText}>{item.genre}</Text>
+                  </View>
+                  <Text style={s.cardChapters}>{item.totalChapters} 章</Text>
+                </View>
+                <Text style={s.cardSynopsis} numberOfLines={2}>{truncate(item.synopsis, 80)}</Text>
+                <Text style={s.cardTime}>{formatTime(item.updatedAt)}</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -98,44 +73,55 @@ export default function HomeScreen({ navigation }: Props) {
       )}
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={handleNew}>
-        <Text style={styles.fabText}>+</Text>
+      <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateNovel')} activeOpacity={0.8}>
+        <Text style={s.fabText}>{ICON.add}</Text>
       </TouchableOpacity>
+
+      <CapsuleAlert
+        visible={!!deleteTarget}
+        title="删除作品"
+        message={deleteTarget ? `确定删除「${deleteTarget.title}」？\n所有章节和记忆将被清除。` : ''}
+        danger
+        confirmText="删除"
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (deleteTarget) {
+            await deleteNovel(deleteTarget.id);
+            setNovels(prev => prev.filter(n => n.id !== deleteTarget.id));
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16,
-  },
-  logo: { fontSize: 22, fontWeight: 'bold', color: COLORS.text },
-  settingsBtn: { padding: 8 },
-  settingsText: { fontSize: 20 },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: T.bg },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, paddingTop: 56, paddingBottom: T.sp.md },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  logoIcon: { fontSize: 24, color: T.accent },
+  logoText: { fontSize: 22, fontWeight: '800', color: T.text, letterSpacing: 1 },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
+  iconBtnText: { fontSize: 16, color: T.textSec },
+  subtitle: { fontSize: 13, color: T.textMuted, paddingHorizontal: T.sp.xl, marginBottom: T.sp.sm },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.text, marginBottom: 8 },
-  emptySub: { fontSize: 14, color: COLORS.sub, textAlign: 'center' },
-  list: { paddingHorizontal: 16, paddingBottom: 100 },
-  card: {
-    backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, flex: 1 },
-  deleteBtn: { fontSize: 16, padding: 4 },
-  cardGenre: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
-  cardSynopsis: { fontSize: 13, color: COLORS.sub, marginTop: 8, lineHeight: 18 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-  cardMeta: { fontSize: 12, color: COLORS.sub },
-  fab: {
-    position: 'absolute', bottom: 30, right: 24,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center',
-    elevation: 8, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8,
-  },
-  fabText: { fontSize: 28, color: '#000', fontWeight: 'bold', marginTop: -2 },
+  emptyIcon: { fontSize: 48, color: T.accent, marginBottom: 16, opacity: 0.6 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 8 },
+  emptySub: { fontSize: 14, color: T.textMuted },
+  list: { paddingHorizontal: T.sp.lg, paddingBottom: 100 },
+  card: { backgroundColor: T.card, borderRadius: T.r.lg, marginBottom: T.sp.md, borderWidth: 1, borderColor: T.border, overflow: 'hidden' },
+  cardAccent: { height: 3, borderTopLeftRadius: T.r.lg, borderTopRightRadius: T.r.lg },
+  cardBody: { padding: T.sp.lg },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { fontSize: 17, fontWeight: '700', color: T.text, flex: 1, marginRight: 8 },
+  cardDelete: { fontSize: 14, color: T.textMuted, padding: 4 },
+  cardGenreRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  genreBadge: { backgroundColor: T.accentSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.accent + '30' },
+  genreText: { fontSize: 11, color: T.accent, fontWeight: '600' },
+  cardChapters: { fontSize: 12, color: T.textMuted },
+  cardSynopsis: { fontSize: 13, color: T.textSec, marginTop: 8, lineHeight: 18 },
+  cardTime: { fontSize: 11, color: T.textMuted, marginTop: 8 },
+  fab: { position: 'absolute', bottom: 32, right: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: T.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  fabText: { fontSize: 26, color: '#FFF', fontWeight: '300', marginTop: -1 },
 });

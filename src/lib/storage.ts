@@ -28,7 +28,7 @@ export async function getSettings(): Promise<NovelSettings> {
     baseUrl: 'https://api.deepseek.com',
     model: 'deepseek-chat',
     temperature: 0.7,
-    maxTokens: 4096,
+    maxTokens: 12000,
     ollamaUrl: 'http://localhost:11434',
     ollamaModel: 'qwen2.5:1.5b',
   });

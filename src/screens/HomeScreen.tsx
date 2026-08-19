@@ -14,7 +14,7 @@ const COLORS = {
   border: '#2A2A2A',
   text: '#FFFFFF',
   sub: '#888888',
-  accent: '#00FF41',
+  accent: '#66D9A0',
   danger: '#FF0044',
 };
 

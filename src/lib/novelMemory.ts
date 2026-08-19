@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 import type { NovelProject, Chapter, Character, CharacterDiff, Foreshadowing, MemoryChunk, MemorySnapshot } from '../types/novel';
 import * as Store from './storage';
 
@@ -14,7 +14,7 @@ export async function getStoryBible(novelId: string): Promise<NovelProject | nul
 
 export async function createNovel(title: string, genre: string, synopsis: string, styleGuide: string = ''): Promise<NovelProject> {
   const novel: NovelProject = {
-    id: uuid(),
+    id: uid(),
     title,
     genre,
     synopsis,
@@ -51,7 +51,7 @@ export async function addChapter(
   const chNum = (novel?.totalChapters || 0) + 1;
   const volNum = novel?.currentVolume || 1;
   const chapter: Chapter = {
-    id: uuid(),
+    id: uid(),
     novelId,
     volumeNumber: volNum,
     chapterNumber: chNum,
@@ -103,7 +103,7 @@ export async function upsertCharacter(
     return existing;
   }
   const char: Character = {
-    id: uuid(),
+    id: uid(),
     novelId,
     name,
     traits,
@@ -135,7 +135,7 @@ export async function addForeshadowing(
   relatedCharacters: string[] = []
 ): Promise<Foreshadowing> {
   const fs: Foreshadowing = {
-    id: uuid(),
+    id: uid(),
     novelId,
     title,
     description,
@@ -285,7 +285,7 @@ export async function processPostWrite(
 
   // 冻结 L1
   const chunk: MemoryChunk = {
-    id: uuid(),
+    id: uid(),
     novelId,
     layer: 'L1',
     chapterFrom: chapterNumber,

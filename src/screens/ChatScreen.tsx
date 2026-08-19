@@ -7,11 +7,11 @@ import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '
 import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible, updateNovelBible } from '../lib/novelMemory';
 import { chatCompletion } from '../lib/llm';
 import type { ChatMessage } from '../types/novel';
-import { v4 as uuid } from 'uuid';
+function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 
 const COLORS = {
   bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#00FF41',
+  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0',
   userBg: '#1A2A1A', aiBg: '#1A1A1A', danger: '#FF0044',
 };
 
@@ -52,7 +52,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || loading) return;
-    const userMsg: ChatMessage = { id: uuid(), role: 'user', content: text, timestamp: new Date().toISOString() };
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -65,7 +65,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       const { apiMsgs, novel, nextCh } = await buildApiMessages(userText);
       const res = await chatCompletion(apiMsgs);
       if (res.error) { Alert.alert('错误', res.error); setLoading(false); return; }
-      const aiMsg: ChatMessage = { id: uuid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
+      const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, aiMsg]);
       await appendChatMessage(novelId, aiMsg);
       try {
@@ -109,7 +109,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     const novel = await getStoryBible(novelId);
     const nextCh = (novel?.totalChapters || 0) + 1;
     const writePrompt = `已确认大纲：\n${pendingOutline}\n\n请根据以上大纲写出第${chNum(nextCh)}章的完整正文（1500-2500字）。写完后输出 JSON 更新指令。`;
-    const userMsg: ChatMessage = { id: uuid(), role: 'user', content: `✅ 确认大纲，开始写作`, timestamp: new Date().toISOString() };
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: `✅ 确认大纲，开始写作`, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     await appendChatMessage(novelId, userMsg);
     await sendToAI(writePrompt);
@@ -161,19 +161,18 @@ export default function ChatScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* ★ 大纲确认弹窗 */}
+      {/* ★ 大纲确认弹窗 - 小胶囊 */}
       <Modal visible={outlineModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>📋 本章大纲确认</Text>
-            <Text style={styles.modalHint}>请检查大纲，确认后 AI 将据此写正文</Text>
-            <Text style={styles.modalOutline}>{pendingOutline}</Text>
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setOutlineModal(false)}>
-                <Text style={styles.modalCancelText}>修改</Text>
+          <View style={styles.capsuleModal}>
+            <Text style={styles.capsuleTitle}>📋 大纲确认</Text>
+            <Text style={styles.capsuleBody} numberOfLines={8}>{pendingOutline}</Text>
+            <View style={styles.capsuleBtnRow}>
+              <TouchableOpacity style={styles.capsuleBtnCancel} onPress={() => setOutlineModal(false)}>
+                <Text style={styles.capsuleBtnCancelText}>修改</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handleOutlineConfirm}>
-                <Text style={styles.modalConfirmText}>✅ 确认写作</Text>
+              <TouchableOpacity style={styles.capsuleBtnConfirm} onPress={handleOutlineConfirm}>
+                <Text style={styles.capsuleBtnConfirmText}>确认写作</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -207,15 +206,14 @@ const styles = StyleSheet.create({
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { backgroundColor: '#333' },
   sendBtnText: { fontSize: 20, color: '#000', fontWeight: 'bold', marginTop: -1 },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '100%', maxHeight: '80%', borderWidth: 1, borderColor: COLORS.border },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 8 },
-  modalHint: { fontSize: 13, color: COLORS.sub, marginBottom: 12 },
-  modalOutline: { fontSize: 14, color: '#CCCCCC', lineHeight: 22, marginBottom: 16, maxHeight: 300 },
-  modalBtnRow: { flexDirection: 'row', gap: 12 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#2A2A2A', alignItems: 'center' },
-  modalCancelText: { fontSize: 15, color: COLORS.sub },
-  modalConfirm: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center' },
-  modalConfirmText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
+  // 胶囊弹窗
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  capsuleModal: { backgroundColor: '#2A2A2A', borderRadius: 20, padding: 16, width: '85%', alignSelf: 'center', borderWidth: 1, borderColor: '#3A3A3A', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
+  capsuleTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 8, textAlign: 'center' },
+  capsuleBody: { fontSize: 13, color: '#AAAAAA', lineHeight: 20, marginBottom: 14, maxHeight: 200 },
+  capsuleBtnRow: { flexDirection: 'row', gap: 10 },
+  capsuleBtnCancel: { flex: 1, paddingVertical: 10, borderRadius: 14, backgroundColor: '#3A3A3A', alignItems: 'center' },
+  capsuleBtnCancelText: { fontSize: 13, color: COLORS.sub },
+  capsuleBtnConfirm: { flex: 1, paddingVertical: 10, borderRadius: 14, backgroundColor: COLORS.accent, alignItems: 'center' },
+  capsuleBtnConfirmText: { fontSize: 13, fontWeight: '600', color: '#000' },
 });

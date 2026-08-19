@@ -15,7 +15,7 @@ import type { NovelProject, Chapter, Character, Foreshadowing, MemorySnapshot } 
 
 const COLORS = {
   bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#00FF41', danger: '#FF0044',
+  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0', danger: '#FF0044',
 };
 
 type Props = any;
@@ -339,26 +339,26 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
         )}
       </View>
 
-      {/* Edit Modal */}
+      {/* Edit Modal - 胶囊 */}
       <Modal visible={editModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>✏️ 编辑章节</Text>
+          <View style={styles.capsuleModal}>
+            <Text style={styles.capsuleTitle}>✏️ 编辑章节</Text>
             <TextInput style={styles.editInput} value={editBody} onChangeText={setEditBody} multiline textAlignVertical="top" />
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setEditModal(false)}><Text style={styles.modalCancelText}>取消</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handleSaveEdit}><Text style={styles.modalConfirmText}>💾 保存</Text></TouchableOpacity>
+            <View style={styles.capsuleBtnRow}>
+              <TouchableOpacity style={styles.capsuleBtnCancel} onPress={() => setEditModal(false)}><Text style={styles.capsuleBtnCancelText}>取消</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.capsuleBtnConfirm} onPress={handleSaveEdit}><Text style={styles.capsuleBtnConfirmText}>保存</Text></TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Publish Modal */}
+      {/* Publish Modal - 胶囊 */}
       <Modal visible={publishModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>📤 发布导出</Text>
-            <ScrollView horizontal style={styles.formatRow}>
+          <View style={styles.capsuleModal}>
+            <Text style={styles.capsuleTitle}>📤 发布导出</Text>
+            <ScrollView horizontal style={{ marginBottom: 8 }} showsHorizontalScrollIndicator={false}>
               {getFormatList().map(f => (
                 <TouchableOpacity key={f.key} style={[styles.formatChip, publishFormat === f.key && styles.formatChipActive]} onPress={() => handlePublish(f.key)}>
                   <Text style={[styles.formatText, publishFormat === f.key && styles.formatTextActive]}>{f.name}</Text>
@@ -367,8 +367,8 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
             </ScrollView>
             <Text style={styles.formatGuide}>{getFormatGuide(publishFormat)}</Text>
             <TextInput style={styles.publishPreview} value={publishContent} multiline readOnly textAlignVertical="top" />
-            <TouchableOpacity style={styles.modalConfirm} onPress={() => { setPublishModal(false); Alert.alert('✅ 已生成', '可复制内容到目标平台'); }}>
-              <Text style={styles.modalConfirmText}>复制使用</Text>
+            <TouchableOpacity style={[styles.capsuleBtnConfirm, { marginTop: 10 }]} onPress={() => { setPublishModal(false); Alert.alert('✅ 已生成', '可复制内容到目标平台'); }}>
+              <Text style={styles.capsuleBtnConfirmText}>复制使用</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -438,16 +438,16 @@ const styles = StyleSheet.create({
   // Search
   searchBar: { paddingHorizontal: 16, paddingVertical: 8 },
   searchInput: { backgroundColor: COLORS.card, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border, fontSize: 14 },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '100%', maxHeight: '85%', borderWidth: 1, borderColor: COLORS.border },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 12 },
-  modalBtnRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#2A2A2A', alignItems: 'center' },
-  modalCancelText: { fontSize: 15, color: COLORS.sub },
-  modalConfirm: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center' },
-  modalConfirmText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
-  editInput: { backgroundColor: COLORS.bg, borderRadius: 10, padding: 12, color: COLORS.text, fontSize: 14, lineHeight: 20, minHeight: 200, borderWidth: 1, borderColor: COLORS.border },
+  // 胶囊弹窗
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  capsuleModal: { backgroundColor: '#2A2A2A', borderRadius: 20, padding: 16, width: '90%', alignSelf: 'center', borderWidth: 1, borderColor: '#3A3A3A', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8, maxHeight: '85%' },
+  capsuleTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 10, textAlign: 'center' },
+  capsuleBtnRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  capsuleBtnCancel: { flex: 1, paddingVertical: 10, borderRadius: 14, backgroundColor: '#3A3A3A', alignItems: 'center' },
+  capsuleBtnCancelText: { fontSize: 13, color: COLORS.sub },
+  capsuleBtnConfirm: { flex: 1, paddingVertical: 10, borderRadius: 14, backgroundColor: COLORS.accent, alignItems: 'center' },
+  capsuleBtnConfirmText: { fontSize: 13, fontWeight: '600', color: '#000' },
+  editInput: { backgroundColor: COLORS.bg, borderRadius: 12, padding: 12, color: COLORS.text, fontSize: 14, lineHeight: 20, minHeight: 180, borderWidth: 1, borderColor: COLORS.border },
   formatRow: { marginBottom: 8 },
   formatChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#2A2A2A', marginRight: 6 },
   formatChipActive: { backgroundColor: COLORS.accent },

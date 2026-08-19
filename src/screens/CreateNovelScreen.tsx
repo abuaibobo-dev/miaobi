@@ -8,7 +8,7 @@ import { getSettings } from '../lib/storage';
 
 const COLORS = {
   bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#00FF41',
+  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0',
 };
 
 type Props = any;

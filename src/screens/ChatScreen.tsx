@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
-import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible } from '../lib/novelMemory';
+import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible, updateNovelBible } from '../lib/novelMemory';
 import { chatCompletion } from '../lib/llm';
 import type { ChatMessage } from '../types/novel';
 import { v4 as uuid } from 'uuid';
@@ -23,17 +23,16 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [autoWriting, setAutoWriting] = useState(false);
-  const [recording, setRecording] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    getChatHistory(novelId).then(setMessages);
-  }, [novelId]);
+  // 大纲确认弹窗
+  const [outlineModal, setOutlineModal] = useState(false);
+  const [outline, setOutline] = useState('');
+  const [pendingOutline, setPendingOutline] = useState('');
 
+  useEffect(() => { getChatHistory(novelId).then(setMessages); }, [novelId]);
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    }
+    if (messages.length > 0) setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, [messages]);
 
   const buildApiMessages = async (extraUserMsg?: string) => {
@@ -46,9 +45,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       { role: 'system' as const, content: systemPrompt },
       ...recentMsgs.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     ];
-    if (extraUserMsg) {
-      apiMsgs.push({ role: 'user' as const, content: extraUserMsg });
-    }
+    if (extraUserMsg) apiMsgs.push({ role: 'user' as const, content: extraUserMsg });
     return { apiMsgs, novel, nextCh };
   };
 
@@ -71,7 +68,6 @@ export default function ChatScreen({ navigation, route }: Props) {
       const aiMsg: ChatMessage = { id: uuid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, aiMsg]);
       await appendChatMessage(novelId, aiMsg);
-      // 解析 JSON 更新
       try {
         const jsonMatch = res.content.match(/```json\s*([\s\S]*?)```/);
         if (jsonMatch) {
@@ -86,22 +82,43 @@ export default function ChatScreen({ navigation, route }: Props) {
     setLoading(false);
   };
 
-  // ★ 一键自动续写
+  // ★ 一键续写：先出大纲，用户确认后再写
   const handleAutoWrite = async () => {
     if (autoWriting || loading) return;
     setAutoWriting(true);
     setLoading(true);
     const novel = await getStoryBible(novelId);
     const nextCh = (novel?.totalChapters || 0) + 1;
-    const prompt = `请续写第${nextCh}章。根据之前的设定、角色、伏笔和剧情发展，写一段精彩的章节内容（1500-2500字）。写完后输出 JSON 更新指令。`;
-    const userMsg: ChatMessage = { id: uuid(), role: 'user', content: prompt, timestamp: new Date().toISOString() };
-    setMessages(prev => [...prev, userMsg]);
-    await appendChatMessage(novelId, userMsg);
-    await sendToAI(prompt);
+    // 第一步：请求大纲
+    const outlinePrompt = `根据之前的剧情，请为第${nextCh}章生成一个详细大纲（200-300字），包括：本章核心事件、出场角色、情绪走向、结尾钩子。只输出大纲，不要写正文。`;
+    try {
+      const { apiMsgs } = await buildApiMessages(outlinePrompt);
+      const res = await chatCompletion(apiMsgs);
+      if (res.error) { Alert.alert('错误', res.error); setLoading(false); setAutoWriting(false); return; }
+      setPendingOutline(res.content);
+      setOutlineModal(true);
+    } catch (e: any) { Alert.alert('错误', e.message); }
+    setLoading(false);
     setAutoWriting(false);
   };
 
-const handleClear = () => {
+  // 用户确认大纲，开始写正文
+  const handleOutlineConfirm = async () => {
+    setOutlineModal(false);
+    setLoading(true);
+    const novel = await getStoryBible(novelId);
+    const nextCh = (novel?.totalChapters || 0) + 1;
+    const writePrompt = `已确认大纲：\n${pendingOutline}\n\n请根据以上大纲写出第${chNum(nextCh)}章的完整正文（1500-2500字）。写完后输出 JSON 更新指令。`;
+    const userMsg: ChatMessage = { id: uuid(), role: 'user', content: `✅ 确认大纲，开始写作`, timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
+    await appendChatMessage(novelId, userMsg);
+    await sendToAI(writePrompt);
+    setPendingOutline('');
+  };
+
+  const chNum = (n: number) => n <= 10 ? ['零','一','二','三','四','五','六','七','八','九','十'][n] : String(n);
+
+  const handleClear = () => {
     Alert.alert('清空对话', '确定清空所有对话记录？', [
       { text: '取消', style: 'cancel' },
       { text: '清空', style: 'destructive', onPress: async () => { await clearChatHistory(novelId); setMessages([]); } },
@@ -120,56 +137,48 @@ const handleClear = () => {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
-      {/* Top Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.backBtn}>← 返回</Text></TouchableOpacity>
         <Text style={styles.topTitle}>💬 写作对话</Text>
         <TouchableOpacity onPress={handleClear}><Text style={styles.clearBtn}>🗑️</Text></TouchableOpacity>
       </View>
 
-      {/* Quick Actions */}
       <View style={styles.quickBar}>
         <TouchableOpacity style={styles.quickBtn} onPress={handleAutoWrite} disabled={autoWriting || loading}>
-          <Text style={styles.quickBtnText}>{autoWriting ? '⏳ 续写中...' : '⚡ 一键续写'}</Text>
+          <Text style={styles.quickBtnText}>{autoWriting ? '⏳ 大纲生成中...' : '⚡ 一键续写'}</Text>
         </TouchableOpacity>
-
       </View>
 
-      {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={item => item.id}
-        renderItem={renderMessage}
+      <FlatList ref={flatListRef} data={messages} keyExtractor={item => item.id} renderItem={renderMessage}
         contentContainerStyle={styles.messageList}
-        ListFooterComponent={loading ? (
-          <View style={styles.loadingBubble}>
-            <ActivityIndicator color={COLORS.accent} size="small" />
-            <Text style={styles.loadingText}>思考中...</Text>
-          </View>
-        ) : null}
+        ListFooterComponent={loading ? <View style={styles.loadingBubble}><ActivityIndicator color={COLORS.accent} size="small" /><Text style={styles.loadingText}>思考中...</Text></View> : null}
       />
 
-      {/* Input */}
       <View style={styles.inputBar}>
-        <TextInput
-          style={styles.textInput}
-          value={input}
-          onChangeText={setInput}
-          placeholder="输入灵感、剧情、角色设定..."
-          placeholderTextColor="#555"
-          multiline
-          maxLength={4000}
-          editable={!loading}
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-          onPress={handleSend}
-          disabled={loading || !input.trim()}
-        >
+        <TextInput style={styles.textInput} value={input} onChangeText={setInput} placeholder="输入灵感、剧情、角色设定..." placeholderTextColor="#555" multiline maxLength={4000} editable={!loading} />
+        <TouchableOpacity style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]} onPress={handleSend} disabled={loading || !input.trim()}>
           <Text style={styles.sendBtnText}>↑</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ★ 大纲确认弹窗 */}
+      <Modal visible={outlineModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>📋 本章大纲确认</Text>
+            <Text style={styles.modalHint}>请检查大纲，确认后 AI 将据此写正文</Text>
+            <Text style={styles.modalOutline}>{pendingOutline}</Text>
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setOutlineModal(false)}>
+                <Text style={styles.modalCancelText}>修改</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={handleOutlineConfirm}>
+                <Text style={styles.modalConfirmText}>✅ 确认写作</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -198,4 +207,15 @@ const styles = StyleSheet.create({
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { backgroundColor: '#333' },
   sendBtnText: { fontSize: 20, color: '#000', fontWeight: 'bold', marginTop: -1 },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '100%', maxHeight: '80%', borderWidth: 1, borderColor: COLORS.border },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 8 },
+  modalHint: { fontSize: 13, color: COLORS.sub, marginBottom: 12 },
+  modalOutline: { fontSize: 14, color: '#CCCCCC', lineHeight: 22, marginBottom: 16, maxHeight: 300 },
+  modalBtnRow: { flexDirection: 'row', gap: 12 },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#2A2A2A', alignItems: 'center' },
+  modalCancelText: { fontSize: 15, color: COLORS.sub },
+  modalConfirm: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center' },
+  modalConfirmText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
 });

@@ -1,12 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, ScrollView,
+  View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, ScrollView, TextInput, Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getStoryBible, updateNovelBible } from '../lib/novelMemory';
 import { createMemorySnapshot } from '../lib/storage';
-import { getChapters, getCharacters, getForeshadowing, getSnapshots } from '../lib/storage';
+import { getChapters, getCharacters, getForeshadowing, getSnapshots, saveChapter } from '../lib/storage';
 import { exportAsTxt, exportAsMarkdown, exportChapter } from '../lib/export';
+import { getWritingStats } from '../lib/writingStats';
+import { getIdeas, addIdea, deleteIdea, type Idea } from '../lib/ideas';
+import { getFormatList, formatForPublish, getFormatGuide, type PublishFormat } from '../lib/publishFormats';
 import { truncate, formatTime } from '../lib/utils';
 import type { NovelProject, Chapter, Character, Foreshadowing, MemorySnapshot } from '../types/novel';
 
@@ -16,6 +19,7 @@ const COLORS = {
 };
 
 type Props = any;
+type TabKey = 'chapters' | 'volumes' | 'characters' | 'foreshadowing' | 'memory' | 'stats' | 'ideas' | 'relations' | 'search';
 
 export default function NovelDetailScreen({ navigation, route }: Props) {
   const { novelId } = route.params;
@@ -24,205 +28,351 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [foreshadowing, setForeshadowing] = useState<Foreshadowing[]>([]);
   const [snapshots, setSnapshots] = useState<MemorySnapshot[]>([]);
-  const [tab, setTab] = useState<'chapters' | 'characters' | 'foreshadowing' | 'memory' | 'volumes'>('chapters');
+  const [stats, setStats] = useState<any>(null);
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [tab, setTab] = useState<TabKey>('chapters');
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Chapter[]>([]);
+  const [newIdea, setNewIdea] = useState('');
+
+  // 编辑弹窗
+  const [editModal, setEditModal] = useState(false);
+  const [editChapter, setEditChapter] = useState<Chapter | null>(null);
+  const [editBody, setEditBody] = useState('');
+
+  // 发布弹窗
+  const [publishModal, setPublishModal] = useState(false);
+  const [publishContent, setPublishContent] = useState('');
+  const [publishFormat, setPublishFormat] = useState<PublishFormat>('standard');
+
+  // 视角设置
+  const [pov, setPov] = useState(novel?.styleGuide?.includes('第一人称') ? 'first' : novel?.styleGuide?.includes('第三人称') ? 'third' : 'third');
 
   const reload = useCallback(() => {
-    getStoryBible(novelId).then(setNovel);
-    getChapters(novelId).then(list => {
-      setChapters(sortBy === 'asc' ? list : [...list].reverse());
-    });
+    getStoryBible(novelId).then(n => { setNovel(n); if (n) setPov(n.styleGuide?.includes('第一人称') ? 'first' : 'third'); });
+    getChapters(novelId).then(list => setChapters(sortBy === 'asc' ? list : [...list].reverse()));
     getCharacters(novelId).then(setCharacters);
     getForeshadowing(novelId).then(setForeshadowing);
     getSnapshots(novelId).then(setSnapshots);
+    getWritingStats(novelId).then(setStats);
+    getIdeas(novelId).then(setIdeas);
   }, [novelId, sortBy]);
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
   if (!novel) return <View style={styles.container}><Text style={styles.loading}>加载中...</Text></View>;
 
-  // ★ 多卷管理：按卷分组
   const chaptersByVolume: Record<number, Chapter[]> = {};
-  for (const ch of chapters) {
-    const vol = ch.volumeNumber || 1;
-    if (!chaptersByVolume[vol]) chaptersByVolume[vol] = [];
-    chaptersByVolume[vol].push(ch);
-  }
-  const volumes = Object.keys(chaptersByVolume).map(Number).sort((a, b) => a - b);
+  for (const ch of chapters) { const v = ch.volumeNumber || 1; if (!chaptersByVolume[v]) chaptersByVolume[v] = []; chaptersByVolume[v].push(ch); }
+  const volumes = Object.keys(chaptersByVolume).map(Number).sort();
 
-  const handleAddVolume = async () => {
-    const newVol = (novel.totalVolumes || 1) + 1;
-    await updateNovelBible(novelId, { totalVolumes: newVol, currentVolume: newVol });
-    Alert.alert('✅ 新卷已创建', `第${newVol}卷`);
+  // 搜索
+  const handleSearch = (q: string) => {
+    setSearchQuery(q);
+    if (!q.trim()) { setSearchResults([]); return; }
+    const results = chapters.filter(c => c.body.includes(q) || c.title.includes(q) || c.summary?.includes(q));
+    setSearchResults(results);
+  };
+
+  // 编辑章节
+  const handleEdit = (ch: Chapter) => { setEditChapter(ch); setEditBody(ch.body); setEditModal(true); };
+  const handleSaveEdit = async () => {
+    if (!editChapter) return;
+    const updated = { ...editChapter, body: editBody, wordCount: editBody.length };
+    await saveChapter(updated);
+    setEditModal(false);
     reload();
+    Alert.alert('✅ 已保存');
   };
 
-  const handleSnapshot = async () => {
-    const snap = await createMemorySnapshot(novelId, `手动快照 — 第${novel.totalChapters}章`, novel.totalChapters, novel.currentVolume);
-    Alert.alert('✅ 快照已创建', snap.label);
-    reload();
+  // 发布导出
+  const handlePublish = async (fmt: PublishFormat) => {
+    setPublishFormat(fmt);
+    const content = await formatForPublish(novelId, fmt);
+    setPublishContent(content);
+    setPublishModal(true);
   };
 
-  const handleExport = (format: 'txt' | 'md') => {
-    Alert.alert('导出小说', `确认导出为 ${format.toUpperCase()} 格式？`, [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '导出', onPress: async () => {
-          const ok = format === 'txt' ? await exportAsTxt(novelId) : await exportAsMarkdown(novelId);
-          if (!ok) Alert.alert('提示', '没有可导出的章节');
-        },
-      },
-    ]);
+  // 灵感
+  const handleAddIdea = async () => {
+    if (!newIdea.trim()) return;
+    await addIdea(novelId, newIdea.trim());
+    setNewIdea('');
+    getIdeas(novelId).then(setIdeas);
   };
 
-  const handleExportChapter = async (ch: Chapter) => {
-    await exportChapter(ch, novel.title);
+  // 视角切换
+  const handlePovChange = async (p: string) => {
+    setPov(p);
+    const guide = novel.styleGuide || '';
+    const newGuide = p === 'first' ? guide.replace(/第三人称/g, '').trim() + ' 第一人称视角' : guide.replace(/第一人称/g, '').trim() + ' 第三人称视角';
+    await updateNovelBible(novelId, { styleGuide: newGuide.trim() });
   };
 
-  const TABS = [
+  // 角色关系图（简单文本图）
+  const renderRelationMap = () => {
+    if (characters.length === 0) return <Text style={styles.empty}>还没有角色</Text>;
+    const lines: string[] = [];
+    for (const c of characters) {
+      const connections = characters.filter(o => o.id !== c.id && (
+        c.backstory?.includes(o.name) || o.backstory?.includes(c.name) ||
+        c.currentState?.includes(o.name) || o.currentState?.includes(c.name)
+      ));
+      const connStr = connections.length > 0 ? connections.map(o => `── ${o.name}`).join('\n') : '── (无关联)';
+      lines.push(`👤 ${c.name} [${c.status}]\n${connStr}`);
+    }
+    return <Text style={styles.relationText}>{lines.join('\n\n')}</Text>;
+  };
+
+  const TABS: Array<{ key: TabKey; label: string }> = [
     { key: 'chapters', label: `📝 ${chapters.length}章` },
     { key: 'volumes', label: `📚 ${volumes.length}卷` },
     { key: 'characters', label: `👥 ${characters.length}人` },
-    { key: 'foreshadowing', label: `🔮 ${foreshadowing.length}条` },
-    { key: 'memory', label: `🧠 ${snapshots.length}快照` },
-  ] as const;
+    { key: 'foreshadowing', label: `🔮 ${foreshadowing.length}` },
+    { key: 'memory', label: `🧠 ${snapshots.length}` },
+    { key: 'stats', label: `📊 统计` },
+    { key: 'ideas', label: `💡 ${ideas.length}` },
+    { key: 'relations', label: `🕸️ 关系` },
+    { key: 'search', label: `🔍` },
+  ];
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.backBtn}>← 返回</Text></TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{novel.title}</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => navigation.navigate('Chat', { novelId })}><Text style={styles.chatBtn}>💬</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Chat', { novelId })}><Text style={styles.iconBtn}>💬</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => handlePublish('standard')}><Text style={styles.iconBtn}>📤</Text></TouchableOpacity>
         </View>
       </View>
 
-      {/* Novel Info + Actions */}
       <View style={styles.infoCard}>
-        <Text style={styles.infoGenre}>{novel.genre} · 第{novel.currentVolume}卷</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoGenre}>{novel.genre} · {pov === 'first' ? '第一人称' : '第三人称'}</Text>
+          <TouchableOpacity onPress={() => handlePovChange(pov === 'first' ? 'third' : 'first')}>
+            <Text style={styles.povBtn}>切换视角</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.infoSyn}>{novel.synopsis || '暂无简介'}</Text>
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => handleExport('txt')}>
-            <Text style={styles.actionText}>📄 TXT</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => handleExport('md')}>
-            <Text style={styles.actionText}>📝 MD</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleSnapshot}>
-            <Text style={styles.actionText}>📸 快照</Text>
-          </TouchableOpacity>
+          {[
+            { label: '📄 TXT', fn: () => exportAsTxt(novelId) },
+            { label: '📝 MD', fn: () => exportAsMarkdown(novelId) },
+            { label: '📸 快照', fn: async () => { await createMemorySnapshot(novelId, `手动快照 — 第${novel.totalChapters}章`, novel.totalChapters, novel.currentVolume); reload(); Alert.alert('✅ 快照已创建'); } },
+          ].map(a => (
+            <TouchableOpacity key={a.label} style={styles.actionBtn} onPress={a.fn}>
+              <Text style={styles.actionText}>{a.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabBar}>
-        {TABS.map(t => (
-          <TouchableOpacity key={t.key} style={[styles.tab, tab === t.key && styles.tabActive]} onPress={() => setTab(t.key)}>
-            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {TABS.map(t => (
+            <TouchableOpacity key={t.key} style={[styles.tab, tab === t.key && styles.tabActive]} onPress={() => setTab(t.key)}>
+              <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Chapters Tab */}
-      {tab === 'chapters' && (
-        <View style={{ flex: 1 }}>
-          <View style={styles.sortRow}>
-            <TouchableOpacity onPress={() => setSortBy(s => s === 'asc' ? 'desc' : 'asc')}>
-              <Text style={styles.sortBtn}>{sortBy === 'asc' ? '↑ 正序' : '↓ 倒序'}</Text>
-            </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        {/* Chapters */}
+        {tab === 'chapters' && (
+          <View style={{ flex: 1 }}>
+            <View style={styles.sortRow}><TouchableOpacity onPress={() => setSortBy(s => s === 'asc' ? 'desc' : 'asc')}><Text style={styles.sortBtn}>{sortBy === 'asc' ? '↑ 正序' : '↓ 倒序'}</Text></TouchableOpacity></View>
+            <FlatList data={chapters} keyExtractor={c => c.id} contentContainerStyle={styles.list}
+              ListEmptyComponent={<Text style={styles.empty}>还没有章节 ✍️</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.card} onPress={() => handleEdit(item)}>
+                  <View style={styles.cardRow}>
+                    <Text style={styles.cardTitle}>第{item.chapterNumber}章 {item.title}</Text>
+                    <Text style={styles.cardBadge}>{item.wordCount}字</Text>
+                  </View>
+                  <Text style={styles.cardSummary}>{truncate(item.summary || item.body, 80)}</Text>
+                </TouchableOpacity>
+              )}
+            />
           </View>
-          <FlatList
-            data={chapters}
-            keyExtractor={c => c.id}
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={<Text style={styles.empty}>还没有章节，去对话页开始写作吧 ✍️</Text>}
+        )}
+
+        {/* Volumes */}
+        {tab === 'volumes' && (
+          <ScrollView contentContainerStyle={styles.list}>
+            {volumes.map(vol => (
+              <View key={vol} style={styles.volSection}>
+                <View style={styles.volHeader}><Text style={styles.volTitle}>📚 第{vol}卷</Text><Text style={styles.volCount}>{chaptersByVolume[vol].length}章</Text></View>
+                {chaptersByVolume[vol].map(ch => (
+                  <View key={ch.id} style={styles.volChapter}><Text style={styles.volChapterText}>第{ch.chapterNumber}章 {ch.title}</Text><Text style={styles.volChapterMeta}>{ch.wordCount}字</Text></View>
+                ))}
+              </View>
+            ))}
+            <TouchableOpacity style={styles.addVolBtn} onPress={async () => { const nv = (novel.totalVolumes || 1) + 1; await updateNovelBible(novelId, { totalVolumes: nv, currentVolume: nv }); reload(); }}>
+              <Text style={styles.addVolBtnText}>+ 新建一卷</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+
+        {/* Characters */}
+        {tab === 'characters' && (
+          <FlatList data={characters} keyExtractor={c => c.id} contentContainerStyle={styles.list}
+            ListEmptyComponent={<Text style={styles.empty}>还没有角色</Text>}
             renderItem={({ item }) => (
-              <TouchableOpacity style={styles.card} onPress={() => handleExportChapter(item)}>
-                <View style={styles.cardRow}>
-                  <Text style={styles.cardTitle}>第{item.chapterNumber}章 {item.title}</Text>
-                  <Text style={styles.cardBadge}>{item.wordCount}字</Text>
-                </View>
-                <Text style={styles.cardSummary}>{truncate(item.summary || item.body, 80)}</Text>
-                <Text style={styles.cardMeta}>📅 {formatTime(item.createdAt)}</Text>
-              </TouchableOpacity>
+              <View style={styles.card}>
+                <View style={styles.cardRow}><Text style={styles.cardTitle}>{item.name}</Text><Text style={[styles.cardBadge, item.status === 'active' ? { color: COLORS.accent } : { color: COLORS.danger }]}>{item.status}</Text></View>
+                <Text style={styles.cardSummary}>性格：{item.traits}</Text>
+                <Text style={styles.cardSummary}>当前：{item.currentState}</Text>
+              </View>
             )}
           />
-        </View>
-      )}
+        )}
 
-      {/* Volumes Tab */}
-      {tab === 'volumes' && (
-        <ScrollView contentContainerStyle={styles.list}>
-          {volumes.map(vol => (
-            <View key={vol} style={styles.volSection}>
-              <View style={styles.volHeader}>
-                <Text style={styles.volTitle}>📚 第{vol}卷</Text>
-                <Text style={styles.volCount}>{chaptersByVolume[vol].length}章</Text>
+        {/* Foreshadowing */}
+        {tab === 'foreshadowing' && (
+          <FlatList data={foreshadowing} keyExtractor={f => f.id} contentContainerStyle={styles.list}
+            ListEmptyComponent={<Text style={styles.empty}>还没有伏笔</Text>}
+            renderItem={({ item }) => {
+              const emoji: Record<string, string> = { planted: '🌱', developing: '🌿', resolving: '🔄', resolved: '✅', abandoned: '❌' };
+              return (
+                <View style={styles.card}>
+                  <View style={styles.cardRow}><Text style={styles.cardTitle}>{emoji[item.status]} {item.title}</Text><Text style={styles.cardBadge}>{item.status}</Text></View>
+                  <Text style={styles.cardSummary}>{item.description}</Text>
+                </View>
+              );
+            }}
+          />
+        )}
+
+        {/* Memory */}
+        {tab === 'memory' && (
+          <FlatList data={snapshots} keyExtractor={s => s.id} contentContainerStyle={styles.list}
+            ListEmptyComponent={<Text style={styles.empty}>还没有快照</Text>}
+            renderItem={({ item }) => (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>📸 {item.label}</Text>
+                <Text style={styles.cardMeta}>第{item.chapterNumber}章 · {formatTime(item.createdAt)}</Text>
               </View>
-              {chaptersByVolume[vol].map(ch => (
-                <View key={ch.id} style={styles.volChapter}>
-                  <Text style={styles.volChapterText}>第{ch.chapterNumber}章 {ch.title}</Text>
-                  <Text style={styles.volChapterMeta}>{ch.wordCount}字</Text>
+            )}
+          />
+        )}
+
+        {/* Stats */}
+        {tab === 'stats' && stats && (
+          <ScrollView contentContainerStyle={styles.list}>
+            <View style={styles.statsGrid}>
+              {[
+                { label: '总字数', value: stats.totalWords.toLocaleString(), color: COLORS.accent },
+                { label: '总章节', value: String(stats.totalChapters), color: COLORS.text },
+                { label: '写作天数', value: String(stats.totalDays), color: COLORS.text },
+                { label: '连续天数', value: String(stats.streakDays), color: stats.streakDays > 0 ? COLORS.accent : COLORS.sub },
+                { label: '日均字数', value: String(stats.avgWordsPerDay), color: COLORS.text },
+              ].map(s => (
+                <View key={s.label} style={styles.statCard}>
+                  <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
                 </View>
               ))}
             </View>
-          ))}
-          <TouchableOpacity style={styles.addVolBtn} onPress={handleAddVolume}>
-            <Text style={styles.addVolBtnText}>+ 新建一卷</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      )}
-
-      {/* Characters Tab */}
-      {tab === 'characters' && (
-        <FlatList data={characters} keyExtractor={c => c.id} contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>还没有角色</Text>}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <View style={styles.cardRow}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={[styles.cardBadge, item.status === 'active' ? { color: COLORS.accent } : { color: COLORS.danger }]}>{item.status}</Text>
-              </View>
-              <Text style={styles.cardSummary}>性格：{item.traits}</Text>
-              <Text style={styles.cardSummary}>当前：{item.currentState}</Text>
-            </View>
-          )}
-        />
-      )}
-
-      {/* Foreshadowing Tab */}
-      {tab === 'foreshadowing' && (
-        <FlatList data={foreshadowing} keyExtractor={f => f.id} contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>还没有伏笔</Text>}
-          renderItem={({ item }) => {
-            const emoji: Record<string, string> = { planted: '🌱', developing: '🌿', resolving: '🔄', resolved: '✅', abandoned: '❌' };
-            return (
-              <View style={styles.card}>
-                <View style={styles.cardRow}>
-                  <Text style={styles.cardTitle}>{emoji[item.status]} {item.title}</Text>
-                  <Text style={styles.cardBadge}>{item.status}</Text>
+            {/* 绿格子日历 */}
+            <Text style={styles.sectionTitle}>📅 写作日历</Text>
+            <View style={styles.calendarGrid}>
+              {Object.entries(stats.dailyStats).slice(-30).map(([date, words]) => (
+                <View key={date} style={[styles.calCell, { opacity: Math.min(1, (words as number) / 2000) }]}>
+                  <Text style={styles.calText}>{date.slice(5)}</Text>
+                  <Text style={styles.calWords}>{Math.round((words as number) / 100)}百</Text>
                 </View>
-                <Text style={styles.cardSummary}>{item.description}</Text>
-                <Text style={styles.cardMeta}>埋于第{item.plantedChapter}章</Text>
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {/* Memory Tab */}
-      {tab === 'memory' && (
-        <FlatList data={snapshots} keyExtractor={s => s.id} contentContainerStyle={styles.list}
-          ListEmptyComponent={<Text style={styles.empty}>还没有记忆快照</Text>}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>📸 {item.label}</Text>
-              <Text style={styles.cardMeta}>第{item.chapterNumber}章 · {formatTime(item.createdAt)}</Text>
+              ))}
             </View>
-          )}
-        />
-      )}
+          </ScrollView>
+        )}
+
+        {/* Ideas */}
+        {tab === 'ideas' && (
+          <View style={{ flex: 1 }}>
+            <View style={styles.ideaInput}>
+              <TextInput style={styles.ideaTextInput} value={newIdea} onChangeText={setNewIdea} placeholder="记录一个灵感..." placeholderTextColor="#555" />
+              <TouchableOpacity style={styles.ideaAddBtn} onPress={handleAddIdea}><Text style={styles.ideaAddText}>+</Text></TouchableOpacity>
+            </View>
+            <FlatList data={ideas} keyExtractor={i => i.id} contentContainerStyle={styles.list}
+              ListEmptyComponent={<Text style={styles.empty}>还没有灵感便签 💡</Text>}
+              renderItem={({ item }) => (
+                <View style={styles.card}>
+                  <View style={styles.cardRow}>
+                    <Text style={styles.cardSummary} numberOfLines={3}>{item.content}</Text>
+                    <TouchableOpacity onPress={async () => { await deleteIdea(novelId, item.id); getIdeas(novelId).then(setIdeas); }}>
+                      <Text style={styles.deleteBtn}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.cardMeta}>{formatTime(item.createdAt)}</Text>
+                </View>
+              )}
+            />
+          </View>
+        )}
+
+        {/* Relations */}
+        {tab === 'relations' && (
+          <ScrollView contentContainerStyle={styles.list}>
+            {renderRelationMap()}
+          </ScrollView>
+        )}
+
+        {/* Search */}
+        {tab === 'search' && (
+          <View style={{ flex: 1 }}>
+            <View style={styles.searchBar}>
+              <TextInput style={styles.searchInput} value={searchQuery} onChangeText={handleSearch} placeholder="搜索章节内容..." placeholderTextColor="#555" />
+            </View>
+            <FlatList data={searchResults} keyExtractor={c => c.id} contentContainerStyle={styles.list}
+              ListEmptyComponent={<Text style={styles.empty}>{searchQuery ? '没有找到匹配内容' : '输入关键词搜索'}</Text>}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.card} onPress={() => handleEdit(item)}>
+                  <Text style={styles.cardTitle}>第{item.chapterNumber}章 {item.title}</Text>
+                  <Text style={styles.cardSummary}>{truncate(item.body, 120)}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Edit Modal */}
+      <Modal visible={editModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>✏️ 编辑章节</Text>
+            <TextInput style={styles.editInput} value={editBody} onChangeText={setEditBody} multiline textAlignVertical="top" />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setEditModal(false)}><Text style={styles.modalCancelText}>取消</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={handleSaveEdit}><Text style={styles.modalConfirmText}>💾 保存</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Publish Modal */}
+      <Modal visible={publishModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>📤 发布导出</Text>
+            <ScrollView horizontal style={styles.formatRow}>
+              {getFormatList().map(f => (
+                <TouchableOpacity key={f.key} style={[styles.formatChip, publishFormat === f.key && styles.formatChipActive]} onPress={() => handlePublish(f.key)}>
+                  <Text style={[styles.formatText, publishFormat === f.key && styles.formatTextActive]}>{f.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={styles.formatGuide}>{getFormatGuide(publishFormat)}</Text>
+            <TextInput style={styles.publishPreview} value={publishContent} multiline readOnly textAlignVertical="top" />
+            <TouchableOpacity style={styles.modalConfirm} onPress={() => { setPublishModal(false); Alert.alert('✅ 已生成', '可复制内容到目标平台'); }}>
+              <Text style={styles.modalConfirmText}>复制使用</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -232,17 +382,19 @@ const styles = StyleSheet.create({
   loading: { color: COLORS.sub, textAlign: 'center', marginTop: 100 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12 },
   backBtn: { fontSize: 14, color: COLORS.accent },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center', marginHorizontal: 12 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center', marginHorizontal: 8 },
   headerRight: { flexDirection: 'row', gap: 8 },
-  chatBtn: { fontSize: 20 },
+  iconBtn: { fontSize: 18 },
   infoCard: { marginHorizontal: 16, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 8 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   infoGenre: { fontSize: 12, color: COLORS.accent, fontWeight: '600' },
+  povBtn: { fontSize: 11, color: COLORS.accent, borderWidth: 1, borderColor: COLORS.accent, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   infoSyn: { fontSize: 13, color: COLORS.sub, marginTop: 6, lineHeight: 18 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   actionBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: '#2A2A2A' },
   actionText: { fontSize: 11, color: COLORS.text },
-  tabBar: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexWrap: 'wrap' },
-  tab: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
+  tabBar: { paddingVertical: 8, paddingHorizontal: 12 },
+  tab: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, marginRight: 6 },
   tabActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   tabText: { fontSize: 11, color: COLORS.sub },
   tabTextActive: { color: '#000', fontWeight: '600' },
@@ -256,8 +408,9 @@ const styles = StyleSheet.create({
   cardBadge: { fontSize: 11, color: COLORS.sub },
   cardSummary: { fontSize: 13, color: COLORS.sub, marginTop: 6, lineHeight: 18 },
   cardMeta: { fontSize: 12, color: COLORS.sub, marginTop: 6 },
+  deleteBtn: { fontSize: 14, padding: 4 },
   volSection: { marginBottom: 16 },
-  volHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  volHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   volTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text },
   volCount: { fontSize: 12, color: COLORS.sub },
   volChapter: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: COLORS.card, borderRadius: 8, marginBottom: 4 },
@@ -265,4 +418,41 @@ const styles = StyleSheet.create({
   volChapterMeta: { fontSize: 12, color: COLORS.sub },
   addVolBtn: { marginTop: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.accent, borderStyle: 'dashed', alignItems: 'center' },
   addVolBtnText: { fontSize: 14, color: COLORS.accent },
+  // Stats
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  statCard: { width: '30%', backgroundColor: COLORS.card, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  statValue: { fontSize: 22, fontWeight: 'bold' },
+  statLabel: { fontSize: 11, color: COLORS.sub, marginTop: 4 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginTop: 20, marginBottom: 10 },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  calCell: { width: 60, height: 50, backgroundColor: COLORS.card, borderRadius: 6, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  calText: { fontSize: 10, color: COLORS.sub },
+  calWords: { fontSize: 11, color: COLORS.accent, fontWeight: '600' },
+  // Ideas
+  ideaInput: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
+  ideaTextInput: { flex: 1, backgroundColor: COLORS.card, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border, fontSize: 14 },
+  ideaAddBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
+  ideaAddText: { fontSize: 20, color: '#000', fontWeight: 'bold', marginTop: -2 },
+  // Relations
+  relationText: { fontSize: 14, color: COLORS.text, lineHeight: 24, fontFamily: 'monospace' },
+  // Search
+  searchBar: { paddingHorizontal: 16, paddingVertical: 8 },
+  searchInput: { backgroundColor: COLORS.card, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: COLORS.text, borderWidth: 1, borderColor: COLORS.border, fontSize: 14 },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 20, width: '100%', maxHeight: '85%', borderWidth: 1, borderColor: COLORS.border },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, marginBottom: 12 },
+  modalBtnRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#2A2A2A', alignItems: 'center' },
+  modalCancelText: { fontSize: 15, color: COLORS.sub },
+  modalConfirm: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center' },
+  modalConfirmText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
+  editInput: { backgroundColor: COLORS.bg, borderRadius: 10, padding: 12, color: COLORS.text, fontSize: 14, lineHeight: 20, minHeight: 200, borderWidth: 1, borderColor: COLORS.border },
+  formatRow: { marginBottom: 8 },
+  formatChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: '#2A2A2A', marginRight: 6 },
+  formatChipActive: { backgroundColor: COLORS.accent },
+  formatText: { fontSize: 12, color: COLORS.sub },
+  formatTextActive: { color: '#000', fontWeight: '600' },
+  formatGuide: { fontSize: 12, color: COLORS.sub, marginBottom: 8 },
+  publishPreview: { backgroundColor: COLORS.bg, borderRadius: 8, padding: 10, color: COLORS.text, fontSize: 12, lineHeight: 16, maxHeight: 200, borderWidth: 1, borderColor: COLORS.border },
 });

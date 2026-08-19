@@ -7,18 +7,12 @@ import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '
 import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible } from '../lib/novelMemory';
 import { chatCompletion } from '../lib/llm';
 import { parseThinking } from '../lib/thinkingParser';
-import { generateConflict, getConflictTypes } from '../lib/conflictEngine';
-import { reviewChapter } from '../lib/reviewEngine';
-import { expandScene } from '../lib/sceneExpander';
-import { clashIdeas } from '../lib/inspirationClash';
-import { analyzeEmotionCurve, detectRepetition, checkConsistency } from '../lib/qualityTools';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { T, ICON } from '../lib/theme';
 import type { ChatMessage } from '../types/novel';
 
 function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 
-/* ── 可折叠思考面板 ── */
 function ThinkingPanel({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   if (!text) return null;
@@ -60,23 +54,10 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [outlineModal, setOutlineModal] = useState(false);
   const [pendingOutline, setPendingOutline] = useState('');
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [toolModal, setToolModal] = useState<'conflict' | 'review' | 'expand' | 'clash' | 'emotion' | 'repeat' | 'consistency' | null>(null);
-  const [conflictChars, setConflictChars] = useState({ a: '', b: '', type: '' });
-  const [toolResult, setToolResult] = useState('');
-  const [toolLoading, setToolLoading] = useState(false);
-  const [reviewChapterNum, setReviewChapterNum] = useState('');
-  const [expandText, setExpandText] = useState('');
-  const [clashKeywords, setClashKeywords] = useState('');
   const [thinkingMap, setThinkingMap] = useState<Record<string, string>>({});
 
   useEffect(() => { getChatHistory(novelId).then(setMessages); }, [novelId]);
   useEffect(() => { if (messages.length > 0) setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100); }, [messages]);
-  // 自动触发分析工具
-  useEffect(() => {
-    if (toolModal === "emotion" && !toolResult && !toolLoading) handleEmotion();
-    if (toolModal === "repeat" && !toolResult && !toolLoading) handleRepeat();
-    if (toolModal === "consistency" && !toolResult && !toolLoading) handleConsistency();
-  }, [toolModal]);
 
   const buildApiMessages = async (extra?: string) => {
     const novels = await getNovels();
@@ -102,31 +83,26 @@ export default function ChatScreen({ navigation, route }: Props) {
       if (thinking) setThinkingMap(prev => ({ ...prev, [aiMsg.id]: thinking }));
       setMessages(prev => [...prev, aiMsg]);
       await appendChatMessage(novelId, aiMsg);
-      // 保存章节
-      let chapterSaved = false;
       try {
         let jsonStr = '';
-        const jm = res.content.match(/```json\s*([\s\S]*?)```/);
-        if (jm) jsonStr = jm[1].trim();
-        else { const bm = body.match(/\{[\s\S]*\}/); if (bm) jsonStr = bm[0]; }
+        const jsonMatch = res.content.match(/```json\s*([\s\S]*?)```/);
+        if (jsonMatch) { jsonStr = jsonMatch[1].trim(); }
+        else { const braceMatch = body.match(/\{[\s\S]*\}/); if (braceMatch) jsonStr = braceMatch[0]; }
         if (jsonStr) {
           jsonStr = jsonStr.replace(/，/g, ',').replace(/：/g, ':');
           try {
-            const u = JSON.parse(jsonStr);
-            if (u.summary || u.characterChanges || u.newForeshadowing) {
-              await processPostWrite(novelId, nextCh, u.summary || '', u.characterChanges || [], u.newForeshadowing || [], u.resolvedForeshadowing || []);
-              if (u.summary) { await addChapter(novelId, `第${nextCh}章`, body, u.summary); chapterSaved = true; }
+            const update = JSON.parse(jsonStr);
+            if (update.summary || update.characterChanges || update.newForeshadowing) {
+              await processPostWrite(novelId, nextCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
+              if (update.summary) await addChapter(novelId, `第${nextCh}章`, body, update.summary);
             }
           } catch {
-            const sm = jsonStr.match(/"summary"\s*:\s*"([^"]+)"/);
-            if (sm) { await addChapter(novelId, `第${nextCh}章`, body, sm[1]); chapterSaved = true; }
+            const summaryMatch = jsonStr.match(/"summary"\s*:\s*"([^"]+)"/);
+            if (summaryMatch) await addChapter(novelId, `第${nextCh}章`, body, summaryMatch[1]);
           }
         }
       } catch {}
-      if (!chapterSaved && body.length > 50) {
-        await addChapter(novelId, `第${nextCh}章`, body, body.slice(0, 200) + '...');
-      }
-    } catch {}
+    } catch (e: any) { console.error(e); }
     setLoading(false);
   };
 
@@ -164,76 +140,6 @@ export default function ChatScreen({ navigation, route }: Props) {
     setPendingOutline('');
   };
 
-  // 矛盾冲突生成
-  const handleConflict = async () => {
-    if (!conflictChars.a || !conflictChars.b) return;
-    setToolLoading(true);
-    setToolResult('');
-    const result = await generateConflict(novelId, conflictChars.a, conflictChars.b, conflictChars.type || undefined);
-    setToolResult(result);
-    setToolLoading(false);
-  };
-
-  // AI 审稿
-  const handleReview = async () => {
-    const num = parseInt(reviewChapterNum);
-    if (!num) return;
-    setToolLoading(true);
-    setToolResult('');
-    const result = await reviewChapter(novelId, num);
-    if (typeof result === 'string') {
-      setToolResult(result);
-    } else {
-      setToolResult(
-        `综合评分：${result.overallScore}/100\n\n` +
-        `✅ 优点：\n${result.strengths.map(s => '  • ' + s).join('\n')}\n\n` +
-        `⚠️ 问题：\n${result.issues.map(s => '  • ' + s).join('\n')}\n\n` +
-        `💡 建议：\n${result.suggestions.map(s => '  • ' + s).join('\n')}\n\n` +
-        `📊 节奏：${result.pacingAnalysis}\n` +
-        `💬 对话：${result.dialogueQuality}\n\n` +
-        `${result.detailedFeedback}`
-      );
-    }
-    setToolLoading(false);
-  };
-
-  // 场景扩写
-  const handleExpand = async () => {
-    if (!expandText.trim()) return;
-    setToolLoading(true); setToolResult('');
-    const result = await expandScene(novelId, expandText);
-    setToolResult(result); setToolLoading(false);
-  };
-
-  // 灵感碰撞
-  const handleClash = async () => {
-    if (!clashKeywords.trim()) return;
-    setToolLoading(true); setToolResult('');
-    const result = await clashIdeas(clashKeywords);
-    setToolResult(result); setToolLoading(false);
-  };
-
-  // 情绪曲线
-  const handleEmotion = async () => {
-    setToolLoading(true); setToolResult('');
-    const result = await analyzeEmotionCurve(novelId);
-    setToolResult(result); setToolLoading(false);
-  };
-
-  // 重复检测
-  const handleRepeat = async () => {
-    setToolLoading(true); setToolResult('');
-    const result = await detectRepetition(novelId);
-    setToolResult(result); setToolLoading(false);
-  };
-
-  // 一致性检查
-  const handleConsistency = async () => {
-    setToolLoading(true); setToolResult('');
-    const result = await checkConsistency(novelId);
-    setToolResult(result); setToolLoading(false);
-  };
-
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const think = thinkingMap[item.id] || '';
@@ -252,7 +158,6 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Top bar */}
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.topBtn}>
           <Text style={s.backIcon}>{ICON.back}</Text>
@@ -263,7 +168,6 @@ export default function ChatScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Quick actions */}
       <View style={s.quickBar}>
         <TouchableOpacity style={s.quickBtn} onPress={handleAutoWrite} disabled={loading}>
           <Text style={s.quickText}>⚡ 续写</Text>
@@ -271,30 +175,8 @@ export default function ChatScreen({ navigation, route }: Props) {
         <TouchableOpacity style={s.quickBtn} onPress={() => setInput('请帮我写新一章')} disabled={loading}>
           <Text style={s.quickText}>✎ 新章</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('conflict')} disabled={loading}>
-          <Text style={s.quickText}>🔥 冲突</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('review')} disabled={loading}>
-          <Text style={s.quickText}>📋 审稿</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('expand')} disabled={loading}>
-          <Text style={s.quickText}>📐 扩写</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('clash')} disabled={loading}>
-          <Text style={s.quickText}>🎲 灵感</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('emotion')} disabled={loading}>
-          <Text style={s.quickText}>📈 情绪</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('repeat')} disabled={loading}>
-          <Text style={s.quickText}>🔍 重复</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.quickBtn} onPress={() => setToolModal('consistency')} disabled={loading}>
-          <Text style={s.quickText}>🎯 一致</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Messages */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -309,7 +191,6 @@ export default function ChatScreen({ navigation, route }: Props) {
         ) : null}
       />
 
-      {/* Input */}
       <View style={s.inputBar}>
         <TextInput
           style={s.textInput}
@@ -331,126 +212,6 @@ export default function ChatScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* 冲突生成弹窗 */}
-      <Modal visible={toolModal === 'conflict'} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.modal}>
-            <Text style={s.modalTitle}>🔥 矛盾冲突引擎</Text>
-            <Text style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>选择两个角色，生成一场冲突场景</Text>
-            <Text style={{ fontSize: 12, color: T.textSec, marginBottom: 4 }}>角色 A</Text>
-            <TextInput style={s.modalInput} value={conflictChars.a} onChangeText={v => setConflictChars(p => ({ ...p, a: v }))} placeholder="第一个角色名" placeholderTextColor={T.textMuted} />
-            <Text style={{ fontSize: 12, color: T.textSec, marginBottom: 4, marginTop: 8 }}>角色 B</Text>
-            <TextInput style={s.modalInput} value={conflictChars.b} onChangeText={v => setConflictChars(p => ({ ...p, b: v }))} placeholder="第二个角色名" placeholderTextColor={T.textMuted} />
-            <Text style={{ fontSize: 12, color: T.textSec, marginBottom: 4, marginTop: 8 }}>冲突类型（可选）</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-              {getConflictTypes().map(ct => (
-                <TouchableOpacity key={ct.key} style={[s.typeChip, conflictChars.type === ct.key && s.typeChipActive]} onPress={() => setConflictChars(p => ({ ...p, type: p.type === ct.key ? '' : ct.key }))}>
-                  <Text style={[s.typeChipTxt, conflictChars.type === ct.key && s.typeChipTxtActive]}>{ct.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {toolResult ? <Text style={s.modalResult}>{toolResult}</Text> : null}
-            {toolLoading ? <ActivityIndicator color={T.accent} style={{ marginVertical: 12 }} /> : null}
-            <View style={s.modalBtns}>
-              <TouchableOpacity style={s.modalBtnCancel} onPress={() => { setToolModal(null); setToolResult(''); setConflictChars({ a: '', b: '', type: '' }); }}>
-                <Text style={s.modalBtnCancelTxt}>关闭</Text>
-              </TouchableOpacity>
-              {!toolResult && !toolLoading ? (
-                <TouchableOpacity style={s.modalBtnOk} onPress={handleConflict}>
-                  <Text style={s.modalBtnOkTxt}>生成</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* AI 审稿弹窗 */}
-      <Modal visible={toolModal === 'review'} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.modal}>
-            <Text style={s.modalTitle}>📋 AI 审稿</Text>
-            <Text style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>输入要审查的章节号</Text>
-            <TextInput style={s.modalInput} value={reviewChapterNum} onChangeText={setReviewChapterNum} placeholder="如：1" placeholderTextColor={T.textMuted} keyboardType="numeric" />
-            {toolResult ? <Text style={s.modalResult}>{toolResult}</Text> : null}
-            {toolLoading ? <ActivityIndicator color={T.accent} style={{ marginVertical: 12 }} /> : null}
-            <View style={s.modalBtns}>
-              <TouchableOpacity style={s.modalBtnCancel} onPress={() => { setToolModal(null); setToolResult(''); setReviewChapterNum(''); }}>
-                <Text style={s.modalBtnCancelTxt}>关闭</Text>
-              </TouchableOpacity>
-              {!toolResult && !toolLoading ? (
-                <TouchableOpacity style={s.modalBtnOk} onPress={handleReview}>
-                  <Text style={s.modalBtnOkTxt}>审查</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 场景扩写 */}
-      <Modal visible={toolModal === 'expand'} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.modal}>
-            <Text style={s.modalTitle}>📐 场景扩写</Text>
-            <Text style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>输入场景骨架，AI 扩写成完整描写</Text>
-            <TextInput style={[s.modalInput, { minHeight: 80 }]} value={expandText} onChangeText={setExpandText} placeholder="如：阿强在雨夜走进小卖部，看到春桃在等他..." placeholderTextColor={T.textMuted} multiline />
-            {toolResult ? <Text style={s.modalResult}>{toolResult}</Text> : null}
-            {toolLoading ? <ActivityIndicator color={T.accent} style={{ marginVertical: 12 }} /> : null}
-            <View style={s.modalBtns}>
-              <TouchableOpacity style={s.modalBtnCancel} onPress={() => { setToolModal(null); setToolResult(''); setExpandText(''); }}>
-                <Text style={s.modalBtnCancelTxt}>关闭</Text>
-              </TouchableOpacity>
-              {!toolResult && !toolLoading ? (
-                <TouchableOpacity style={s.modalBtnOk} onPress={handleExpand}>
-                  <Text style={s.modalBtnOkTxt}>扩写</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 灵感碰撞 */}
-      <Modal visible={toolModal === 'clash'} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.modal}>
-            <Text style={s.modalTitle}>🎲 灵感碰撞</Text>
-            <Text style={{ fontSize: 12, color: T.textMuted, marginBottom: 10 }}>输入关键词，生成5个创意方向</Text>
-            <TextInput style={s.modalInput} value={clashKeywords} onChangeText={setClashKeywords} placeholder="如：背叛、复仇、雨夜" placeholderTextColor={T.textMuted} />
-            {toolResult ? <Text style={s.modalResult}>{toolResult}</Text> : null}
-            {toolLoading ? <ActivityIndicator color={T.accent} style={{ marginVertical: 12 }} /> : null}
-            <View style={s.modalBtns}>
-              <TouchableOpacity style={s.modalBtnCancel} onPress={() => { setToolModal(null); setToolResult(''); setClashKeywords(''); }}>
-                <Text style={s.modalBtnCancelTxt}>关闭</Text>
-              </TouchableOpacity>
-              {!toolResult && !toolLoading ? (
-                <TouchableOpacity style={s.modalBtnOk} onPress={handleClash}>
-                  <Text style={s.modalBtnOkTxt}>碰撞</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* 情绪曲线 / 重复检测 / 一致性检查 —— 一键触发 */}
-      <Modal visible={toolModal === 'emotion' || toolModal === 'repeat' || toolModal === 'consistency'} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.modal}>
-            <Text style={s.modalTitle}>{toolModal === 'emotion' ? '📈 情绪曲线' : toolModal === 'repeat' ? '🔍 重复检测' : '🎯 一致性检查'}</Text>
-            {toolLoading && !toolResult ? <ActivityIndicator color={T.accent} style={{ marginVertical: 20 }} /> : null}
-            {toolResult ? <Text style={s.modalResult}>{toolResult}</Text> : null}
-            <View style={s.modalBtns}>
-              <TouchableOpacity style={s.modalBtnCancel} onPress={() => { setToolModal(null); setToolResult(''); }}>
-                <Text style={s.modalBtnCancelTxt}>关闭</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Outline modal */}
       <Modal visible={outlineModal} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={s.modal}>
@@ -515,10 +276,4 @@ const s = StyleSheet.create({
   modalBtnCancelTxt: { fontSize: 13, color: T.textSec },
   modalBtnOk: { flex: 1, paddingVertical: 11, borderRadius: T.r.md, backgroundColor: T.accent, alignItems: 'center' },
   modalBtnOkTxt: { fontSize: 13, fontWeight: '700', color: '#FFF' },
-  modalInput: { backgroundColor: T.surface, borderRadius: T.r.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: T.text, borderWidth: 1, borderColor: T.border, marginBottom: 4 },
-  modalResult: { fontSize: 12, color: T.textSec, lineHeight: 18, maxHeight: 250, backgroundColor: T.surface, borderRadius: T.r.sm, padding: 10, marginTop: 8, borderWidth: 1, borderColor: T.border },
-  typeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: T.r.full, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border },
-  typeChipActive: { backgroundColor: T.accent, borderColor: T.accent },
-  typeChipTxt: { fontSize: 11, color: T.textSec },
-  typeChipTxtActive: { color: '#FFF', fontWeight: '600' },
 });

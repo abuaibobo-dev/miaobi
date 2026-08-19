@@ -25,6 +25,9 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={s.logoIcon}>{ICON.logo}</Text>
           <Text style={s.logoText}>妙笔</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('AutoWrite', { novelId: null })} style={s.iconBtn}>
+          <Text style={s.iconBtnText}>🤖</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={s.iconBtn}>
           <Text style={s.iconBtnText}>{ICON.settings}</Text>
         </TouchableOpacity>

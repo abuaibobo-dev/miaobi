@@ -121,7 +121,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>妙笔 v1.0.0</Text>
+        <Text style={styles.footerText}>妙笔 v1.2.2</Text>
         <Text style={styles.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
     </ScrollView>
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   saveBtnText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
   backupBtn: { backgroundColor: COLORS.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   backupBtnText: { fontSize: 15, color: COLORS.text },
-  footer: { alignItems: 'center', marginTop: 40 },
+  footer: { alignItems: 'center', marginTop: 40, width: '100%' },
   footerText: { fontSize: 14, color: COLORS.sub },
   footerSub: { fontSize: 12, color: '#555', marginTop: 4 },
 });

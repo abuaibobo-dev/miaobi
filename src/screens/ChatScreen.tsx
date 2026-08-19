@@ -177,7 +177,14 @@ export default function ChatScreen({ navigation, route }: Props) {
     }
     return (
       <View style={[s.bubble, isUser ? s.userBub : s.aiBub]}>
-        {!isUser && <Text style={s.aiLabel}>{ICON.write} 妙笔</Text>}
+        {!isUser && (
+            <View style={s.aiHeader}>
+              <View style={s.aiAvatar}>
+                <Text style={s.aiAvatarText}>◆</Text>
+              </View>
+              <Text style={s.aiLabel}>妙笔</Text>
+            </View>
+          )}
         {!isUser && <ThinkingPanel text={think} />}
         <Text style={[s.bubbleText, isUser ? s.userTxt : s.aiTxt]}>{display}</Text>
       </View>
@@ -284,7 +291,10 @@ const s = StyleSheet.create({
   bubble: { marginBottom: 12, maxWidth: '88%' },
   userBub: { alignSelf: 'flex-end', backgroundColor: T.userBubble, borderRadius: T.r.lg, borderBottomRightRadius: 4, padding: 12 },
   aiBub: { alignSelf: 'flex-start', backgroundColor: T.aiBubble, borderRadius: T.r.lg, borderBottomLeftRadius: 4, padding: 12, borderWidth: 1, borderColor: T.border },
-  aiLabel: { fontSize: 11, color: T.accent, marginBottom: 6, fontWeight: '700', letterSpacing: 0.5 },
+  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  aiAvatar: { width: 22, height: 22, borderRadius: 11, backgroundColor: T.accent + '20', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.accent + '40' },
+  aiAvatarText: { fontSize: 11, color: T.accent, fontWeight: '800' },
+  aiLabel: { fontSize: 12, color: T.accent, fontWeight: '700', letterSpacing: 0.3 },
   bubbleText: { fontSize: 15, lineHeight: 23 },
   userTxt: { color: T.text },
   aiTxt: { color: '#CCCCDD' },

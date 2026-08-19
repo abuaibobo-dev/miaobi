@@ -26,7 +26,7 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={s.logoText}>妙笔</Text>
         </View>
         <TouchableOpacity onPress={() => navigation.navigate('AutoWrite', { novelId: null })} style={[s.iconBtn, { backgroundColor: T.accent + '15', borderColor: T.accent + '40' }]}>
-          <Text style={[s.iconBtnText, { color: T.accent, fontSize: 15 }]}>✦</Text>
+          <Text style={[s.iconBtnText, { color: T.accent, fontSize: 14, fontWeight: '700' }]}>▣</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={s.iconBtn}>
           <Text style={s.iconBtnText}>{ICON.settings}</Text>
@@ -103,7 +103,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, paddingTop: 56, paddingBottom: T.sp.md },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoIcon: { fontSize: 24, color: T.accent },
+  logoIcon: { fontSize: 22, color: T.accent, fontWeight: '800' },
   logoText: { fontSize: 22, fontWeight: '800', color: T.text, letterSpacing: 1 },
   iconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
   iconBtnText: { fontSize: 16, color: T.textSec },

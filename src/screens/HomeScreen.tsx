@@ -57,9 +57,14 @@ export default function HomeScreen({ navigation }: Props) {
               <View style={s.cardBody}>
                 <View style={s.cardRow}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
-                  <TouchableOpacity onPress={() => setDeleteTarget(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Text style={s.cardDelete}>{ICON.delete}</Text>
-                  </TouchableOpacity>
+                  <View style={s.cardActions}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Chat', { novelId: item.id })} style={s.continueBtn}>
+                      <Text style={s.continueBtnText}>继续创作</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setDeleteTarget(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Text style={s.cardDelete}>{ICON.delete}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <View style={s.cardGenreRow}>
                   <View style={s.genreBadge}>
@@ -117,6 +122,9 @@ const s = StyleSheet.create({
   cardAccent: { height: 3, borderTopLeftRadius: T.r.lg, borderTopRightRadius: T.r.lg },
   cardBody: { padding: T.sp.lg },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  continueBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: T.accent + '15', borderWidth: 1, borderColor: T.accent + '30' },
+  continueBtnText: { fontSize: 11, color: T.accent, fontWeight: '600' },
   cardTitle: { fontSize: 17, fontWeight: '700', color: T.text, flex: 1, marginRight: 8 },
   cardDelete: { fontSize: 14, color: T.textMuted, padding: 4 },
   cardGenreRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },

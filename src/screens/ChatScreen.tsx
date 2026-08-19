@@ -83,6 +83,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [pendingOutline, setPendingOutline] = useState('');
   const [clearConfirm, setClearConfirm] = useState(false);
   const [thinkingMap, setThinkingMap] = useState<Record<string, string>>({});
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   useEffect(() => { getChatHistory(novelId).then(setMessages); }, [novelId]);
   useEffect(() => { if (messages.length > 0) setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100); }, [messages]);
@@ -192,7 +193,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.topBtn}>
           <Text style={s.backIcon}>{ICON.back}</Text>
@@ -218,6 +219,12 @@ export default function ChatScreen({ navigation, route }: Props) {
         keyExtractor={item => item.id}
         renderItem={renderMessage}
         contentContainerStyle={s.list}
+        onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          const isNearBottom = contentSize.height - layoutMeasurement.height - contentOffset.y < 100;
+          setShowScrollBtn(!isNearBottom);
+        }}
+        scrollEventThrottle={100}
         ListFooterComponent={loading ? (
           <View style={s.loadingRow}>
             <ActivityIndicator color={T.accent} size="small" />
@@ -226,6 +233,11 @@ export default function ChatScreen({ navigation, route }: Props) {
         ) : null}
       />
 
+      {showScrollBtn && (
+        <TouchableOpacity style={s.scrollBtn} onPress={() => flatListRef.current?.scrollToEnd({ animated: true })} activeOpacity={0.7}>
+          <Text style={s.scrollBtnText}>{ICON.arrow}</Text>
+        </TouchableOpacity>
+      )}
       <View style={s.inputBar}>
         <TextInput
           style={s.textInput}
@@ -302,6 +314,8 @@ const s = StyleSheet.create({
   loadingText: { fontSize: 13, color: T.textMuted },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: T.sp.lg, paddingVertical: T.sp.sm, paddingBottom: T.sp.lg, borderTopWidth: 1, borderTopColor: T.border, gap: 8, backgroundColor: T.surface },
   textInput: { flex: 1, backgroundColor: T.card, borderRadius: T.r.xl, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, color: T.text, maxHeight: 140, minHeight: 44, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
+  scrollBtn: { position: 'absolute', bottom: 70, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, zIndex: 10 },
+  scrollBtnText: { fontSize: 14, color: T.accent, fontWeight: '700', transform: [{ rotate: '90deg' }] },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', marginBottom: 0 },
   sendDisabled: { backgroundColor: T.border },
   sendIcon: { fontSize: 18, color: '#FFF', fontWeight: '700' },

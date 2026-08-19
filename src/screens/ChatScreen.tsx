@@ -15,32 +15,60 @@ function uid(): string { return Date.now().toString(36) + Math.random().toString
 
 function ThinkingPanel({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
+  const [pulse, setPulse] = useState(true);
+  
+  React.useEffect(() => {
+    if (!open) return;
+    const t = setInterval(() => setPulse(p => !p), 1200);
+    return () => clearInterval(t);
+  }, [open]);
+  
   if (!text) return null;
+  const steps = text.split('\n').filter(l => l.trim());
+  
   return (
     <View style={th.c}>
       <TouchableOpacity style={th.h} onPress={() => setOpen(!open)} activeOpacity={0.7}>
-        <Text style={th.icon}>{ICON.thinking}</Text>
+        <View style={[th.pulseDot, pulse && th.pulseActive]} />
+        <Text style={th.icon}>◎</Text>
         <Text style={th.label}>思考过程</Text>
+        <Text style={th.count}>{steps.length} 步</Text>
         <Text style={th.arrow}>{open ? '▾' : '▸'}</Text>
       </TouchableOpacity>
       {open && (
         <View style={th.body}>
-          {text.split('\n').filter(Boolean).map((l, i) => (
-            <Text key={i} style={th.line}>{l}</Text>
+          {steps.map((line, i) => (
+            <View key={i} style={th.stepRow}>
+              <View style={th.stepNum}>
+                <Text style={th.stepNumText}>{i + 1}</Text>
+              </View>
+              <Text style={th.stepLine}>{line.replace(/^[\-•·]\s*/, '')}</Text>
+            </View>
           ))}
+          <View style={th.thinkingBar}>
+            <View style={th.thinkingBarFill} />
+          </View>
         </View>
       )}
     </View>
   );
 }
 const th = StyleSheet.create({
-  c: { backgroundColor: T.surface, borderRadius: T.r.md, borderWidth: 1, borderColor: T.border, marginBottom: 8, overflow: 'hidden' },
-  h: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
-  icon: { fontSize: 12, color: T.accent },
-  label: { fontSize: 11, color: T.textMuted, flex: 1 },
-  arrow: { fontSize: 10, color: T.textMuted },
-  body: { paddingHorizontal: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: T.border },
-  line: { fontSize: 12, color: T.textSec, lineHeight: 18, marginTop: 4 },
+  c: { backgroundColor: T.accent + '08', borderRadius: T.r.lg, borderWidth: 1, borderColor: T.accent + '20', marginBottom: 10, overflow: 'hidden' },
+  h: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 7 },
+  pulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent, opacity: 0.4 },
+  pulseActive: { opacity: 1 },
+  icon: { fontSize: 13, color: T.accent, fontWeight: '600' },
+  label: { fontSize: 12, color: T.accent, fontWeight: '600', flex: 1, letterSpacing: 0.5 },
+  count: { fontSize: 10, color: T.textMuted, backgroundColor: T.card, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, overflow: 'hidden' },
+  arrow: { fontSize: 10, color: T.accent, fontWeight: '700' },
+  body: { paddingHorizontal: 12, paddingBottom: 10, borderTopWidth: 1, borderTopColor: T.accent + '15' },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 8 },
+  stepNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: T.accent + '20', justifyContent: 'center', alignItems: 'center', marginTop: 1 },
+  stepNumText: { fontSize: 10, fontWeight: '700', color: T.accent },
+  stepLine: { flex: 1, fontSize: 12, color: T.textSec, lineHeight: 18 },
+  thinkingBar: { height: 3, backgroundColor: T.accent + '15', borderRadius: 2, marginTop: 10, overflow: 'hidden' },
+  thinkingBarFill: { height: '100%', width: '60%', backgroundColor: T.accent + '40', borderRadius: 2 },
 });
 
 type Props = any;

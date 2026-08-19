@@ -20,11 +20,10 @@ type Props = any;
 
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
-    apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', ollamaUrl: 'http://localhost:11434', ollamaModel: 'qwen2.5:1.5b',
+    apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
     temperature: 0.7, maxTokens: 8192,
   });
-  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
-  const [ollamaModel, setOllamaModel] = useState('');
+
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [toast, setToast] = useState('');
@@ -36,24 +35,19 @@ export default function SettingsScreen({ navigation }: Props) {
   useEffect(() => {
     getSettings().then(s => {
       setSettings(s);
-      const ext = (s as any).ollamaUrl;
-      if (ext) setOllamaUrl(ext);
-      const om = (s as any).ollamaModel;
-      if (om) setOllamaModel(om);
+
     });
   }, []);
 
   const handleSave = async () => {
-    const extended = { ...settings, ollamaUrl, ollamaModel } as any;
-    await saveSettings(extended);
+    await saveSettings(settings);
     setToast('✅ 保存成功');
   };
 
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
-    const extended = { ...settings, ollamaUrl, ollamaModel } as any;
-    await saveSettings(extended);
+    await saveSettings(settings);
     const result = await checkApiKey();
     setTestResult(result.valid ? '✅ 连接成功' : `❌ ${result.error}`);
     setTesting(false);
@@ -108,27 +102,7 @@ export default function SettingsScreen({ navigation }: Props) {
         ))}
       </View>
 
-      <Text style={styles.section}>🏠 Ollama 本地</Text>
-      <TouchableOpacity style={styles.ollamaStartBtn} onPress={async () => {
-        try {
-          const { Linking } = await import('react-native');
-          await Linking.openURL('https://termux.com');
-          setInfoMsg('请在 Termux 中执行：ollama serve &\n\n执行后返回 App 点击「测试连接」验证');
-          setInfoModal(true);
-        } catch {
-          setInfoMsg('请手动打开 Termux 并执行：ollama serve &');
-          setInfoModal(true);
-        }
-      }}>
-        <Text style={styles.ollamaStartBtnText}>⚡ 一键启动 Ollama</Text>
-      </TouchableOpacity>
-      <Text style={styles.label}>Ollama 地址</Text>
-      <TextInput style={styles.input} value={ollamaUrl} onChangeText={setOllamaUrl} placeholder="http://localhost:11434" placeholderTextColor="#555" autoCapitalize="none" />
-      <Text style={styles.label}>Ollama 模型（留空=不使用本地）</Text>
-      <TextInput style={styles.input} value={ollamaModel} onChangeText={setOllamaModel} placeholder="如：qwen2.5:7b" placeholderTextColor="#555" autoCapitalize="none" />
-      <Text style={styles.hint}>填写模型名后，写作时会优先使用本地 Ollama，无需 API Key</Text>
-
-      {/* 余额 */}
+      {/* 余额 */}余额 */}
       <TouchableOpacity style={styles.balanceBtn} onPress={handleCheckBalance} disabled={balanceLoading}>
         <Text style={styles.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? `💰 余额：¥${balance.toFixed(2)}` : '💰 查询余额'}</Text>
       </TouchableOpacity>
@@ -184,8 +158,6 @@ const styles = StyleSheet.create({
   saveBtnText: { fontSize: 15, fontWeight: 'bold', color: '#000' },
   backupBtn: { backgroundColor: COLORS.card, borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   backupBtnText: { fontSize: 15, color: COLORS.text },
-  ollamaStartBtn: { backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 12 },
-  ollamaStartBtnText: { fontSize: 14, fontWeight: '600', color: '#000' },
   balanceBtn: { backgroundColor: T.card, borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: T.border, marginTop: 12 },
   balanceBtnText: { fontSize: 14, color: T.accent, fontWeight: '600' },
   footer: { alignItems: 'center', marginTop: 40, width: '100%' },

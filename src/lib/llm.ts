@@ -78,7 +78,7 @@ async function callOllama(baseUrl: string, model: string, messages: LLMMessage[]
         messages: messages.map(m => ({ role: m.role, content: m.content })),
         stream: false,
       }),
-      signal: AbortSignal.timeout(120000),
+      signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 120000); return c.signal; })(),
     });
     if (!res.ok) {
       const err = await res.text();
@@ -112,7 +112,7 @@ async function callDeepSeek(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
       body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: false, frequency_penalty: 0.3, presence_penalty: 0.3 }),
-      signal: AbortSignal.timeout(120000),
+      signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 120000); return c.signal; })(),
     });
     if (!res.ok) {
       const err = await res.text();
@@ -136,13 +136,15 @@ export async function checkBalance(): Promise<{ balance?: number; currency?: str
   const settings = await getSettings() as any;
   if (!settings.apiKey) return { error: '未配置 API Key' };
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
     const res = await fetch('https://api.deepseek.com/user/balance', {
       headers: { 'Authorization': `Bearer ${settings.apiKey}` },
-      signal: AbortSignal.timeout(10000),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     if (!res.ok) return { error: `HTTP ${res.status}` };
     const data = await res.json();
-    // DeepSeek 返回格式: { balance_infos: [{ total_balance, currency }] }
     const info = data.balance_infos?.[0];
     if (info) {
       return { balance: info.total_balance, currency: info.currency || 'CNY' };
@@ -159,7 +161,7 @@ export async function checkApiKey(): Promise<{ valid: boolean; error?: string; p
   // 先试 Ollama
   if (settings.ollamaModel && settings.ollamaUrl) {
     try {
-      const res = await fetch(`${settings.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`${settings.ollamaUrl}/api/tags`, { signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 5000); return c.signal; })() });
       if (res.ok) {
         return { valid: true, provider: `ollama/${settings.ollamaModel}` };
       }

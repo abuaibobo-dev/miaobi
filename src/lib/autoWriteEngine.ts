@@ -168,12 +168,29 @@ ${userPrompt}
   if (res.error) return `大纲生成失败：${res.error}`;
 
   try {
-    const jsonMatch = res.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      log(`大纲完成：${JSON.parse(jsonMatch[0]).totalChapters} 章`);
-      return JSON.parse(jsonMatch[0]) as Outline;
+    // 尝试提取 JSON：先找 ```json 代码块，再找裸 JSON
+    let jsonStr = '';
+    const codeBlockMatch = res.content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1].trim();
+    } else {
+      const jsonMatch = res.content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
     }
-  } catch {
+    
+    if (jsonStr) {
+      // 清理常见问题：尾部逗号、中文标点
+      jsonStr = jsonStr.replace(/，/g, ',').replace(/：/g, ':').replace(/"/g, '"').replace(/"/g, '"');
+      jsonStr = jsonStr.replace(/,\s*([}\]])/g, '$1');
+      
+      const parsed = JSON.parse(jsonStr);
+      log(`大纲完成：${parsed.totalChapters || parsed.chapterOutlines?.length || 0} 章`);
+      return parsed as Outline;
+    }
+  } catch (e) {
+    console.log('JSON parse error:', e);
     return '大纲解析失败，请重试';
   }
 
@@ -307,9 +324,19 @@ ${body}`;
   
   let review: ReviewResult = { score: 60, issues: [], suggestions: [] };
   try {
-    const jsonMatch = res.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      review = JSON.parse(jsonMatch[0]);
+    let reviewStr = '';
+    const codeBlockMatch = res.content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      reviewStr = codeBlockMatch[1].trim();
+    } else {
+      const jsonMatch = res.content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        reviewStr = jsonMatch[0];
+      }
+    }
+    if (reviewStr) {
+      reviewStr = reviewStr.replace(/，/g, ',').replace(/：/g, ':');
+      review = JSON.parse(reviewStr);
     }
   } catch {}
 
@@ -406,9 +433,18 @@ ${summaries}
   const res = await chatCompletion(messages);
   
   try {
-    const jsonMatch = res.content.match(/\[[\s\S]*?\]/);
-    if (jsonMatch) {
-      const issues = JSON.parse(jsonMatch[0]);
+    let arrStr = '';
+    const codeBlockMatch = res.content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      arrStr = codeBlockMatch[1].trim();
+    } else {
+      const jsonMatch = res.content.match(/\[[\s\S]*?\]/);
+      if (jsonMatch) {
+        arrStr = jsonMatch[0];
+      }
+    }
+    if (arrStr) {
+      const issues = JSON.parse(arrStr);
       if (issues.length > 0) {
         log(`发现 ${issues.length} 个连续性问题`);
       }

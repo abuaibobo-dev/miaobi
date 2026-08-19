@@ -70,7 +70,15 @@ async function callOllama(baseUrl: string, model: string, messages: LLMMessage[]
       return { content: '', error: `Ollama ${res.status}: ${err}` };
     }
     const data = await res.json();
-    return { content: data.message?.content || '' };
+    // 清理 Ollama 输出中的性能日志
+    let content = data.message?.content || '';
+    content = content.replace(/slot\s+print_timing:.*?\n/g, '');
+    content = content.replace(/srv\s+update_slots:.*?\n/g, '');
+    content = content.replace(/\[GIN\].*?\n/g, '');
+    content = content.replace(/graphs reused =.*?\n/g, '');
+    content = content.replace(/release:.*?\n/g, '');
+    content = content.trim();
+    return { content };
   } catch (e: any) {
     return { content: '', error: `Ollama 连接失败: ${e.message}` };
   }

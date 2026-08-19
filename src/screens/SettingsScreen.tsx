@@ -17,7 +17,7 @@ type Props = any;
 
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
-    apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
+    apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', ollamaUrl: 'http://localhost:11434', ollamaModel: 'qwen2.5:1.5b',
     temperature: 0.7, maxTokens: 4096,
   });
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');

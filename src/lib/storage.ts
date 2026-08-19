@@ -29,6 +29,8 @@ export async function getSettings(): Promise<NovelSettings> {
     model: 'deepseek-chat',
     temperature: 0.7,
     maxTokens: 4096,
+    ollamaUrl: 'http://localhost:11434',
+    ollamaModel: 'qwen2.5:1.5b',
   });
 }
 

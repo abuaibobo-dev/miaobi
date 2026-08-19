@@ -69,12 +69,31 @@ export default function ChatScreen({ navigation, route }: Props) {
       setMessages(prev => [...prev, aiMsg]);
       await appendChatMessage(novelId, aiMsg);
       try {
+        let jsonStr = '';
+        // 尝试提取 JSON 代码块
         const jsonMatch = res.content.match(/```json\s*([\s\S]*?)```/);
         if (jsonMatch) {
-          const update = JSON.parse(jsonMatch[1]);
-          if (update.summary || update.characterChanges || update.newForeshadowing) {
-            await processPostWrite(novelId, nextCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
-            if (update.summary) await addChapter(novelId, `第${nextCh}章`, res.content, update.summary);
+          jsonStr = jsonMatch[1].trim();
+        } else {
+          // 尝试直接找 JSON 对象
+          const braceMatch = res.content.match(/\{[\s\S]*\}/);
+          if (braceMatch) jsonStr = braceMatch[0];
+        }
+        if (jsonStr) {
+          // 修复常见 JSON 格式问题
+          jsonStr = jsonStr.replace(/，/g, ',').replace(/：/g, ':');
+          try {
+            const update = JSON.parse(jsonStr);
+            if (update.summary || update.characterChanges || update.newForeshadowing) {
+              await processPostWrite(novelId, nextCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
+              if (update.summary) await addChapter(novelId, `第${nextCh}章`, res.content, update.summary);
+            }
+          } catch (parseErr) {
+            // JSON 解析失败，用正则提取摘要
+            const summaryMatch = jsonStr.match(/"summary"\s*:\s*"([^"]+)"/);
+            if (summaryMatch) {
+              await addChapter(novelId, `第${nextCh}章`, res.content, summaryMatch[1]);
+            }
           }
         }
       } catch {}

@@ -231,17 +231,21 @@ ${WRITING_BIBLE}
 4. 保持文风一致
 5. 每章结束后输出 JSON 更新指令
 
-每章结束时输出：
+【重要】每章写完后，必须在最后输出一个完整的 JSON 代码块，格式必须严格如下（不要省略任何括号或逗号）：
 \`\`\`json
 {
-  "summary": "200-400字摘要",
-  "characterChanges": [{"name":"角色名","field":"state|status","oldValue":"","newValue":""}],
-  "newForeshadowing": [{"title":"","description":""}],
-  "resolvedForeshadowing": ["伏笔标题"],
-  "nextChapterHint": "下一章方向",
-  "techniques": {"sensoryDetails": ["感官描写"], "rhythmPattern": "节奏", "metaphors": ["隐喻"]}
+  "summary": "本章200-400字内容摘要",
+  "characterChanges": [
+    {"name": "角色名", "field": "state", "oldValue": "变化前", "newValue": "变化后"}
+  ],
+  "newForeshadowing": [
+    {"title": "伏笔标题", "description": "伏笔内容"}
+  ],
+  "resolvedForeshadowing": [],
+  "nextChapterHint": "下一章建议方向"
 }
 \`\`\`
+注意：JSON 必须以 { 开头，} 结尾，每个字段都要有值，不能省略。
 
 ---
 

@@ -31,7 +31,7 @@ function ThinkingPanel({ text }: { text: string }) {
       <TouchableOpacity style={th.h} onPress={() => setOpen(!open)} activeOpacity={0.7}>
         <View style={[th.pulseDot, pulse && th.pulseActive]} />
         <Text style={th.icon}>◎</Text>
-        <Text style={th.label}>思考过程</Text>
+        <Text style={th.label}>本章大纲</Text>
         <Text style={th.count}>{steps.length} 步</Text>
         <Text style={th.arrow}>{open ? '▾' : '▸'}</Text>
       </TouchableOpacity>
@@ -86,7 +86,10 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   useEffect(() => { getChatHistory(novelId).then(setMessages); }, [novelId]);
-  useEffect(() => { if (messages.length > 0) setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100); }, [messages]);
+  const scrollToBottom = () => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+  };
+  useEffect(() => { if (messages.length > 0) scrollToBottom(); }, [messages]);
 
   const buildApiMessages = async (extra?: string) => {
     const novels = await getNovels();
@@ -193,7 +196,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={s.container} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.topBtn}>
           <Text style={s.backIcon}>{ICON.back}</Text>
@@ -219,6 +222,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         keyExtractor={item => item.id}
         renderItem={renderMessage}
         contentContainerStyle={s.list}
+        onContentSizeChange={() => scrollToBottom()}
         onScroll={(e) => {
           const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
           const isNearBottom = contentSize.height - layoutMeasurement.height - contentOffset.y < 100;
@@ -228,7 +232,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         ListFooterComponent={loading ? (
           <View style={s.loadingRow}>
             <ActivityIndicator color={T.accent} size="small" />
-            <Text style={s.loadingText}>思考中...</Text>
+            <Text style={s.loadingText}>构思中...</Text>
           </View>
         ) : null}
       />

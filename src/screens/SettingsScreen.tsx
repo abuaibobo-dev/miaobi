@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { getSettings, saveSettings } from '../lib/storage';
-import { checkApiKey, checkBalance } from '../lib/llm';
+import { checkApiKey, checkBalance, checkOllamaAvailable, getOllamaModels } from '../lib/llm';
 import { exportBackup, restoreFromBackup } from '../lib/backup';
 import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
@@ -29,6 +29,8 @@ function Section({ title, icon, defaultOpen = true, children }: { title: string;
   );
 }
 
+const OLLAMA_TIP = '在 Termux 中运行：\n\nollama pull qwen2.5:1.5b   (日常聊天)\nollama pull qwen3:1.7b     (写小说 - 1.3GB)\nollama pull moondream       (识图 - 1.7GB)';
+
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
     apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
@@ -39,12 +41,31 @@ export default function SettingsScreen({ navigation }: Props) {
   const [toast, setToast] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [ollamaChecking, setOllamaChecking] = useState(false);
 
-  useEffect(() => { getSettings().then(setSettings); }, []);
+  useEffect(() => {
+    getSettings().then(setSettings);
+    checkOllamaStatus();
+  }, []);
+
+  const checkOllamaStatus = async () => {
+    setOllamaChecking(true);
+    try {
+      const available = await checkOllamaAvailable();
+      setOllamaAvailable(available);
+      if (available) {
+        const models = await getOllamaModels();
+        setOllamaModels(models);
+      }
+    } catch {}
+    setOllamaChecking(false);
+  };
 
   const handleSave = async () => {
     await saveSettings(settings);
-    setToast('✅ 保存成功');
+    setToast('保存成功');
   };
 
   const handleTest = async () => {
@@ -52,7 +73,7 @@ export default function SettingsScreen({ navigation }: Props) {
     setTestResult(null);
     await saveSettings(settings);
     const result = await checkApiKey();
-    setTestResult(result.valid ? '✅ 连接成功' : `❌ ${result.error}`);
+    setTestResult(result.valid ? '连接成功' : result.error || '连接失败');
     setTesting(false);
   };
 
@@ -64,9 +85,9 @@ export default function SettingsScreen({ navigation }: Props) {
       if (result && typeof result.balance === 'number' && !isNaN(result.balance)) {
         setBalance(result.balance);
       } else {
-        setToast((result && result.error) || '查询失败');
+        setToast(result?.error || '查询失败');
       }
-    } catch (e) {
+    } catch {
       setToast('查询出错');
     }
     setBalanceLoading(false);
@@ -74,7 +95,7 @@ export default function SettingsScreen({ navigation }: Props) {
 
   const handleExportBackup = async () => {
     const ok = await exportBackup();
-    if (ok) setToast('✅ 导出成功');
+    if (ok) setToast('导出成功');
   };
 
   const handleImportBackup = async () => {
@@ -83,9 +104,9 @@ export default function SettingsScreen({ navigation }: Props) {
       if (result.canceled || !result.assets?.[0]) return;
       const content = await (await import('expo-file-system')).default.readAsStringAsync(result.assets[0].uri);
       const res = await restoreFromBackup(content);
-      setToast(res.success ? '✅ 恢复成功' : '❌ ' + res.message);
+      setToast(res.success ? '恢复成功' : res.message);
     } catch (e: any) {
-      setToast('❌ 恢复失败：' + e.message);
+      setToast('恢复失败：' + e.message);
     }
   };
 
@@ -99,25 +120,53 @@ export default function SettingsScreen({ navigation }: Props) {
         <View style={{ width: 36 }} />
       </View>
 
+      <Section title="Ollama 本地模型" icon="⚡" defaultOpen={true}>
+        <View style={s.ollamaStatus}>
+          <View style={[s.statusDot, ollamaAvailable ? s.statusOk : s.statusFail]} />
+          <Text style={s.statusText}>
+            {ollamaChecking ? '检测中...' : ollamaAvailable ? 'Ollama 运行中' : 'Ollama 未运行'}
+          </Text>
+          <TouchableOpacity style={s.refreshBtn} onPress={checkOllamaStatus}>
+            <Icon.loading size={14} color={T.textMuted} />
+          </TouchableOpacity>
+        </View>
+        {ollamaAvailable && (
+          <View style={s.modelList}>
+            <Text style={s.label}>已安装模型：</Text>
+            {ollamaModels.length === 0 ? (
+              <Text style={s.noModel}>暂无模型</Text>
+            ) : (
+              ollamaModels.map((model, i) => (
+                <View key={i} style={s.modelItem}>
+                  <Icon.check size={12} color={T.accentGreen} />
+                  <Text style={s.modelName}>{model}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+        <Text style={s.ollamaHint}>{OLLAMA_TIP}</Text>
+      </Section>
+
       <Section title="DeepSeek 云端" icon="◈" defaultOpen={true}>
         <Text style={s.label}>API Key *</Text>
-        <TextInput style={s.input} value={settings.apiKey} onChangeText={v => setSettings(s => ({ ...s, apiKey: v }))} placeholder="sk-..." placeholderTextColor={T.textMuted} secureTextEntry autoCapitalize="none" />
+        <TextInput style={s.input} value={settings.apiKey} onChangeText={v => setSettings(prev => ({ ...prev, apiKey: v }))} placeholder="sk-..." placeholderTextColor={T.textMuted} secureTextEntry autoCapitalize="none" />
         <Text style={s.label}>API 地址</Text>
-        <TextInput style={s.input} value={settings.baseUrl} onChangeText={v => setSettings(s => ({ ...s, baseUrl: v }))} placeholder="https://api.deepseek.com" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+        <TextInput style={s.input} value={settings.baseUrl} onChangeText={v => setSettings(prev => ({ ...prev, baseUrl: v }))} placeholder="https://api.deepseek.com" placeholderTextColor={T.textMuted} autoCapitalize="none" />
         <Text style={s.label}>模型</Text>
-        <TextInput style={s.input} value={settings.model} onChangeText={v => setSettings(s => ({ ...s, model: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+        <TextInput style={s.input} value={settings.model} onChangeText={v => setSettings(prev => ({ ...prev, model: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
         <Text style={s.label}>Temperature: {settings.temperature.toFixed(1)}</Text>
         <View style={s.tempRow}>
           {[0.1, 0.3, 0.5, 0.7, 0.9, 1.0].map(t => (
-            <TouchableOpacity key={t} style={[s.tempChip, settings.temperature === t && s.tempChipActive]} onPress={() => setSettings(s => ({ ...s, temperature: t }))}>
+            <TouchableOpacity key={t} style={[s.tempChip, settings.temperature === t && s.tempChipActive]} onPress={() => setSettings(prev => ({ ...prev, temperature: t }))}>
               <Text style={[s.tempText, settings.temperature === t && s.tempTextActive]}>{t}</Text>
             </TouchableOpacity>
           ))}
         </View>
         <TouchableOpacity style={s.balanceBtn} onPress={handleCheckBalance} disabled={balanceLoading}>
-          <Text style={s.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? `余额：¥${balance.toFixed(2)}` : '查询余额'}</Text>
+          <Text style={s.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? '余额：¥' + balance.toFixed(2) : '查询余额'}</Text>
         </TouchableOpacity>
-        {testResult && <Text style={[s.testResult, testResult.startsWith('✅') ? s.testOk : s.testFail]}>{testResult}</Text>}
+        {testResult && <Text style={[s.testResult, testResult.includes('成功') ? s.testOk : s.testFail]}>{testResult}</Text>}
         <TouchableOpacity style={s.testBtn} onPress={handleTest} disabled={testing}>
           <Text style={s.testBtnText}>{testing ? '测试中...' : '测试连接'}</Text>
         </TouchableOpacity>
@@ -128,7 +177,7 @@ export default function SettingsScreen({ navigation }: Props) {
 
       <Section title="数据备份" icon="⬡" defaultOpen={false}>
         <TouchableOpacity style={s.backupBtn} onPress={handleExportBackup}>
-          <Text style={s.backupBtnText}>导出备份（JSON）</Text>
+          <Text style={s.backupBtnText}>导出备份</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[s.backupBtn, { marginTop: 8 }]} onPress={handleImportBackup}>
           <Text style={s.backupBtnText}>导入备份</Text>
@@ -136,7 +185,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.5.1</Text>
+        <Text style={s.footerText}>妙笔 v1.6.0</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 
@@ -148,38 +197,46 @@ export default function SettingsScreen({ navigation }: Props) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   content: { padding: 20, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 50, paddingBottom: 16 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
-  backIcon: { fontSize: 18, color: T.accent },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: T.text },
-  // Collapsible section
-  sectionWrap: { backgroundColor: T.card, borderRadius: T.r.lg, borderWidth: 1, borderColor: T.border, marginTop: 12, overflow: 'hidden' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: T.text },
+  sectionWrap: { marginBottom: 16, borderRadius: T.r.md, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, overflow: 'hidden' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
   sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionIcon: { fontSize: 14, color: T.accent },
+  sectionIcon: { fontSize: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: T.text },
-  sectionArrow: { fontSize: 12, color: T.textMuted, fontWeight: '700' },
+  sectionArrow: { fontSize: 14, color: T.textMuted },
   sectionBody: { paddingHorizontal: 14, paddingBottom: 14 },
-  // Form
-  label: { fontSize: 12, color: T.textMuted, marginBottom: 5, marginTop: 10, fontWeight: '600' },
-  input: { backgroundColor: T.surface, borderRadius: T.r.md, padding: 11, fontSize: 14, color: T.text, borderWidth: 1, borderColor: T.border },
-  tempRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
-  tempChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border },
-  tempChipActive: { backgroundColor: T.accent, borderColor: T.accent },
-  tempText: { fontSize: 12, color: T.textMuted },
-  tempTextActive: { color: '#000', fontWeight: '600' },
-  balanceBtn: { backgroundColor: T.surface, borderRadius: T.r.md, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: T.border, marginTop: 10 },
-  balanceBtnText: { fontSize: 13, color: T.accent, fontWeight: '600' },
-  testResult: { fontSize: 13, textAlign: 'center', marginTop: 10 },
+  label: { fontSize: 13, fontWeight: '600', color: T.textSec, marginBottom: 6, marginTop: 10 },
+  input: { height: 44, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 12, fontSize: 14, color: T.text },
+  tempRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  tempChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },
+  tempChipActive: { backgroundColor: T.accent, borderWidth: 0 },
+  tempText: { fontSize: 13, color: T.textSec },
+  tempTextActive: { color: '#FFF' },
+  balanceBtn: { marginTop: 12, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accentGreen + '15', alignItems: 'center' },
+  balanceBtnText: { fontSize: 14, fontWeight: '600', color: T.accentGreen },
+  testResult: { marginTop: 8, fontSize: 13, fontWeight: '600' },
   testOk: { color: T.accentGreen },
   testFail: { color: T.accentRed },
-  testBtn: { marginTop: 10, backgroundColor: T.surface, borderRadius: T.r.md, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: T.border },
-  testBtnText: { fontSize: 14, color: T.text },
-  saveBtn: { marginTop: 10, backgroundColor: T.accent, borderRadius: T.r.md, paddingVertical: 12, alignItems: 'center' },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
-  backupBtn: { backgroundColor: T.surface, borderRadius: T.r.md, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: T.border },
-  backupBtnText: { fontSize: 14, color: T.text },
-  footer: { alignItems: 'center', marginTop: 32, width: '100%' },
-  footerText: { fontSize: 13, color: T.textMuted },
-  footerSub: { fontSize: 11, color: T.textMuted, marginTop: 4, opacity: 0.6 },
+  testBtn: { marginTop: 10, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accent + '15', alignItems: 'center' },
+  testBtnText: { fontSize: 14, fontWeight: '600', color: T.accent },
+  saveBtn: { marginTop: 12, paddingVertical: 12, borderRadius: T.r.sm, backgroundColor: T.accent, alignItems: 'center' },
+  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  backupBtn: { paddingVertical: 12, borderRadius: T.r.sm, backgroundColor: T.accentBlue + '15', alignItems: 'center' },
+  backupBtnText: { fontSize: 14, fontWeight: '600', color: T.accentBlue },
+  footer: { marginTop: 32, alignItems: 'center' },
+  footerText: { fontSize: 14, fontWeight: '700', color: T.textSec },
+  footerSub: { fontSize: 12, color: T.textMuted, marginTop: 4 },
+  ollamaStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusOk: { backgroundColor: T.accentGreen },
+  statusFail: { backgroundColor: T.accentRed },
+  statusText: { fontSize: 13, fontWeight: '600', color: T.textSec, flex: 1 },
+  refreshBtn: { padding: 6 },
+  modelList: { marginBottom: 12 },
+  modelItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  modelName: { fontSize: 13, color: T.text, fontFamily: 'monospace' },
+  noModel: { fontSize: 13, color: T.textMuted, fontStyle: 'italic' },
+  ollamaHint: { fontSize: 12, color: T.textMuted, lineHeight: 18, backgroundColor: T.bg, padding: 10, borderRadius: T.r.sm },
 });

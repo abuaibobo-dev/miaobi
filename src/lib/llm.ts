@@ -229,3 +229,57 @@ export async function checkApiKey(): Promise<{ valid: boolean; error?: string; p
     return { valid: false, error: e.message };
   }
 }
+
+// ========== 嵌入模型：语义搜索 ==========
+
+const OLLAMA_EMBED_MODEL = 'nomic-embed-text';
+
+export async function getEmbedding(text: string): Promise<number[] | null> {
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, prompt: text }),
+      signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 30000); return c.signal; })(),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.embedding || null;
+  } catch {
+    return null;
+  }
+}
+
+// 余弦相似度
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+// 语义搜索：在文本块中找到与 query 最相关的片段
+export async function semanticSearch(
+  query: string,
+  chunks: { text: string; embedding?: number[] }[],
+  topK: number = 3
+): Promise<{ text: string; score: number }[]> {
+  const queryEmbedding = await getEmbedding(query);
+  if (!queryEmbedding) return chunks.slice(0, topK).map(c => ({ text: c.text, score: 0 }));
+
+  const scored = await Promise.all(
+    chunks.map(async (chunk) => {
+      let embedding = chunk.embedding;
+      if (!embedding) {
+        embedding = (await getEmbedding(chunk.text)) || undefined;
+      }
+      if (!embedding) return { text: chunk.text, score: 0 };
+      return { text: chunk.text, score: cosineSimilarity(queryEmbedding, embedding) };
+    })
+  );
+
+  return scored.sort((a, b) => b.score - a.score).slice(0, topK);
+}

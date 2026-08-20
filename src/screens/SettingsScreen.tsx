@@ -57,15 +57,18 @@ export default function SettingsScreen({ navigation }: Props) {
 
   const handleCheckBalance = async () => {
     setBalanceLoading(true);
+    setBalance(null);
     try {
       const result = await checkBalance();
-      if (result.balance !== undefined) setBalance(result.balance);
-      else setToast(result.error || '查询失败');
-    } catch (e: any) {
-      setToast('查询异常：' + (e.message || '未知错误'));
-    } finally {
-      setBalanceLoading(false);
+      if (result && typeof result.balance === 'number' && !isNaN(result.balance)) {
+        setBalance(result.balance);
+      } else {
+        setToast((result && result.error) || '查询失败');
+      }
+    } catch (e) {
+      setToast('查询出错');
     }
+    setBalanceLoading(false);
   };
 
   const handleExportBackup = async () => {

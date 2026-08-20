@@ -66,25 +66,24 @@ async function callDeepSeek(
  * 查询 DeepSeek 余额
  */
 export async function checkBalance(): Promise<{ balance?: number; currency?: string; error?: string }> {
-  const settings = await getSettings() as any;
-  if (!settings.apiKey) return { error: '未配置 API Key' };
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const settings = await getSettings();
+    if (!settings || !settings.apiKey) return { error: '未配置 API Key' };
     const res = await fetch('https://api.deepseek.com/user/balance', {
-      headers: { 'Authorization': `Bearer ${settings.apiKey}` },
-      signal: controller.signal,
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + settings.apiKey, 'Content-Type': 'application/json' },
     });
-    clearTimeout(timer);
-    if (!res.ok) return { error: `HTTP ${res.status}` };
+    if (!res || !res.ok) return { error: '网络请求失败' };
     const data = await res.json();
-    const info = data.balance_infos?.[0];
-    if (info) {
-      return { balance: info.total_balance, currency: info.currency || 'CNY' };
+    if (!data) return { error: '返回数据为空' };
+    const list = data.balance_infos;
+    if (list && list.length > 0 && list[0]) {
+      const bal = Number(list[0].total_balance);
+      if (!isNaN(bal)) return { balance: bal, currency: list[0].currency || 'CNY' };
     }
-    return { error: '无法解析余额数据' };
-  } catch (e: any) {
-    return { error: e.message || '查询失败' };
+    return { error: '无法解析余额' };
+  } catch (e) {
+    return { error: '查询出错' };
   }
 }
 

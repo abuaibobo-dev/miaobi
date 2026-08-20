@@ -6,7 +6,7 @@ import {
 import * as Speech from 'expo-speech';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
 import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible } from '../lib/novelMemory';
-import { chatCompletion, detectIntent } from '../lib/llm';
+import { chatCompletion } from '../lib/llm';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
@@ -101,10 +101,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [outlineMap, setOutlineMap] = useState<Record<string, string>>({});
   const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
   const [showCountModal, setShowCountModal] = useState(false);
-  const [chapterCount, setChapterCount] = useState(1);
   const [chapterCountInput, setChapterCountInput] = useState('1');
-  
-  // 模式切换状态：'writing' = AI写作模式，'chat' = 自由对话模式
   const [chatMode, setChatMode] = useState<'writing' | 'chat'>('writing');
 
   useEffect(() => {
@@ -139,50 +136,58 @@ export default function ChatScreen({ navigation, route }: Props) {
   const sendToAI = async (text: string) => {
     try {
       const nextCh = await getNextChapterNumber();
-      const systemPrompt = chatMode === 'writing' 
+      const systemPrompt = chatMode === 'writing'
         ? await buildSystemPrompt(novelId, nextCh)
         : '你是一个友好的AI助手，可以自由聊天、回答问题、讨论任何话题。请用中文回复。';
-      
+
       const { apiMsgs } = await buildApiMessages(text, systemPrompt);
-      const res = await chatCompletion(apiMsgs);
       
-      if (!res.error && res.content) {
-        const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
+      // 根据模式传递意图
+      const intent = chatMode === 'writing' ? 'writing' : 'chat';
+      const res = await chatCompletion(apiMsgs, { intent });
+
+      const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
+      setMessages(prev => [...prev, userMsg]);
+      await appendChatMessage(novelId, userMsg);
+
+      if (res.error) {
+        const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ ' + res.error, timestamp: new Date().toISOString() };
+        setMessages(prev => [...prev, errMsg]);
+        await appendChatMessage(novelId, errMsg);
+      } else if (res.content) {
         const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
         
-        setMessages(prev => [...prev, userMsg, aiMsg]);
-        await appendChatMessage(novelId, userMsg);
-        await appendChatMessage(novelId, aiMsg);
-        
-        // 只有写作模式才处理大纲、预告和记忆
         if (chatMode === 'writing') {
           const parsed = parseThinking(res.content);
           if (parsed.thinking) setThinkingMap(prev => ({ ...prev, [aiMsg.id]: parsed.thinking }));
           const chapter = parseChapter(res.content);
           if (chapter.outline) setOutlineMap(prev => ({ ...prev, [aiMsg.id]: chapter.outline }));
           if (chapter.preview) setPreviewMap(prev => ({ ...prev, [aiMsg.id]: chapter.preview }));
-          
-          // 尝试解析 JSON 并更新记忆
           try {
             let jsonStr = '';
             const jsonMatch = res.content.match(/```json\s*([\s\S]*?)```/);
             if (jsonMatch) jsonStr = jsonMatch[1].trim();
-            else { const braceMatch = parsed.body.match(/\{[\s\S]*\}/); if (braceMatch) jsonStr = braceMatch[0]; }
+            else { const braceMatch = parseThinking(res.content).body.match(/\{[\s\S]*\}/); if (braceMatch) jsonStr = braceMatch[0]; }
             if (jsonStr) {
               jsonStr = jsonStr.replace(/，/g, ',').replace(/：/g, ':');
               const update = JSON.parse(jsonStr);
               if (update.summary || update.characterChanges) {
                 const novels = await getNovels();
                 const novel = novels.find(n => n.id === novelId);
-                const nextCh = (novel?.totalChapters || 0) + 1;
-                await processPostWrite(novelId, nextCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
-                if (update.summary) await addChapter(novelId, '第' + nextCh + '章', parseThinking(res.content).body, update.summary);
+                const nCh = (novel?.totalChapters || 0) + 1;
+                await processPostWrite(novelId, nCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
+                if (update.summary) await addChapter(novelId, '第' + nCh + '章', parseThinking(res.content).body, update.summary);
               }
             }
           } catch {}
         }
+        setMessages(prev => [...prev, aiMsg]);
+        await appendChatMessage(novelId, aiMsg);
       }
-    } catch {}
+    } catch (e: any) {
+      const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ 发送失败：' + (e.message || '未知错误'), timestamp: new Date().toISOString() };
+      setMessages(prev => [...prev, errMsg]);
+    }
     setLoading(false);
   };
 
@@ -199,14 +204,13 @@ export default function ChatScreen({ navigation, route }: Props) {
   const startAutoWrite = async (count: number) => {
     setShowCountModal(false);
     if (loading) return;
-    setChapterCount(count);
     setLoading(true);
-    const novel = await getStoryBible(novelId);
-    const startCh = (novel?.totalChapters || 0) + 1;
     try {
+      const novel = await getStoryBible(novelId);
+      const startCh = (novel?.totalChapters || 0) + 1;
       const chRange = count === 1 ? `第${startCh}章` : `第${startCh}章到第${startCh + count - 1}章`;
       const { apiMsgs } = await buildApiMessages(`根据之前的剧情，请为${chRange}各生成一个简要大纲（每章100-200字），包括：核心事件、角色发展、冲突与转折。输出格式：每章用"## 第X章 标题"开头，后面跟大纲内容。`);
-      const res = await chatCompletion(apiMsgs);
+      const res = await chatCompletion(apiMsgs, { intent: 'writing' });
       if (!res.error) { setPendingOutline(res.content); setOutlineModal(true); }
     } catch {}
     setLoading(false);
@@ -227,11 +231,11 @@ export default function ChatScreen({ navigation, route }: Props) {
     setLoading(true);
     try {
       const { apiMsgs } = await buildApiMessages('根据以下预告内容，直接开始写下一章正文（5000字左右）：\n\n' + previewText);
-      const res = await chatCompletion(apiMsgs);
-      if (!res.error) {
-        const userMsg: ChatMessage = { id: uid(), role: 'user', content: '续写下一章', timestamp: new Date().toISOString() };
-        setMessages(prev => [...prev, userMsg]);
-        await appendChatMessage(novelId, userMsg);
+      const res = await chatCompletion(apiMsgs, { intent: 'writing' });
+      const userMsg: ChatMessage = { id: uid(), role: 'user', content: '续写下一章', timestamp: new Date().toISOString() };
+      setMessages(prev => [...prev, userMsg]);
+      await appendChatMessage(novelId, userMsg);
+      if (!res.error && res.content) {
         const parsed = parseThinking(res.content);
         const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
         if (parsed.thinking) setThinkingMap(prev => ({ ...prev, [aiMsg.id]: parsed.thinking }));
@@ -251,9 +255,9 @@ export default function ChatScreen({ navigation, route }: Props) {
             if (update.summary || update.characterChanges) {
               const novels = await getNovels();
               const novel = novels.find(n => n.id === novelId);
-              const nextCh = (novel?.totalChapters || 0) + 1;
-              await processPostWrite(novelId, nextCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
-              if (update.summary) await addChapter(novelId, '第' + nextCh + '章', parsed.body, update.summary);
+              const nCh = (novel?.totalChapters || 0) + 1;
+              await processPostWrite(novelId, nCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
+              if (update.summary) await addChapter(novelId, '第' + nCh + '章', parsed.body, update.summary);
             }
           }
         } catch {}
@@ -285,24 +289,17 @@ export default function ChatScreen({ navigation, route }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
-      {/* 顶部栏 */}
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Icon.back size={20} color={T.text} />
         </TouchableOpacity>
         <View style={s.modeSwitch}>
-          <TouchableOpacity 
-            style={[s.modeBtn, chatMode === 'writing' && s.modeBtnActive]} 
-            onPress={() => setChatMode('writing')}
-          >
+          <TouchableOpacity style={[s.modeBtn, chatMode === 'writing' && s.modeBtnActive]} onPress={() => setChatMode('writing')}>
             <Icon.edit size={14} color={chatMode === 'writing' ? '#FFF' : T.textMuted} />
             <Text style={[s.modeBtnText, chatMode === 'writing' && s.modeBtnTextActive]}>AI写作</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[s.modeBtn, chatMode === 'chat' && s.modeBtnActive]} 
-            onPress={() => setChatMode('chat')}
-          >
+          <TouchableOpacity style={[s.modeBtn, chatMode === 'chat' && s.modeBtnActive]} onPress={() => setChatMode('chat')}>
             <Icon.chat size={14} color={chatMode === 'chat' ? '#FFF' : T.textMuted} />
             <Text style={[s.modeBtnText, chatMode === 'chat' && s.modeBtnTextActive]}>自由对话</Text>
           </TouchableOpacity>
@@ -312,7 +309,6 @@ export default function ChatScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* 消息列表 */}
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -327,14 +323,12 @@ export default function ChatScreen({ navigation, route }: Props) {
         }}
       />
 
-      {/* 滚动到底部按钮 */}
       {showScrollBtn && (
         <TouchableOpacity style={s.scrollBtn} onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}>
           <Icon.down size={18} color="#FFF" />
         </TouchableOpacity>
       )}
 
-      {/* 输入区域 */}
       <View style={s.inputBar}>
         {chatMode === 'writing' && (
           <TouchableOpacity style={s.autoBtn} onPress={handleAutoWrite}>
@@ -350,20 +344,11 @@ export default function ChatScreen({ navigation, route }: Props) {
           multiline
           maxLength={4000}
         />
-        <TouchableOpacity 
-          style={[s.sendBtn, (!input.trim() || loading) && s.sendBtnDisabled]} 
-          onPress={handleSend} 
-          disabled={!input.trim() || loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Icon.send size={18} color="#FFF" />
-          )}
+        <TouchableOpacity style={[s.sendBtn, (!input.trim() || loading) && s.sendBtnDisabled]} onPress={handleSend} disabled={!input.trim() || loading}>
+          {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Icon.send size={18} color="#FFF" />}
         </TouchableOpacity>
       </View>
 
-      {/* 大纲确认弹窗 */}
       {outlineModal && (
         <View style={s.modalOverlay}>
           <View style={s.modalBox}>
@@ -381,19 +366,11 @@ export default function ChatScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      {/* 章节数量输入弹窗 */}
       {showCountModal && (
         <View style={s.modalOverlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTitle}>生成章节数量</Text>
-            <TextInput
-              style={s.countInput}
-              value={chapterCountInput}
-              onChangeText={setChapterCountInput}
-              keyboardType="number-pad"
-              placeholder="输入数量"
-              placeholderTextColor={T.textMuted}
-            />
+            <TextInput style={s.countInput} value={chapterCountInput} onChangeText={setChapterCountInput} keyboardType="number-pad" placeholder="输入数量" placeholderTextColor={T.textMuted} />
             <View style={s.modalActions}>
               <TouchableOpacity style={s.modalBtn} onPress={() => setShowCountModal(false)}>
                 <Text style={s.modalBtnText}>取消</Text>
@@ -409,7 +386,6 @@ export default function ChatScreen({ navigation, route }: Props) {
         </View>
       )}
 
-      {/* 清空确认弹窗 */}
       <CapsuleAlert visible={clearConfirm} title="清空对话" message="确定要清空所有对话记录吗？此操作不可恢复。" onConfirm={async () => { await clearChatHistory(novelId); setMessages([]); setClearConfirm(false); }} onCancel={() => setClearConfirm(false)} />
     </KeyboardAvoidingView>
   );
@@ -435,7 +411,7 @@ const s = StyleSheet.create({
   text: { fontSize: 15, lineHeight: 22 },
   textUser: { color: '#FFF' },
   textAI: { color: T.text },
-  scrollBtn: { position: 'absolute', bottom: 90, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  scrollBtn: { position: 'absolute', bottom: 100, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 4 },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingBottom: 34, paddingTop: 8, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, gap: 8 },
   autoBtn: { padding: 10, borderRadius: 20, backgroundColor: T.accent + '15' },
   input: { flex: 1, minHeight: 40, maxHeight: 120, borderRadius: T.r.lg, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: T.text, textAlignVertical: 'center' },

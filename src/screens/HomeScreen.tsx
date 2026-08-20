@@ -1,24 +1,87 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getNovels, deleteNovel } from '../lib/storage';
-import { truncate, formatTime } from '../lib/utils';
+import { getChapters } from '../lib/storage';
+import { truncate } from '../lib/utils';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { NovelProject } from '../types/novel';
 
 type Props = any;
+const { width: SCREEN_W } = Dimensions.get('window');
+const BOOK_W = (SCREEN_W - 48) / 3;
+const BOOK_H = BOOK_W * 1.4;
+
+const COVER_COLORS = [
+  ['#8B5CF6', '#6D28D9'],
+  ['#EC4899', '#BE185D'],
+  ['#3B82F6', '#1D4ED8'],
+  ['#10B981', '#047857'],
+  ['#F59E0B', '#D97706'],
+  ['#EF4444', '#B91C1C'],
+  ['#6366F1', '#4338CA'],
+  ['#14B8A6', '#0D9488'],
+];
 
 export default function HomeScreen({ navigation }: Props) {
   const [novels, setNovels] = useState<NovelProject[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<NovelProject | null>(null);
+  const [chapterCounts, setChapterCounts] = useState<Record<string, number>>({});
 
-  useFocusEffect(useCallback(() => { getNovels().then(setNovels); }, []));
+  useFocusEffect(useCallback(() => {
+    getNovels().then(list => {
+      setNovels(list);
+      list.forEach(n => {
+        getChapters(n.id).then(chs => {
+          setChapterCounts(prev => ({ ...prev, [n.id]: chs.length }));
+        });
+      });
+    });
+  }, []));
+
+  const renderBook = ({ item, index }: { item: NovelProject; index: number }) => {
+    const colors = COVER_COLORS[index % COVER_COLORS.length];
+    const count = chapterCounts[item.id] || 0;
+
+    return (
+      <TouchableOpacity
+        style={s.bookWrap}
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('NovelDetail', { novelId: item.id })}
+        onLongPress={() => setDeleteTarget(item)}
+      >
+        <View style={[s.bookCover, { backgroundColor: colors[0] }]}>
+          <View style={s.bookSpine} />
+          <View style={s.bookContent}>
+            <Text style={s.bookTitle} numberOfLines={4}>{item.title}</Text>
+            <View style={s.bookDivider} />
+            <Text style={s.bookGenre}>{item.genre}</Text>
+          </View>
+          <View style={[s.bookBottom, { backgroundColor: colors[1] }]}>
+            <Text style={s.bookChapters}>{count} 章</Text>
+          </View>
+        </View>
+        
+        <View style={s.bookActions}>
+          <TouchableOpacity style={s.actionBtn} onPress={() => {
+            if (count > 0) navigation.navigate('Reader', { novelId: item.id });
+          }}>
+            <Icon.book size={12} color={count > 0 ? T.accent : T.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('Chat', { novelId: item.id })}>
+            <Icon.write size={12} color={T.accent} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+
       <View style={s.header}>
         <View style={s.headerLeft}>
           <View style={s.logoWrap}>
@@ -37,49 +100,28 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       {novels.length > 0 && (
-        <Text style={s.subtitle}>{novels.length} 部作品</Text>
+        <View style={s.shelfHeader}>
+          <Text style={s.shelfTitle}>我的书架</Text>
+          <Text style={s.shelfCount}>{novels.length} 部</Text>
+        </View>
       )}
 
       {novels.length === 0 ? (
         <View style={s.empty}>
           <View style={s.emptyIconWrap}>
-            <Icon.book size={40} color={T.accent} />
+            <Icon.book size={48} color={T.accent} />
           </View>
-          <Text style={s.emptyTitle}>开始创作</Text>
-          <Text style={s.emptySub}>你的第一部小说，从这里出发</Text>
+          <Text style={s.emptyTitle}>书架空空如也</Text>
+          <Text style={s.emptySub}>点击右下角开始你的第一部作品</Text>
         </View>
       ) : (
         <FlatList
           data={novels}
           keyExtractor={item => item.id}
-          contentContainerStyle={s.list}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity style={s.card} onPress={() => navigation.navigate('NovelDetail', { novelId: item.id })} activeOpacity={0.7}>
-              <View style={[s.cardAccent, { backgroundColor: index % 3 === 0 ? T.accent : index % 3 === 1 ? T.accentPink : T.accentBlue }]} />
-              <View style={s.cardBody}>
-                <View style={s.cardRow}>
-                  <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
-                  <TouchableOpacity onPress={() => setDeleteTarget(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Icon.delete size={14} color={T.textMuted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={s.cardMeta}>
-                  <View style={s.genreBadge}>
-                    <Text style={s.genreText}>{item.genre}</Text>
-                  </View>
-                  <Text style={s.cardChapters}>{item.totalChapters} 章</Text>
-                </View>
-                <Text style={s.cardSynopsis} numberOfLines={2}>{truncate(item.synopsis, 80)}</Text>
-                <View style={s.cardFooter}>
-                  <Text style={s.cardTime}>{formatTime(item.updatedAt)}</Text>
-                  <TouchableOpacity style={s.continueBtn} onPress={() => navigation.navigate('Chat', { novelId: item.id })}>
-                    <Text style={s.continueBtnText}>继续创作</Text>
-                    <Icon.continueWrite size={12} color={T.accent} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableOpacity>
-          )}
+          numColumns={3}
+          contentContainerStyle={s.shelfList}
+          columnWrapperStyle={s.shelfRow}
+          renderItem={renderBook}
         />
       )}
 
@@ -114,25 +156,25 @@ const s = StyleSheet.create({
   logoText: { fontSize: 22, fontWeight: '800', color: T.text, letterSpacing: 0.5 },
   headerRight: { flexDirection: 'row', gap: 8 },
   headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
-  subtitle: { fontSize: 13, color: T.textMuted, paddingHorizontal: T.sp.xl, marginBottom: T.sp.sm },
+  shelfHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, marginBottom: T.sp.md },
+  shelfTitle: { fontSize: 16, fontWeight: '700', color: T.text },
+  shelfCount: { fontSize: 13, color: T.textMuted },
+  shelfList: { paddingHorizontal: T.sp.lg, paddingBottom: 100 },
+  shelfRow: { justifyContent: 'flex-start', gap: 12, marginBottom: T.sp.md },
+  bookWrap: { width: BOOK_W, alignItems: 'center' },
+  bookCover: { width: BOOK_W, height: BOOK_H, borderRadius: 6, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
+  bookSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: 'rgba(0,0,0,0.2)' },
+  bookContent: { flex: 1, padding: 8, paddingTop: 12, justifyContent: 'center' },
+  bookTitle: { fontSize: 11, fontWeight: '700', color: '#FFF', lineHeight: 14, textAlign: 'center' },
+  bookDivider: { width: 20, height: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginVertical: 6, alignSelf: 'center' },
+  bookGenre: { fontSize: 9, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
+  bookBottom: { paddingVertical: 4, alignItems: 'center' },
+  bookChapters: { fontSize: 9, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
+  bookActions: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  actionBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 80 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: T.accent + '10', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 8 },
   emptySub: { fontSize: 14, color: T.textMuted },
-  list: { paddingHorizontal: T.sp.lg, paddingBottom: 100 },
-  card: { backgroundColor: T.card, borderRadius: T.r.md, marginBottom: T.sp.sm, borderWidth: 1, borderColor: T.border, overflow: 'hidden' },
-  cardAccent: { height: 2 },
-  cardBody: { padding: T.sp.md },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: T.text, flex: 1, marginRight: 6 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  genreBadge: { backgroundColor: T.accent + '15', paddingHorizontal: 8, paddingVertical: 3, borderRadius: T.r.sm },
-  genreText: { fontSize: 11, color: T.accent, fontWeight: '600' },
-  cardChapters: { fontSize: 12, color: T.textMuted },
-  cardSynopsis: { fontSize: 12, color: T.textSec, marginTop: 4, lineHeight: 16 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  cardTime: { fontSize: 11, color: T.textMuted },
-  continueBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: T.r.sm, backgroundColor: T.accent + '12' },
-  continueBtnText: { fontSize: 11, color: T.accent, fontWeight: '600' },
   fab: { position: 'absolute', bottom: 32, right: 24, width: 56, height: 56, borderRadius: 18, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: T.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
 });

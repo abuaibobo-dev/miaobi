@@ -8,6 +8,7 @@ import NovelDetailScreen from './src/screens/NovelDetailScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import AutoWriteScreen from './src/screens/AutoWriteScreen';
+import ReaderScreen from './src/screens/ReaderScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,6 +29,7 @@ export default function App() {
         <Stack.Screen name="Chat" component={ChatScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AutoWrite" component={AutoWriteScreen} />
+        <Stack.Screen name="Reader" component={ReaderScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

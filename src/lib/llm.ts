@@ -217,12 +217,27 @@ export async function checkBalance(): Promise<{ balance?: number; currency?: str
 
 export async function checkApiKey(): Promise<{ valid: boolean; error?: string; provider?: string }> {
   const settings = await getSettings() as any;
-  if (!settings.apiKey) return { valid: false, error: '未配置 API Key' };
+  
+  // 先测 Ollama
+  const ollamaOk = await checkOllamaAvailable();
+  if (ollamaOk) {
+    try {
+      const result = await callOllama(
+        OLLAMA_MODELS.CHAT,
+        [{ role: 'user', content: '回复ok' }],
+        0.1, 10
+      );
+      if (!result.error) return { valid: true, provider: 'ollama/' + OLLAMA_MODELS.CHAT };
+    } catch {}
+  }
+  
+  // 再测 DeepSeek
+  if (!settings.apiKey) return { valid: false, error: ollamaOk ? 'Ollama 可用，DeepSeek 未配置 Key' : 'Ollama 不可用且未配置 DeepSeek Key' };
   try {
     const result = await chatCompletion([
       { role: 'system', content: '回复ok' },
       { role: 'user', content: 'ping' },
-    ]);
+    ], { intent: 'chat' });
     if (result.error) return { valid: false, error: result.error };
     return { valid: true, provider: result.provider || 'deepseek' };
   } catch (e: any) {

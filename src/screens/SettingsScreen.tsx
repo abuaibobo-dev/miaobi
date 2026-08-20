@@ -72,8 +72,13 @@ export default function SettingsScreen({ navigation }: Props) {
     setTesting(true);
     setTestResult(null);
     await saveSettings(settings);
-    const result = await checkApiKey();
-    setTestResult(result.valid ? '连接成功' : result.error || '连接失败');
+    try {
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('超时（15秒）')), 15000));
+      const result = await Promise.race([checkApiKey(), timeout]);
+      setTestResult((result as any).valid ? '连接成功' : (result as any).error || '连接失败');
+    } catch (e: any) {
+      setTestResult(e.message || '测试超时');
+    }
     setTesting(false);
   };
 

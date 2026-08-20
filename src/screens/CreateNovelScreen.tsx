@@ -3,7 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 
 import { createNovel } from '../lib/novelMemory';
 import { getSettings } from '../lib/storage';
 import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
-import { T, ICON } from '../lib/theme';
+import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 
 type Props = any;
 const GENRES = ['玄幻', '言情', '悬疑', '科幻', '历史', '武侠', '都市', '恐怖', '奇幻', '其他'];
@@ -40,7 +41,7 @@ export default function CreateNovelScreen({ navigation }: Props) {
       {/* Header */}
       <View style={s.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Text style={s.backIcon}>{ICON.back}</Text>
+          <Icon.back size={18} color={T.accent} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>创建新作品</Text>
         <View style={{ width: 36 }} />
@@ -74,7 +75,7 @@ export default function CreateNovelScreen({ navigation }: Props) {
 
       {/* Submit */}
       <TouchableOpacity style={[s.submitBtn, loading && { opacity: 0.5 }]} onPress={handleCreate} disabled={loading} activeOpacity={0.8}>
-        <Text style={s.submitTxt}>{loading ? '创建中...' : '开始创作 →'}</Text>
+        <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.submitTxt}>{loading ? '创建中...' : '开始创作'}</Text><Icon.forward size={16} color="#FFF" /></View>
       </TouchableOpacity>
 
       <CapsuleToast visible={!!toast} text={toast} onHide={() => setToast('')} />

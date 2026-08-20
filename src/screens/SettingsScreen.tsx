@@ -7,7 +7,8 @@ import { getSettings, saveSettings } from '../lib/storage';
 import { checkApiKey, checkBalance } from '../lib/llm';
 import { exportBackup, restoreFromBackup } from '../lib/backup';
 import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
-import { T, ICON } from '../lib/theme';
+import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 import type { NovelSettings } from '../types/novel';
 
 type Props = any;
@@ -92,7 +93,7 @@ export default function SettingsScreen({ navigation }: Props) {
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Text style={s.backIcon}>{ICON.back}</Text>
+          <Icon.back size={18} color={T.accent} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>设置</Text>
         <View style={{ width: 36 }} />

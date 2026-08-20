@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 import type { Chapter } from '../types/novel';
 
 interface Props {

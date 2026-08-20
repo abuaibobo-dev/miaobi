@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput } from 'react-native';
 import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 import type { Character } from '../types/novel';
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {

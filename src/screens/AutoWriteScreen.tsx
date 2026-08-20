@@ -23,7 +23,8 @@ import {
   type AutoWriteProgress,
 } from '../lib/autoWriteEngine';
 import { getNovels } from '../lib/storage';
-import { T, ICON } from '../lib/theme';
+import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 import { CapsuleToast } from '../components/CapsuleAlert';
 
 type Props = any;
@@ -180,7 +181,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
             <Text style={s.primaryBtnText}>加载中...</Text>
           </View>
         ) : (
-          <Text style={s.primaryBtnText}>生成大纲 {ICON.arrow}</Text>
+          <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>生成大纲</Text><Icon.arrow size={16} color="#FFF" /></View>
         )}
       </TouchableOpacity>
     </View>
@@ -218,7 +219,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
             <Text style={s.secondaryBtnText}>重新生成</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.primaryBtn, isWriting && s.primaryBtnDisabled]} onPress={handleStartWriting} disabled={isWriting}>
-            <Text style={s.primaryBtnText}>开始写作 {ICON.arrow}</Text>
+            <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>开始写作</Text><Icon.arrow size={16} color="#FFF" /></View>
           </TouchableOpacity>
         </View>
       </View>
@@ -271,7 +272,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
     if (!result) return null;
     return (
       <View style={s.completeContainer}>
-        <View style={s.completeIcon}><Text style={s.completeEmoji}>🎉</Text></View>
+        <View style={s.completeIcon}><Icon.check size={40} color={T.accentGreen} /></View>
         <Text style={s.completeTitle}>写作完成！</Text>
         <Text style={s.completeSubtitle}>共完成 {result.chaptersWritten} 章</Text>
         {result.errors.length > 0 ? (
@@ -291,7 +292,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
             <Text style={s.secondaryBtnText}>返回首页</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.primaryBtn} onPress={() => navigation.navigate('NovelDetail', { novelId })}>
-            <Text style={s.primaryBtnText}>查看作品 {ICON.arrow}</Text>
+            <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>查看作品</Text><Icon.arrow size={16} color="#FFF" /></View>
           </TouchableOpacity>
         </View>
       </View>
@@ -302,7 +303,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
     <View style={s.container}>
       <View style={s.topBar}>
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={s.backIcon}>{ICON.back}</Text>
+          <Icon.back size={14} color={T.text} />
         </TouchableOpacity>
         <Text style={s.topTitle}>全自动写作</Text>
         <View style={s.placeholder} />

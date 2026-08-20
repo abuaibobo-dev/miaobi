@@ -84,6 +84,8 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [clearConfirm, setClearConfirm] = useState(false);
   const [thinkingMap, setThinkingMap] = useState<Record<string, string>>({});
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [chapterCount, setChapterCount] = useState(1);
+  const [showCountModal, setShowCountModal] = useState(false);
 
   useEffect(() => { getChatHistory(novelId).then(setMessages); }, [novelId]);
   const scrollToBottom = () => {
@@ -149,13 +151,18 @@ export default function ChatScreen({ navigation, route }: Props) {
     await sendToAI(userMsg.content);
   };
 
-  const handleAutoWrite = async () => {
+  const handleAutoWrite = () => { setShowCountModal(true); };
+
+  const startAutoWrite = async (count: number) => {
+    setShowCountModal(false);
     if (loading) return;
+    setChapterCount(count);
     setLoading(true);
     const novel = await getStoryBible(novelId);
-    const nextCh = (novel?.totalChapters || 0) + 1;
+    const startCh = (novel?.totalChapters || 0) + 1;
     try {
-      const { apiMsgs } = await buildApiMessages(`根据之前的剧情，请为第${nextCh}章生成一个详细大纲（200-300字），包括：本章核心事件、角色发展、冲突与转折。只输出大纲文本。`);
+      const chRange = count === 1 ? `第${startCh}章` : `第${startCh}章到第${startCh + count - 1}章`;
+      const { apiMsgs } = await buildApiMessages(`根据之前的剧情，请为${chRange}各生成一个简要大纲（每章100-200字），包括：核心事件、角色发展、冲突与转折。输出格式：每章用"## 第X章 标题"开头，后面跟大纲内容。`);
       const res = await chatCompletion(apiMsgs);
       if (!res.error) { setPendingOutline(res.content); setOutlineModal(true); }
     } catch {}
@@ -165,7 +172,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const handleOutlineConfirm = async () => {
     setOutlineModal(false);
     setLoading(true);
-    const userMsg: ChatMessage = { id: uid(), role: 'user', content: `请按照以下大纲写出完整章节：\n\n${pendingOutline}`, timestamp: new Date().toISOString() };
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: `请按照以下大纲写出完整章节（每章5000字左右）：\n\n${pendingOutline}`, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
     await appendChatMessage(novelId, userMsg);
     await sendToAI(userMsg.content);
@@ -215,6 +222,29 @@ export default function ChatScreen({ navigation, route }: Props) {
           <Text style={s.quickText}>✎ 新章</Text>
         </TouchableOpacity>
       </View>
+      <Modal visible={showCountModal} transparent animationType="fade">
+        <View style={s.overlay}>
+          <View style={s.countModal}>
+            <Text style={s.countTitle}>续写几章？</Text>
+            <Text style={s.countHint}>选择要续写的章节数量</Text>
+            <View style={s.countGrid}>
+              {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                <TouchableOpacity key={n} style={[s.countChip, chapterCount === n && s.countChipActive]} onPress={() => setChapterCount(n)}>
+                  <Text style={[s.countChipText, chapterCount === n && s.countChipTextActive]}>{n}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={s.countBtnRow}>
+              <TouchableOpacity style={s.countCancelBtn} onPress={() => setShowCountModal(false)}>
+                <Text style={s.countCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.countConfirmBtn} onPress={() => startAutoWrite(chapterCount)}>
+                <Text style={s.countConfirmText}>开始续写 {chapterCount} 章</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <FlatList
         ref={flatListRef}
@@ -320,6 +350,19 @@ const s = StyleSheet.create({
   textInput: { flex: 1, backgroundColor: T.card, borderRadius: T.r.xl, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, color: T.text, maxHeight: 140, minHeight: 44, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
   scrollBtn: { position: 'absolute', bottom: 70, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, zIndex: 10 },
   scrollBtnText: { fontSize: 14, color: T.accent, fontWeight: '700', transform: [{ rotate: '90deg' }] },
+  countModal: { backgroundColor: T.card, borderRadius: T.r.xl, padding: 20, width: '85%', borderWidth: 1, borderColor: T.borderLight },
+  countTitle: { fontSize: 18, fontWeight: '800', color: T.text, textAlign: 'center', marginBottom: 4 },
+  countHint: { fontSize: 13, color: T.textMuted, textAlign: 'center', marginBottom: 16 },
+  countGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 20 },
+  countChip: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, justifyContent: 'center', alignItems: 'center' },
+  countChipActive: { backgroundColor: T.accent, borderColor: T.accent },
+  countChipText: { fontSize: 16, fontWeight: '600', color: T.textMuted },
+  countChipTextActive: { color: '#FFF' },
+  countBtnRow: { flexDirection: 'row', gap: 10 },
+  countCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: T.r.md, backgroundColor: T.surface, alignItems: 'center', borderWidth: 1, borderColor: T.border },
+  countCancelText: { fontSize: 14, color: T.textSec },
+  countConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: T.r.md, backgroundColor: T.accent, alignItems: 'center' },
+  countConfirmText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', marginBottom: 0 },
   sendDisabled: { backgroundColor: T.border },
   sendIcon: { fontSize: 18, color: '#FFF', fontWeight: '700' },

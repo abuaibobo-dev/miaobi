@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import {
   plannerAgent as generateOutline,
@@ -321,7 +322,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: T.sp.lg, paddingTop: 50, paddingBottom: T.sp.md, borderBottomWidth: 1, borderBottomColor: T.border },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: T.sp.lg, paddingTop: (StatusBar.currentHeight || 44), paddingBottom: T.sp.md, borderBottomWidth: 1, borderBottomColor: T.border },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 18, color: T.accent },
   topTitle: { fontSize: 17, fontWeight: '700', color: T.text },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
 import * as Speech from 'expo-speech';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
@@ -289,7 +289,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Icon.back size={20} color={T.text} />
@@ -393,7 +393,7 @@ export default function ChatScreen({ navigation, route }: Props) {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 48, paddingBottom: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
+  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: (StatusBar.currentHeight || 44), paddingBottom: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
   backBtn: { padding: 8 },
   clearBtn: { padding: 8 },
   modeSwitch: { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 8 },
@@ -412,7 +412,7 @@ const s = StyleSheet.create({
   textUser: { color: '#FFF' },
   textAI: { color: T.text },
   scrollBtn: { position: 'absolute', bottom: 100, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 4 },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingBottom: 34, paddingTop: 8, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, gap: 8 },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingBottom: 8, paddingTop: 8, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, gap: 8 },
   autoBtn: { padding: 10, borderRadius: 20, backgroundColor: T.accent + '15' },
   input: { flex: 1, minHeight: 40, maxHeight: 120, borderRadius: T.r.lg, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: T.text, textAlignVertical: 'center' },
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },

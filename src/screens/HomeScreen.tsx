@@ -150,7 +150,7 @@ export default function HomeScreen({ navigation }: Props) {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, paddingTop: 56, paddingBottom: T.sp.md },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, paddingTop: (StatusBar.currentHeight || 44) + 8, paddingBottom: T.sp.md },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoWrap: { width: 32, height: 32, borderRadius: 10, backgroundColor: T.accent + '15', justifyContent: 'center', alignItems: 'center' },
   logoText: { fontSize: 22, fontWeight: '800', color: T.text, letterSpacing: 0.5 },

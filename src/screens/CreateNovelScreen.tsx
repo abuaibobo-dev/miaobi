@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { createNovel } from '../lib/novelMemory';
 import { getSettings } from '../lib/storage';
 import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
@@ -87,7 +87,7 @@ export default function CreateNovelScreen({ navigation }: Props) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   content: { padding: T.sp.xl, paddingBottom: 40 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 50, paddingBottom: T.sp.lg },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: (StatusBar.currentHeight || 44), paddingBottom: T.sp.lg },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
   backIcon: { fontSize: 18, color: T.accent },
   headerTitle: { fontSize: 18, fontWeight: '800', color: T.text },

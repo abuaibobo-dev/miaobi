@@ -147,7 +147,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 48, paddingBottom: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
+  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: (StatusBar.currentHeight || 44), paddingBottom: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
   backBtn: { padding: 8 },
   topTitle: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '600', color: T.text },
   topChapter: { fontSize: 12, color: T.textMuted, padding: 8 },

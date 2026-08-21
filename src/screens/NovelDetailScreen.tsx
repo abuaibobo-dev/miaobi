@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet, Alert, ScrollView, TextInput, Modal,
+  StatusBar,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getStoryBible, updateNovelBible } from '../lib/novelMemory';
@@ -349,7 +350,7 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   loading: { color: COLORS.sub, textAlign: 'center', marginTop: 100 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: (StatusBar.currentHeight || 44), paddingBottom: 12 },
   backBtn: { fontSize: 14, color: COLORS.accent },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.text, flex: 1, textAlign: 'center', marginHorizontal: 8 },
   headerRight: { flexDirection: 'row', gap: 8 },

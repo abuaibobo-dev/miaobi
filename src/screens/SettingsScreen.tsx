@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { getSettings, saveSettings } from '../lib/storage';
 import { checkApiKey, checkBalance, checkOllamaAvailable, getOllamaModels } from '../lib/llm';
 import { exportBackup, restoreFromBackup } from '../lib/backup';
@@ -29,7 +30,7 @@ function Section({ title, icon, defaultOpen = true, children }: { title: string;
   );
 }
 
-const OLLAMA_TIP = '在 Termux 中运行：\n\nollama pull qwen2.5:1.5b   (日常聊天)\nollama pull qwen3:1.7b     (写小说 - 1.3GB)\nollama pull moondream       (识图 - 1.7GB)';
+const OLLAMA_TIP = '首次设置（只需一次）：\n点击上方按钮打开 Termux，粘贴运行：\n\necho "ollama serve &" >> ~/.bashrc\n\n之后每次点「一键启动」→ 自动运行 Ollama → 切回本页面刷新即可。';
 
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
@@ -115,6 +116,17 @@ export default function SettingsScreen({ navigation }: Props) {
     }
   };
 
+  const handleLaunchTermux = async () => {
+    try {
+      await IntentLauncher.startActivityAsync('android.intent.action.MAIN' as any, {
+        packageName: 'com.termux',
+        className: 'com.termux.app.TermuxActivity',
+      });
+    } catch {
+      setToast('无法打开 Termux，请确认已安装');
+    }
+  };
+
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       <View style={s.header}>
@@ -135,6 +147,11 @@ export default function SettingsScreen({ navigation }: Props) {
             <Icon.loading size={14} color={T.textMuted} />
           </TouchableOpacity>
         </View>
+        {!ollamaAvailable && (
+          <TouchableOpacity style={s.launchBtn} onPress={handleLaunchTermux} activeOpacity={0.7}>
+            <Text style={s.launchBtnText}>⚡ 一键启动本地模型</Text>
+          </TouchableOpacity>
+        )}
         {ollamaAvailable && (
           <View style={s.modelList}>
             <Text style={s.label}>已安装模型：</Text>
@@ -244,4 +261,17 @@ const s = StyleSheet.create({
   modelName: { fontSize: 13, color: T.text, fontFamily: 'monospace' },
   noModel: { fontSize: 13, color: T.textMuted, fontStyle: 'italic' },
   ollamaHint: { fontSize: 12, color: T.textMuted, lineHeight: 18, backgroundColor: T.bg, padding: 10, borderRadius: T.r.sm },
+  launchBtn: {
+    backgroundColor: T.accent,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: T.r.md,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  launchBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

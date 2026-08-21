@@ -29,7 +29,7 @@ export async function getSettings(): Promise<NovelSettings> {
     model: 'deepseek-chat',
     temperature: 0.7,
     maxTokens: 12000,
-
+    localThinking: false,
   });
 }
 
@@ -173,16 +173,16 @@ export async function createMemorySnapshot(novelId: string, label: string, chapt
 // 对话历史（per novel）
 // ============================================================
 
-export async function getChatHistory(novelId: string): Promise<ChatMessage[]> {
-  return load<ChatMessage[]>(`chat.${novelId}`, []);
+export async function getChatHistory(channel: string): Promise<ChatMessage[]> {
+  return load<ChatMessage[]>(`chat.${channel}`, []);
 }
 
-export async function appendChatMessage(novelId: string, msg: ChatMessage): Promise<void> {
-  const list = await getChatHistory(novelId);
+export async function appendChatMessage(channel: string, msg: ChatMessage): Promise<void> {
+  const list = await getChatHistory(channel);
   list.push(msg);
-  await save(`chat.${novelId}`, list);
+  await save(`chat.${channel}`, list);
 }
 
-export async function clearChatHistory(novelId: string): Promise<void> {
-  await save(`chat.${novelId}`, []);
+export async function clearChatHistory(channel: string): Promise<void> {
+  await save(`chat.${channel}`, []);
 }

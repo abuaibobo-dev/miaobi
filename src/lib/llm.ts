@@ -99,6 +99,7 @@ function xhrStream(
   body: unknown,
   onChunk: (text: string, xhr: XMLHttpRequest) => void,
   signal?: AbortSignal,
+  idleTimeoutMs = 90000,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -106,16 +107,23 @@ function xhrStream(
     xhr.setRequestHeader('Content-Type', 'application/json');
     Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
     let cursor = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const abort = () => xhr.abort();
     signal?.addEventListener('abort', abort);
+    const armIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => xhr.abort(), idleTimeoutMs);
+    };
 
     xhr.onprogress = () => {
       const text = xhr.responseText.slice(cursor);
       cursor = xhr.responseText.length;
+      armIdleTimer();
       if (text) onChunk(text, xhr);
     };
     xhr.onload = () => {
+      if (idleTimer) clearTimeout(idleTimer);
       signal?.removeEventListener('abort', abort);
       if (xhr.status >= 200 && xhr.status < 300) {
         const tail = xhr.responseText.slice(cursor);
@@ -128,14 +136,17 @@ function xhrStream(
       }
     };
     xhr.onerror = () => {
+      if (idleTimer) clearTimeout(idleTimer);
       signal?.removeEventListener('abort', abort);
       reject(new Error('网络连接失败'));
     };
     xhr.onabort = () => {
+      if (idleTimer) clearTimeout(idleTimer);
       signal?.removeEventListener('abort', abort);
       resolve();
     };
-    xhr.timeout = 180000;
+    xhr.timeout = 300000;
+    armIdleTimer();
     xhr.ontimeout = () => reject(new Error('请求超时'));
     xhr.send(JSON.stringify(body));
   });
@@ -149,6 +160,7 @@ async function streamOllama(
   images: string[] | undefined,
   options: StreamOptions,
   callbacks: Pick<StreamOptions, 'onProvider' | 'onContent' | 'onThinking'>,
+  allowThinking = false,
 ): Promise<string> {
   let content = '';
   let buffer = '';
@@ -160,6 +172,7 @@ async function streamOllama(
       model,
       messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
       stream: true,
+      ...(/qwen3|deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
       options: { temperature, num_predict: maxTokens },
     },
     chunk => {
@@ -184,6 +197,7 @@ async function streamOllama(
       }
     },
     options.signal,
+    90000,
   );
   return content;
 }
@@ -245,6 +259,10 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     const model = await selectOllamaModel(intent);
     if (model) {
       let receivedOutput = false;
+      const localMaxTokens = Math.min(
+        maxTokens,
+        intent === 'writing' ? 2600 : 900,
+      );
       const localOptions: StreamOptions = {
         ...options,
         onContent: delta => {
@@ -257,7 +275,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
         },
       };
       try {
-        const content = await streamOllama(model, messages, temperature, maxTokens, options.images, localOptions, localOptions);
+        const content = await streamOllama(model, messages, temperature, localMaxTokens, options.images, localOptions, localOptions, settings.localThinking === true);
         if (content.trim()) return { content, provider: `local:${model}` };
         if (options.forceLocal) {
           return { content: '', error: '本地模型返回为空，请重试或换一个已安装模型。', provider: `local:${model}` };

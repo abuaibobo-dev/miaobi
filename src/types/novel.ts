@@ -100,7 +100,7 @@ export interface NovelSettings {
   chatModel?: string;
   temperature: number;
   maxTokens: number;
-
+  localThinking?: boolean;
 }
 
 export interface AppState {

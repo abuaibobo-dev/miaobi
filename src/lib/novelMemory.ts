@@ -220,14 +220,14 @@ export async function assembleNovelContext(novelId: string, nextChapterNumber: n
 // ★ 生成 system prompt
 // ============================================================
 
-export async function buildSystemPrompt(novelId: string, nextChapterNumber: number): Promise<string> {
+export async function buildSystemPrompt(novelId: string, nextChapterNumber: number, localModel = false): Promise<string> {
   const { WRITING_BIBLE } = await import('./writingGuide');
   const ctx = await assembleNovelContext(novelId, nextChapterNumber);
   return `你是一个专业的创意写作助手，服务于小说创作项目。
 
 ${WRITING_BIBLE}
 
-每章目标字数：5000字左右（4500-5500字均可），不要少于4000字，写够再停。
+每章目标字数：${localModel ? '900-1300字（手机本地模型限制，不要少于800字）' : '5000字左右（4500-5500字均可），不要少于4000字'}，写够就停。
 
 核心规则：
 1. 不要重复已写内容
@@ -259,7 +259,7 @@ ${WRITING_BIBLE}
 格式：以"【本章大纲】"开头，后面跟大纲内容。
 
 2. 正文
-大纲之后空一行，直接写正文内容（5000字左右）。
+大纲之后空一行，直接写正文内容（${localModel ? '900-1300字' : '5000字左右'}）。
 
 3. 【下一章预告】
 正文写完后，输出下一章预告（100-150字），预告下一章的核心冲突、悬念、角色动向。

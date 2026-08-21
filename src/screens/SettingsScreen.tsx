@@ -37,7 +37,7 @@ const OLLAMA_TIP = '首次授权（只需一次）：在 Termux 执行下面两�
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
     apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temperature: 0.7, maxTokens: 12000,
+    temperature: 0.7, maxTokens: 12000, localThinking: false,
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -207,6 +207,19 @@ export default function SettingsScreen({ navigation }: Props) {
             )}
           </View>
         )}
+        <View style={s.thinkingRow}>
+          <View style={s.thinkingTextWrap}>
+            <Text style={s.label}>本地模型深度思考</Text>
+            <Text style={s.thinkingHint}>关闭后回复更快；打开适合短对话和复杂推理。</Text>
+          </View>
+          <TouchableOpacity
+            style={[s.switchTrack, settings.localThinking && s.switchOn]}
+            onPress={() => setSettings(prev => ({ ...prev, localThinking: !prev.localThinking }))}
+            activeOpacity={0.8}
+          >
+            <View style={[s.switchDot, settings.localThinking && s.switchDotOn]} />
+          </TouchableOpacity>
+        </View>
         <Text style={s.ollamaHint}>{OLLAMA_TIP}</Text>
       </Section>
 
@@ -257,7 +270,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.1</Text>
+        <Text style={s.footerText}>妙笔 v1.9.2</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 
@@ -314,6 +327,13 @@ const s = StyleSheet.create({
   modelItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   modelName: { fontSize: 13, color: T.text, fontFamily: 'monospace' },
   noModel: { fontSize: 13, color: T.textMuted, fontStyle: 'italic' },
+  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, marginBottom: 10 },
+  thinkingTextWrap: { flex: 1 },
+  thinkingHint: { fontSize: 11, color: T.textMuted, lineHeight: 16 },
+  switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: '#333', padding: 3 },
+  switchOn: { backgroundColor: T.accent },
+  switchDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#CCC' },
+  switchDotOn: { marginLeft: 18, backgroundColor: '#0D0D0D' },
   ollamaHint: { fontSize: 12, color: T.textMuted, lineHeight: 18, backgroundColor: T.bg, padding: 10, borderRadius: T.r.sm },
   launchBtn: {
     backgroundColor: T.accent,

@@ -89,8 +89,8 @@ const panel = StyleSheet.create({
 
 type Props = any;
 
-export default function ChatScreen({ navigation, route }: Props) {
-  const mode: ChatMode = route.params?.mode === 'chat' ? 'chat' : 'writing';
+export default function WritingChatScreen({ navigation, route }: Props) {
+  const mode: ChatMode = 'writing';
   const novelId: string = route.params.novelId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -250,16 +250,17 @@ export default function ChatScreen({ navigation, route }: Props) {
 
     const sensitive = shouldUseLocalModel(cleanText);
     const nextChapter = await getNextChapterNumber();
+    const activeInfo = await getActiveModelInfo(mode);
+    const usingLocal = sensitive || activeInfo?.provider === 'local';
     let systemPrompt: string;
 
     if (sensitive) {
-      const storyContext = mode === 'writing' ? await buildSystemPrompt(novelId, nextChapter) : '';
-      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n先用 2 到 4 行输出“🧠 思考中：”，再空一行进入正文。`;
+      const storyContext = mode === 'writing' ? await buildSystemPrompt(novelId, nextChapter, true) : '';
+      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n直接输出正文，不要输出思考过程。`;
     } else if (mode === 'writing') {
-      const basePrompt = await buildSystemPrompt(novelId, nextChapter);
-      systemPrompt = `${basePrompt}\n\n回复开头先用 3 到 5 行说明本章关键判断，格式为“🧠 思考中：”。随后空一行输出正文。`;
+      systemPrompt = await buildSystemPrompt(novelId, nextChapter, usingLocal);
     } else {
-      systemPrompt = '你是妙笔的中文创作助手。回答准确、自然、简洁；复杂问题先用 1 到 3 行“🧠 思考中：”说明思路，再给出答案。';
+      systemPrompt = '你是妙笔的中文创作助手。回答准确、自然、简洁；不要输出思考过程，直接给出答案。';
     }
 
     const apiMessages = await buildApiMessages(cleanText, systemPrompt);
@@ -328,7 +329,7 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   const confirmOutline = async () => {
     setOutlineModal(false);
-    await sendToAI(`请严格按照以下大纲写作完整章节，每章约 5000 字：\n\n${pendingOutline}`);
+    await sendToAI(`请严格按照以下大纲写作完整章节。如果是本地模型就写900-1300字；云端模型写5000字左右。\n\n${pendingOutline}`);
     setPendingOutline('');
   };
 
@@ -368,7 +369,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Icon.back size={19} color={T.text} />
           </TouchableOpacity>
           <View style={styles.titleBlock}>
-            <Text style={styles.title}>{mode === 'writing' ? 'AI 写作' : '自由对话'}</Text>
+            <Text style={styles.title}>AI 写作</Text>
             <Text style={styles.model} numberOfLines={1}>{modelLabel}</Text>
           </View>
           <TouchableOpacity onPress={() => setClearConfirm(true)} style={styles.iconButton}>
@@ -397,8 +398,8 @@ export default function ChatScreen({ navigation, route }: Props) {
         ListEmptyComponent={(
           <View style={styles.empty}>
             <Icon.chat size={42} color="#333" />
-            <Text style={styles.emptyTitle}>{mode === 'writing' ? '开始你的故事' : '开始自由对话'}</Text>
-            <Text style={styles.emptySubtitle}>{mode === 'writing' ? '描述剧情、修改章节或一键生成大纲' : '讨论灵感、设定和创作问题'}</Text>
+            <Text style={styles.emptyTitle}>开始你的故事</Text>
+            <Text style={styles.emptySubtitle}>描述剧情、修改章节或一键生成大纲</Text>
           </View>
         )}
       />
@@ -429,7 +430,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           value={input}
           onChangeText={setInput}
           onContentSizeChange={(event) => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
-          placeholder={mode === 'writing' ? '输入剧情指令...' : '随便聊点什么...'}
+          placeholder="输入剧情指令..."
           placeholderTextColor="#666"
           multiline
           textAlignVertical="top"

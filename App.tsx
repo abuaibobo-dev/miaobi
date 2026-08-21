@@ -5,7 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import HomeScreen from './src/screens/HomeScreen';
 import CreateNovelScreen from './src/screens/CreateNovelScreen';
 import NovelDetailScreen from './src/screens/NovelDetailScreen';
-import ChatScreen from './src/screens/ChatScreen';
+import WritingChatScreen from './src/screens/WritingChatScreen';
+import FreeChatScreen from './src/screens/FreeChatScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
 
@@ -25,15 +26,8 @@ export default function App() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="CreateNovel" component={CreateNovelScreen} />
         <Stack.Screen name="NovelDetail" component={NovelDetailScreen} />
-        <Stack.Screen name="WritingChat">
-          {props => <ChatScreen {...props} route={{ ...props.route, params: { ...props.route.params, mode: 'writing' } }} />}
-        </Stack.Screen>
-        <Stack.Screen name="FreeChat">
-          {props => <ChatScreen {...props} route={{ ...props.route, params: { ...props.route.params, mode: 'chat' } }} />}
-        </Stack.Screen>
-        <Stack.Screen name="Chat">
-          {props => <ChatScreen {...props} route={{ ...props.route, params: { ...props.route.params, mode: 'writing' } }} />}
-        </Stack.Screen>
+        <Stack.Screen name="WritingChat" component={WritingChatScreen} />
+        <Stack.Screen name="FreeChat" component={FreeChatScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Reader" component={ReaderScreen} />
       </Stack.Navigator>

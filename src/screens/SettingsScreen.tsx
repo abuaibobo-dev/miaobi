@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  StatusBar,
+  StatusBar, Linking,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -186,9 +186,17 @@ export default function SettingsScreen({ navigation }: Props) {
             </TouchableOpacity>
           ))}
         </View>
-        <TouchableOpacity style={s.balanceBtn} onPress={handleCheckBalance} disabled={balanceLoading}>
-          <Text style={s.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? '余额：¥' + balance.toFixed(2) : '查询余额'}</Text>
-        </TouchableOpacity>
+        <View style={s.balanceRow}>
+          <TouchableOpacity style={[s.balanceBtn, s.balanceBtnHalf]} onPress={handleCheckBalance} disabled={balanceLoading}>
+            <Text style={s.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? '余额：¥' + balance.toFixed(2) : '查询余额'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.balanceBtn, s.rechargeBtn, s.balanceBtnHalf]}
+            onPress={() => Linking.openURL('https://platform.deepseek.com/top_up').catch(() => setToast('无法打开充值页'))}
+          >
+            <Text style={[s.balanceBtnText, s.rechargeText]}>充值</Text>
+          </TouchableOpacity>
+        </View>
         {testResult && <Text style={[s.testResult, testResult.includes('成功') ? s.testOk : s.testFail]}>{testResult}</Text>}
         <TouchableOpacity style={s.testBtn} onPress={handleTest} disabled={testing}>
           <Text style={s.testBtnText}>{testing ? '测试中...' : '测试连接'}</Text>
@@ -237,7 +245,11 @@ const s = StyleSheet.create({
   tempChipActive: { backgroundColor: T.accent, borderWidth: 0 },
   tempText: { fontSize: 13, color: T.textSec },
   tempTextActive: { color: '#FFF' },
-  balanceBtn: { marginTop: 12, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accentGreen + '15', alignItems: 'center' },
+  balanceRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  balanceBtn: { flex: 1, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accentGreen + '15', alignItems: 'center' },
+  balanceBtnHalf: { flex: 1 },
+  rechargeBtn: { backgroundColor: T.accent + '18' },
+  rechargeText: { color: T.accent },
   balanceBtnText: { fontSize: 14, fontWeight: '600', color: T.accentGreen },
   testResult: { marginTop: 8, fontSize: 13, fontWeight: '600' },
   testOk: { color: T.accentGreen },

@@ -1,6 +1,6 @@
 {
   "name": "miaobi",
-  "version": "1.8.4",
+  "version": "1.8.5",
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -25,7 +25,8 @@
     "react-native-screens": "^4.27.0",
     "sentiment": "^5.0.2",
     "string-similarity": "^4.0.4",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.2",
+    "miaobi-termux-command": "file:./modules/termux-command"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  StatusBar, Linking,
+  StatusBar, Linking, PermissionsAndroid, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -12,6 +12,7 @@ import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { NovelSettings } from '../types/novel';
+import { runTermuxCommand } from '../../modules/termux-command/src';
 
 type Props = any;
 
@@ -31,7 +32,7 @@ function Section({ title, icon, defaultOpen = true, children }: { title: string;
   );
 }
 
-const OLLAMA_TIP = '首次设置（只需一次）：\n点击上方按钮打开 Termux，粘贴运行：\n\necho "ollama serve &" >> ~/.bashrc\n\n之后每次点「一键启动」→ 自动运行 Ollama → 切回本页面刷新即可。';
+const OLLAMA_TIP = '首次授权（只需一次）：在 Termux 执行下面两行，允许外部命令。\nmkdir -p ~/.termux && echo \'allow-external-apps=true\' >> ~/.termux/termux.properties\ntermux-reload-settings\n\n之后点「一键启动」即可在后台拉起 Ollama。如果系统弹出权限请求，请选择允许。';
 
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
@@ -117,7 +118,7 @@ export default function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const handleLaunchTermux = async () => {
+  const openTermux = async () => {
     try {
       await IntentLauncher.startActivityAsync('android.intent.action.MAIN' as any, {
         packageName: 'com.termux',
@@ -125,6 +126,43 @@ export default function SettingsScreen({ navigation }: Props) {
       });
     } catch {
       setToast('无法打开 Termux，请确认已安装');
+    }
+  };
+
+  const handleLaunchTermux = async () => {
+    if (Platform.OS !== 'android') return;
+    try {
+      const permission = await PermissionsAndroid.request(
+        'com.termux.permission.RUN_COMMAND' as any,
+        {
+          title: '允许妙笔启动 Ollama',
+          message: '需要通过 Termux 后台服务启动本地模型。',
+          buttonPositive: '允许',
+        },
+      );
+      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+        setToast('未授予 Termux 命令权限');
+        return;
+      }
+
+      await runTermuxCommand('/data/data/com.termux/files/usr/bin/bash', [
+        '-lc',
+        'termux-wake-lock; exec ollama serve',
+      ]);
+      setToast('启动命令已发送，正在检测...');
+      for (let i = 0; i < 8; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        if (await checkOllamaAvailable()) {
+          setToast('Ollama 已启动');
+          return;
+        }
+      }
+      setToast('未检测到 Ollama，请确认已在 Termux 完成首次授权');
+      openTermux();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast('启动失败：' + message);
+      openTermux();
     }
   };
 

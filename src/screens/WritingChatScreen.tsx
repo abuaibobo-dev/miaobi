@@ -9,6 +9,7 @@ import { streamChatCompletion, chatCompletion, getActiveModelInfo, type LLMMessa
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
+import ModelPicker, { type ModelOption } from '../components/ModelPicker';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { ChatMessage } from '../types/novel';
@@ -95,6 +96,8 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
+  const [modelChoice, setModelChoice] = useState<ModelOption | null>(null);
+  const [modelPickerVisible, setModelPickerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modelLabel, setModelLabel] = useState('检测模型...');
   const [streamThinking, setStreamThinking] = useState('');
@@ -112,10 +115,19 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   const nearBottomRef = useRef(true);
   const userScrollingRef = useRef(false);
 
+  const requestOverrides = (sensitive: boolean) => modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
+    providerOverride: modelChoice.provider,
+    ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
+  } : {};
+
   const refreshModel = useCallback(async () => {
+    if (modelChoice) {
+      setModelLabel(modelChoice.label);
+      return;
+    }
     const info = await getActiveModelInfo(mode);
     setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
-  }, [mode]);
+  }, [mode, modelChoice]);
 
   useEffect(() => {
     getChatHistory(novelId).then(history => setMessages(history));
@@ -156,9 +168,9 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   const buildApiMessages = async (userContent: string, systemPrompt?: string): Promise<LLMMessage[]> => {
     const nextChapter = await getNextChapterNumber();
     const system = systemPrompt || await buildSystemPrompt(novelId, nextChapter);
-    const recent: LLMMessage[] = messages.slice(-12).map(message => ({
+    const recent: LLMMessage[] = messages.slice(-8).map(message => ({
       role: message.role === 'assistant' ? 'assistant' : 'user',
-      content: message.content,
+      content: message.content.slice(0, 900),
     }));
     return [{ role: 'system' as const, content: system }, ...recent, { role: 'user' as const, content: userContent }];
   };
@@ -186,6 +198,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       const response = await streamChatCompletion(apiMessages, {
         intent: mode,
         forceLocal: sensitive,
+        ...requestOverrides(sensitive),
         signal: controller.signal,
         onProvider: provider => {
           activeProvider = provider;
@@ -251,7 +264,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     const sensitive = shouldUseLocalModel(cleanText);
     const nextChapter = await getNextChapterNumber();
     const activeInfo = await getActiveModelInfo(mode);
-    const usingLocal = sensitive || activeInfo?.provider === 'local';
+    const usingLocal = sensitive || (modelChoice ? modelChoice.provider === 'local' : activeInfo?.provider === 'local');
     let systemPrompt: string;
 
     if (sensitive) {
@@ -315,7 +328,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       const count = Math.min(Math.max(parseInt(chapterCountInput, 10) || 1, 1), 50);
       const prompt = `从第 ${totalChapters + 1} 章开始，连续生成 ${count} 个章节大纲。每章包含：标题、核心事件、角色变化、冲突转折、下一章钩子。不要重复旧剧情，不要输出正文。`;
       const apiMessages = await buildApiMessages(prompt);
-      const response = await chatCompletion(apiMessages, { intent: 'writing' });
+      const response = await chatCompletion(apiMessages, { intent: 'writing', ...requestOverrides(false) });
       if (response.error) throw new Error(response.error);
       setPendingOutline(response.content.trim() || '大纲为空，请重试。');
       setOutlineModal(true);
@@ -411,30 +424,40 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       )}
 
       <View style={styles.inputBar}>
-        {mode === 'writing' && (
-          <TouchableOpacity style={styles.toolButton} onPress={() => setShowCountModal(true)}>
-            <Icon.auto size={18} color={T.text} />
+        <View style={styles.inputRow}>
+
+          {mode === 'writing' && (
+            <TouchableOpacity style={styles.toolButton} onPress={() => setShowCountModal(true)}>
+              <Icon.auto size={18} color={T.text} />
+            </TouchableOpacity>
+          )}
+          {loading ? (
+            <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()}>
+              <Icon.close size={17} color="#F5F5F5" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={handleSubmit} disabled={!input.trim()}>
+              <Icon.send size={17} color="#0D0D0D" />
+            </TouchableOpacity>
+          )}
+          <TextInput
+            style={[styles.input, { height: Math.min(180, Math.max(52, inputHeight)) }]}
+            value={input}
+            onChangeText={setInput}
+            onContentSizeChange={(event) => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
+            placeholder="输入剧情指令..."
+            placeholderTextColor="#666"
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+        <View style={styles.modelRow}>
+          <TouchableOpacity style={styles.modelPill} onPress={() => setModelPickerVisible(true)} activeOpacity={0.8}>
+            <Icon.settings size={11} color={'#0D0D0D'} />
+            <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '模型：智能优先'}</Text>
+            <Icon.down size={11} color={'#0D0D0D'} />
           </TouchableOpacity>
-        )}
-        {loading ? (
-          <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()}>
-            <Icon.close size={17} color="#F5F5F5" />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={handleSubmit} disabled={!input.trim()}>
-            <Icon.send size={17} color="#0D0D0D" />
-          </TouchableOpacity>
-        )}
-        <TextInput
-          style={[styles.input, { height: Math.min(180, Math.max(52, inputHeight)) }]}
-          value={input}
-          onChangeText={setInput}
-          onContentSizeChange={(event) => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
-          placeholder="输入剧情指令..."
-          placeholderTextColor="#666"
-          multiline
-          textAlignVertical="top"
-        />
+        </View>
       </View>
 
       <CapsuleAlert visible={outlineModal} title="章节大纲" message={pendingOutline} confirmText="开始写作" onCancel={() => setOutlineModal(false)} onConfirm={confirmOutline} />
@@ -448,6 +471,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
           style={styles.countInput}
         />
       </CapsuleAlert>
+      <ModelPicker visible={modelPickerVisible} selectedId={modelChoice?.id || null} onClose={() => setModelPickerVisible(false)} onSelect={option => { setModelChoice(option); setModelPickerVisible(false); }} />
     </KeyboardAvoidingView>
   );
 }
@@ -480,7 +504,11 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '700', color: T.text },
   emptySubtitle: { textAlign: 'center', fontSize: 13, lineHeight: 20, color: T.textMuted },
   scrollButton: { position: 'absolute', right: 18, bottom: 96, width: 38, height: 38, borderRadius: 19, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
-  inputBar: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
+  inputBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
+  inputRow: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8 },
+  modelRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 9 },
+  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '92%', minHeight: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: T.accent },
+  modelPillText: { fontSize: 11.5, fontWeight: '700', color: '#0D0D0D' },
   input: { flex: 1, minHeight: 52, maxHeight: 180, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', paddingHorizontal: 18, paddingVertical: 14, fontSize: 15, lineHeight: 22, color: T.text },
   toolButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2E2E2E', alignItems: 'center', justifyContent: 'center' },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },

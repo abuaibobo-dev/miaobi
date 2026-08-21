@@ -8,6 +8,7 @@ import { streamChatCompletion, getActiveModelInfo, type LLMMessage } from '../li
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
+import ModelPicker, { type ModelOption } from '../components/ModelPicker';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { ChatMessage } from '../types/novel';
@@ -50,6 +51,8 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
+  const [modelChoice, setModelChoice] = useState<ModelOption | null>(null);
+  const [modelPickerVisible, setModelPickerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [modelLabel, setModelLabel] = useState('检测模型...');
   const [streamThinking, setStreamThinking] = useState('');
@@ -62,10 +65,19 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const nearBottomRef = useRef(true);
   const userScrollingRef = useRef(false);
 
+  const requestOverrides = (sensitive: boolean) => modelChoice && !sensitive ? {
+    providerOverride: modelChoice.provider,
+    ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
+  } : {};
+
   const refreshModel = useCallback(async () => {
+    if (modelChoice) {
+      setModelLabel(modelChoice.label);
+      return;
+    }
     const info = await getActiveModelInfo('chat');
     setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
-  }, []);
+  }, [modelChoice]);
 
   useEffect(() => {
     getChatHistory(channel).then(setMessages);
@@ -112,9 +124,9 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     let provider = '';
     try {
       const sensitive = shouldUseLocalModel(cleanText);
-      const history: LLMMessage[] = messages.slice(-16).map(item => ({
+      const history: LLMMessage[] = messages.slice(-8).map(item => ({
         role: item.role === 'assistant' ? 'assistant' : 'user',
-        content: item.content,
+        content: item.content.slice(0, 800),
       }));
       const system = sensitive
         ? `${INTIMATE_SYSTEM_PROMPT}\n\n直接输出正文，不要输出思考过程。`
@@ -124,6 +136,10 @@ export default function FreeChatScreen({ navigation, route }: Props) {
         {
           intent: 'chat',
           forceLocal: sensitive,
+          ...(modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
+            providerOverride: modelChoice.provider,
+            ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
+          } : {}),
           signal: controller.signal,
           onProvider: value => {
             provider = value;
@@ -242,28 +258,39 @@ export default function FreeChatScreen({ navigation, route }: Props) {
       )}
 
       <View style={styles.inputBar}>
-        {loading ? (
-          <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()}>
-            <Icon.close size={17} color="#F5F5F5" />
+        <View style={styles.inputRow}>
+
+          {loading ? (
+            <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()}>
+              <Icon.close size={17} color="#F5F5F5" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={send} disabled={!input.trim()}>
+              <Icon.send size={17} color="#0D0D0D" />
+            </TouchableOpacity>
+          )}
+          <TextInput
+            style={[styles.input, { height: Math.min(180, Math.max(52, inputHeight)) }]}
+            value={input}
+            onChangeText={setInput}
+            onContentSizeChange={event => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
+            placeholder="随便聊点什么..."
+            placeholderTextColor="#666"
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+        <View style={styles.modelRow}>
+          <TouchableOpacity style={styles.modelPill} onPress={() => setModelPickerVisible(true)} activeOpacity={0.8}>
+            <Icon.settings size={11} color={'#0D0D0D'} />
+            <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '模型：智能优先'}</Text>
+            <Icon.down size={11} color={'#0D0D0D'} />
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={send} disabled={!input.trim()}>
-            <Icon.send size={17} color="#0D0D0D" />
-          </TouchableOpacity>
-        )}
-        <TextInput
-          style={[styles.input, { height: Math.min(180, Math.max(52, inputHeight)) }]}
-          value={input}
-          onChangeText={setInput}
-          onContentSizeChange={event => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
-          placeholder="随便聊点什么..."
-          placeholderTextColor="#666"
-          multiline
-          textAlignVertical="top"
-        />
+        </View>
       </View>
 
       <CapsuleAlert visible={clearConfirm} title="清空对话" message="将删除这个自由对话频道的记录。" danger confirmText="清空" onCancel={() => setClearConfirm(false)} onConfirm={async () => { await clearChatHistory(channel); setMessages([]); setClearConfirm(false); }} />
+      <ModelPicker visible={modelPickerVisible} selectedId={modelChoice?.id || null} onClose={() => setModelPickerVisible(false)} onSelect={option => { setModelChoice(option); setModelPickerVisible(false); }} />
     </KeyboardAvoidingView>
   );
 }
@@ -291,7 +318,11 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '700', color: T.text },
   emptySubtitle: { textAlign: 'center', fontSize: 13, lineHeight: 20, color: T.textMuted },
   scrollButton: { position: 'absolute', right: 18, bottom: 96, width: 38, height: 38, borderRadius: 19, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
-  inputBar: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
+  inputBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
+  inputRow: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8 },
+  modelRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 9 },
+  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '92%', minHeight: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: T.accent },
+  modelPillText: { fontSize: 11.5, fontWeight: '700', color: '#0D0D0D' },
   input: { flex: 1, minHeight: 52, maxHeight: 180, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', paddingHorizontal: 18, paddingVertical: 14, fontSize: 15, lineHeight: 22, color: T.text },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   stopButton: { backgroundColor: '#333', borderColor: '#444', borderWidth: 1 },

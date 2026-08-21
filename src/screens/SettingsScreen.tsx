@@ -148,7 +148,7 @@ export default function SettingsScreen({ navigation }: Props) {
 
       await runTermuxCommand('/data/data/com.termux/files/usr/bin/bash', [
         '-lc',
-        'termux-wake-lock; exec ollama serve',
+        'export OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_KEEP_ALIVE=5m; termux-wake-lock; exec ollama serve',
       ]);
       setToast('启动命令已发送，正在检测...');
       for (let i = 0; i < 8; i++) {

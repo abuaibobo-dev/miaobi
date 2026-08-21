@@ -16,6 +16,8 @@ export interface StreamOptions {
   intent?: 'writing' | 'vision' | 'chat';
   images?: string[];
   forceLocal?: boolean;
+  providerOverride?: 'local' | 'cloud';
+  modelOverride?: string;
   signal?: AbortSignal;
   onProvider?: (provider: string) => void;
   onContent?: (delta: string) => void;
@@ -172,8 +174,14 @@ async function streamOllama(
       model,
       messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
       stream: true,
+      keep_alive: '10m',
       ...(/qwen3|deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
-      options: { temperature, num_predict: maxTokens },
+      options: {
+        temperature,
+        num_predict: maxTokens,
+        num_ctx: maxTokens > 1200 ? 2048 : 1024,
+        num_batch: 128,
+      },
     },
     chunk => {
       buffer += chunk;
@@ -211,7 +219,7 @@ async function streamDeepSeek(
 ): Promise<string> {
   const settings = await getSettings() as any;
   const intent = options.intent || detectIntent(messages[messages.length - 1]?.content || '');
-  const model = intent === 'writing' ? settings.model || 'deepseek-chat' : settings.chatModel || settings.model || 'deepseek-chat';
+  const model = options.modelOverride || (intent === 'writing' ? settings.model || 'deepseek-chat' : settings.chatModel || settings.model || 'deepseek-chat');
   callbacks.onProvider?.(`云端 · ${model}`);
 
   let content = '';
@@ -255,8 +263,23 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   const temperature = settings.temperature ?? 0.8;
   const maxTokens = settings.maxTokens ?? 4096;
 
+  if (options.providerOverride === 'cloud' && !options.forceLocal) {
+    const overrideModel = options.modelOverride || (intent === 'writing' ? settings.model : settings.chatModel) || 'deepseek-chat';
+    try {
+      const content = await streamDeepSeek(messages, temperature, Math.min(maxTokens, 4096), { ...options, modelOverride: overrideModel }, options);
+      return { content, provider: `cloud:${overrideModel}` };
+    } catch (error) {
+      return { content: '', error: `DeepSeek 调用失败：${(error as Error).message}` };
+    }
+  }
+
   if (await checkOllamaAvailable()) {
-    const model = await selectOllamaModel(intent);
+    let model = await selectOllamaModel(intent);
+    if (options.providerOverride === 'local' && options.modelOverride) {
+      const installed = await getOllamaModels();
+      model = installed.includes(options.modelOverride) ? options.modelOverride : null;
+      if (!model) return { content: '', error: `本地模型 ${options.modelOverride} 未安装或不可用。`, provider: `local:${options.modelOverride}` };
+    }
     if (model) {
       let receivedOutput = false;
       const localMaxTokens = Math.min(

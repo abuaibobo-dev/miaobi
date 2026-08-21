@@ -221,73 +221,38 @@ export async function assembleNovelContext(novelId: string, nextChapterNumber: n
 // ============================================================
 
 export async function buildSystemPrompt(novelId: string, nextChapterNumber: number, localModel = false): Promise<string> {
+  const novel = await getStoryBible(novelId);
+  if (!novel) return '你是专业中文小说写作助手。';
+
+  if (localModel) {
+    const recent = (await Store.getRecentChapters(novelId, 2)).filter(item => item.summary);
+    const context = recent.map(item => `第${item.chapterNumber}章：${item.summary}`).join('\n');
+    return `你是手机本地小说写作助手。用简体中文续写，不要解释写作规则。
+书名：${novel.title}；类型：${novel.genre}
+简介：${(novel.synopsis || '').slice(0, 500)}
+风格：${(novel.styleGuide || '自然、细腻').slice(0, 200)}
+${context ? `最近剧情：\n${context.slice(0, 1200)}` : ''}
+
+本次写第${nextChapterNumber}章，目标900-1300字。要求：
+1. 直接推进新事件，不重复旧剧情。
+2. 对话简短自然，描写具体，不堆砌形容词。
+3. 输出顺序：先【本章大纲】80字以内；空一行写正文900-1300字；最后【下一章预告】80字以内。
+4. 本地模式不要输出 JSON。`;
+  }
+
   const { WRITING_BIBLE } = await import('./writingGuide');
   const ctx = await assembleNovelContext(novelId, nextChapterNumber);
   return `你是一个专业的创意写作助手，服务于小说创作项目。
 
 ${WRITING_BIBLE}
 
-每章目标字数：${localModel ? '900-1300字（手机本地模型限制，不要少于800字）' : '5000字左右（4500-5500字均可），不要少于4000字'}，写够就停。
+每章目标字数：5000字左右（4500-5500字均可），不要少于4000字，写够就停。
+当前进度：第${nextChapterNumber - 1}章已完成，现在处理第${nextChapterNumber}章。
+上下文记忆：
+${ctx || '全新开始'}
 
-核心规则：
-1. 不要重复已写内容
-2. 角色设定已冻结，不擅自修改
-3. 伏笔必须回收
-4. 保持文风一致
-5. 每章结束后输出 JSON 更新指令
-
-【对话规则】
-- 每个角色的说话方式必须不同：用口癖、句式、语气词、用词习惯区分
-- 角色 A 说话简短直接，角色 B 说话绕弯含蓄——这才是好对话
-- 不要用"他说""她说"开头，用动作/表情/语气标签代替
-- 对话中穿插微动作：端起杯子、转头看窗外、手指敲桌子
-- 争吵场景用短句+打断，温情场景用长句+沉默
-
-【创作纪律 — 极其重要】
-- 绝对不要复读用户给出的关键词或提示词。用户说"月光"，你不要整段写月光。关键词只是灵感种子，不是内容本身。
-- 每章必须引入至少2个全新元素：新场景、新角色、新物件、新冲突、新伏笔，不能只围绕已有内容打转。
-- 情节必须有推进：每章结束时，故事状态必须和开头不同。如果删掉这一章不影响后续，说明这章没有存在价值。
-- 对话不能千篇一律：不同角色说话方式必须不同，不能所有人说话风格一样。
-- 禁止水字数：不要用大段环境描写凑字数，每一段环境描写都必须推动情节或暗示伏笔。
-- 写到第3章以后，必须开始埋冲突和转折，不能一直平淡叙述。
-
-【输出格式 — 严格遵守】
-每次写完一章，输出必须包含三个部分，按顺序排列：
-
-1. 【本章大纲】
-在最开头输出本章大纲（100-200字），概括本章核心事件、角色发展、冲突转折。
-格式：以"【本章大纲】"开头，后面跟大纲内容。
-
-2. 正文
-大纲之后空一行，直接写正文内容（${localModel ? '900-1300字' : '5000字左右'}）。
-
-3. 【下一章预告】
-正文写完后，输出下一章预告（100-150字），预告下一章的核心冲突、悬念、角色动向。
-格式：以"【下一章预告】"开头，后面跟预告内容。
-预告要有吸引力，让读者想继续看。
-
-4. JSON 更新（保留）
-预告之后，仍然输出 JSON 代码块用于数据追踪（summary/characterChanges/foreshadowing等）。
-
-【重要】每章写完后，必须在最后输出一个完整的 JSON 代码块，格式必须严格如下（不要省略任何括号或逗号）：
-\`\`\`json
-{
-  "summary": "本章200-400字内容摘要",
-  "characterChanges": [
-    {"name": "角色名", "field": "state", "oldValue": "变化前", "newValue": "变化后"}
-  ],
-  "newForeshadowing": [
-    {"title": "伏笔标题", "description": "伏笔内容"}
-  ],
-  "resolvedForeshadowing": [],
-  "nextChapterHint": "下一章建议方向"
-}
-\`\`\`
-注意：JSON 必须以 { 开头，} 结尾，每个字段都要有值，不能省略。
-
----
-
-${ctx || '全新开始，等待用户输入灵感。'}`;
+核心规则：不重复已写内容；角色设定冻结；伏笔必须回收；文风一致；情节必须推进。
+输出顺序：【本章大纲】100-200字 → 正文5000字左右 → 【下一章预告】100-150字 → JSON 更新代码块。`;
 }
 
 export async function processPostWrite(

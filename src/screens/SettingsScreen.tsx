@@ -219,11 +219,11 @@ export default function SettingsScreen({ navigation }: Props) {
         <TextInput style={s.input} value={settings.model} onChangeText={v => setSettings(prev => ({ ...prev, model: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
         <Text style={s.label}>对话模型</Text>
         <TextInput style={s.input} value={settings.chatModel || 'deepseek-chat'} onChangeText={v => setSettings(prev => ({ ...prev, chatModel: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
-        <Text style={s.label}>Temperature: {settings.temperature.toFixed(1)}</Text>
+        <Text style={s.label}>创作自由度：{settings.temperature.toFixed(1)}</Text>
         <View style={s.tempRow}>
           {[0.1, 0.3, 0.5, 0.7, 0.9, 1.0].map(t => (
             <TouchableOpacity key={t} style={[s.tempChip, settings.temperature === t && s.tempChipActive]} onPress={() => setSettings(prev => ({ ...prev, temperature: t }))}>
-              <Text style={[s.tempText, settings.temperature === t && s.tempTextActive]}>{t}</Text>
+              <Text style={[s.tempText, settings.temperature === t && s.tempTextActive]}>{t.toFixed(1)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -257,7 +257,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.6.0</Text>
+        <Text style={s.footerText}>妙笔 v1.9.1</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 
@@ -282,10 +282,10 @@ const s = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', color: T.textSec, marginBottom: 6, marginTop: 10 },
   input: { height: 44, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 12, fontSize: 14, color: T.text },
   tempRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  tempChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },
+  tempChip: { minWidth: 58, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },
   tempChipActive: { backgroundColor: T.accent, borderWidth: 0 },
   tempText: { fontSize: 13, color: T.textSec },
-  tempTextActive: { color: '#0D0D0D' },
+  tempTextActive: { color: '#0D0D0D', fontWeight: '700' },
   balanceRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   balanceBtn: { flex: 1, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accentGreen + '15', alignItems: 'center' },
   balanceBtnHalf: { flex: 1 },

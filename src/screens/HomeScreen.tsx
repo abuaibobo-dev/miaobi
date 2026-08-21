@@ -49,7 +49,7 @@ export default function HomeScreen({ navigation }: Props) {
       <TouchableOpacity
         style={s.bookWrap}
         activeOpacity={0.7}
-        onPress={() => navigation.navigate('NovelDetail', { novelId: item.id })}
+        onPress={() => navigation.navigate(count > 0 ? 'Reader' : 'NovelDetail', { novelId: item.id })}
         onLongPress={() => setDeleteTarget(item)}
       >
         <View style={[s.bookCover, { backgroundColor: colors[0] }]}>
@@ -93,9 +93,6 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={s.logoText}>妙笔</Text>
         </View>
         <View style={s.headerRight}>
-          <TouchableOpacity onPress={() => navigation.navigate('AutoWrite', { novelId: null })} style={s.headerBtn}>
-            <Icon.autoWrite size={18} color={T.accent} />
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={s.headerBtn}>
             <Icon.settings size={18} color={T.textSec} />
           </TouchableOpacity>

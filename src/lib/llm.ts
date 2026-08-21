@@ -135,7 +135,7 @@ function xhrStream(
       signal?.removeEventListener('abort', abort);
       resolve();
     };
-    xhr.timeout = 600000;
+    xhr.timeout = 180000;
     xhr.ontimeout = () => reject(new Error('请求超时'));
     xhr.send(JSON.stringify(body));
   });
@@ -171,6 +171,8 @@ async function streamOllama(
         try {
           const data = JSON.parse(line);
           if (data.error) throw new Error(data.error);
+          const reasoning = data.message?.thinking || data.message?.reasoning || '';
+          if (reasoning) options.onThinking?.(reasoning);
           const delta = data.message?.content || '';
           if (delta) {
             content += delta;
@@ -256,7 +258,10 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       };
       try {
         const content = await streamOllama(model, messages, temperature, maxTokens, options.images, localOptions, localOptions);
-        return { content, provider: `local:${model}` };
+        if (content.trim()) return { content, provider: `local:${model}` };
+        if (options.forceLocal) {
+          return { content: '', error: '本地模型返回为空，请重试或换一个已安装模型。', provider: `local:${model}` };
+        }
       } catch (error) {
         if (receivedOutput || options.forceLocal) {
           return { content: '', error: `本地模型中断：${(error as Error).message}`, provider: `local:${model}` };

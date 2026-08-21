@@ -138,7 +138,8 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.backBtn}>← 返回</Text></TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{novel.title}</Text>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => navigation.navigate('Chat', { novelId })}><Text style={styles.iconBtn}>💬</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Reader', { novelId })}><Text style={styles.iconBtn}>📖</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('WritingChat', { novelId })}><Text style={styles.iconBtn}>💬</Text></TouchableOpacity>
         </View>
       </View>
 
@@ -181,10 +182,12 @@ export default function NovelDetailScreen({ navigation, route }: Props) {
             <FlatList data={chapters} keyExtractor={c => c.id} contentContainerStyle={styles.list}
               ListEmptyComponent={<Text style={styles.empty}>还没有章节 ✍️</Text>}
               renderItem={({ item }) => (
-                <TouchableOpacity style={styles.card} onPress={() => handleEdit(item)}>
+                <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Reader', { novelId, startChapter: item.id })}>
                   <View style={styles.cardRow}>
-                    <Text style={styles.cardTitle}>第{item.chapterNumber}章 {item.title}</Text>
-                    <Text style={styles.cardBadge}>{item.wordCount}字</Text>
+                    <Text style={styles.cardTitle} numberOfLines={1}>第{item.chapterNumber}章 {item.title}</Text>
+                    <TouchableOpacity style={styles.editChip} onPress={() => handleEdit(item)} hitSlop={8}>
+                      <Text style={styles.editChipText}>编辑</Text>
+                    </TouchableOpacity>
                   </View>
                   <Text style={styles.cardSummary}>{truncate(item.summary || item.body, 80)}</Text>
                 </TouchableOpacity>
@@ -375,6 +378,8 @@ const styles = StyleSheet.create({
   card: { backgroundColor: COLORS.card, borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, flex: 1 },
+  editChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#242424', borderWidth: 1, borderColor: '#333' },
+  editChipText: { fontSize: 10, color: '#D4D4D4', fontWeight: '700' },
   cardBadge: { fontSize: 11, color: COLORS.sub },
   cardSummary: { fontSize: 13, color: COLORS.sub, marginTop: 6, lineHeight: 18 },
   cardMeta: { fontSize: 12, color: COLORS.sub, marginTop: 6 },

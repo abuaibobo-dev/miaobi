@@ -94,6 +94,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const novelId: string = route.params.novelId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [inputHeight, setInputHeight] = useState(52);
   const [loading, setLoading] = useState(false);
   const [modelLabel, setModelLabel] = useState('检测模型...');
   const [streamThinking, setStreamThinking] = useState('');
@@ -109,6 +110,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const rawContentRef = useRef('');
   const reasoningRef = useRef('');
   const nearBottomRef = useRef(true);
+  const userScrollingRef = useRef(false);
 
   const refreshModel = useCallback(async () => {
     const info = await getActiveModelInfo(mode);
@@ -121,16 +123,29 @@ export default function ChatScreen({ navigation, route }: Props) {
   }, [novelId, refreshModel]);
 
   useEffect(() => {
-    if (!nearBottomRef.current) return;
-    const timer = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+    if (!nearBottomRef.current || userScrollingRef.current) return;
+    const timer = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 60);
     return () => clearTimeout(timer);
   }, [messages, streamThinking]);
 
-  const scrollOnScroll = (event: any) => {
+  const measureScroll = (event: any) => {
     const { y, contentSize, layoutMeasurement } = event.nativeEvent;
     const distance = contentSize.height - layoutMeasurement.height - y;
     nearBottomRef.current = distance < 80;
-    setShowScrollButton(distance > 240);
+    setShowScrollButton(distance > 24);
+  };
+
+  const scrollOnScroll = (event: any) => {
+    measureScroll(event);
+  };
+
+  const jumpToLatest = () => {
+    userScrollingRef.current = false;
+    nearBottomRef.current = true;
+    setShowScrollButton(false);
+    requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
   };
 
   const getNextChapterNumber = async () => {
@@ -345,7 +360,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
       <StatusBar barStyle="light-content" backgroundColor="#0D0D0D" />
       <View style={styles.topBar}>
         <View style={styles.topRow}>
@@ -360,22 +375,6 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Icon.delete size={17} color={T.textSec} />
           </TouchableOpacity>
         </View>
-        <View style={styles.switchBar}>
-          <TouchableOpacity
-            style={[styles.switchOption, mode === 'writing' && styles.switchActive]}
-            onPress={() => navigation.replace('WritingChat', { novelId })}
-          >
-            <Icon.write size={14} color={mode === 'writing' ? '#0D0D0D' : T.textSec} />
-            <Text style={[styles.switchText, mode === 'writing' && styles.switchTextActive]}>AI 写作</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.switchOption, mode === 'chat' && styles.switchActive]}
-            onPress={() => navigation.replace('FreeChat', { novelId })}
-          >
-            <Icon.chat size={14} color={mode === 'chat' ? '#0D0D0D' : T.textSec} />
-            <Text style={[styles.switchText, mode === 'chat' && styles.switchTextActive]}>自由对话</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <FlatList
@@ -385,7 +384,16 @@ export default function ChatScreen({ navigation, route }: Props) {
         renderItem={renderMessage}
         contentContainerStyle={styles.list}
         onScroll={scrollOnScroll}
-        scrollEventThrottle={32}
+        onScrollBeginDrag={() => {
+          userScrollingRef.current = true;
+        }}
+        onScrollEndDrag={measureScroll}
+        onMomentumScrollEnd={(event: any) => {
+          userScrollingRef.current = false;
+          measureScroll(event);
+        }}
+        scrollToOverflowEnabled
+        scrollEventThrottle={16}
         ListEmptyComponent={(
           <View style={styles.empty}>
             <Icon.chat size={42} color="#333" />
@@ -396,7 +404,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       />
 
       {showScrollButton && (
-        <TouchableOpacity style={styles.scrollButton} onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}>
+        <TouchableOpacity style={styles.scrollButton} onPress={jumpToLatest} activeOpacity={0.8}>
           <Icon.down size={18} color="#0D0D0D" />
         </TouchableOpacity>
       )}
@@ -417,9 +425,10 @@ export default function ChatScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         )}
         <TextInput
-          style={styles.input}
+          style={[styles.input, { height: Math.min(180, Math.max(52, inputHeight)) }]}
           value={input}
           onChangeText={setInput}
+          onContentSizeChange={(event) => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
           placeholder={mode === 'writing' ? '输入剧情指令...' : '随便聊点什么...'}
           placeholderTextColor="#666"
           multiline
@@ -471,7 +480,7 @@ const styles = StyleSheet.create({
   emptySubtitle: { textAlign: 'center', fontSize: 13, lineHeight: 20, color: T.textMuted },
   scrollButton: { position: 'absolute', right: 18, bottom: 96, width: 38, height: 38, borderRadius: 19, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   inputBar: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
-  input: { flex: 1, minHeight: 44, maxHeight: 160, borderRadius: 22, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, lineHeight: 21, color: T.text },
+  input: { flex: 1, minHeight: 52, maxHeight: 180, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', paddingHorizontal: 18, paddingVertical: 14, fontSize: 15, lineHeight: 22, color: T.text },
   toolButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2E2E2E', alignItems: 'center', justifyContent: 'center' },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   stopButton: { backgroundColor: '#333', borderColor: '#444', borderWidth: 1 },

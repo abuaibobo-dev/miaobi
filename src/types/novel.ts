@@ -96,6 +96,7 @@ export interface NovelSettings {
   apiKey: string;
   baseUrl: string;
   model: string;
+  chatModel?: string;
   temperature: number;
   maxTokens: number;
 

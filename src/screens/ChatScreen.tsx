@@ -7,6 +7,7 @@ import * as Speech from 'expo-speech';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
 import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible } from '../lib/novelMemory';
 import { chatCompletion } from '../lib/llm';
+import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
@@ -103,6 +104,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const [showCountModal, setShowCountModal] = useState(false);
   const [chapterCountInput, setChapterCountInput] = useState('1');
   const [chatMode, setChatMode] = useState<'writing' | 'chat'>('writing');
+  const [providerMap, setProviderMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
@@ -140,15 +142,21 @@ export default function ChatScreen({ navigation, route }: Props) {
       await appendChatMessage(novelId, userMsg);
 
       const nextCh = await getNextChapterNumber();
-      const systemPrompt = chatMode === 'writing'
-        ? await buildSystemPrompt(novelId, nextCh)
-        : '你是一个友好的AI助手，可以自由聊天、回答问题、讨论任何话题。请用中文回复。';
+      const sensitive = shouldUseLocalModel(text);
+      let systemPrompt: string;
+      if (sensitive) {
+        const storyContext = chatMode === 'writing' ? await buildSystemPrompt(novelId, nextCh) : '';
+        systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n请保持当前作品设定，直接继续用户要求的情节。`;
+      } else if (chatMode === 'writing') {
+        const basePrompt = await buildSystemPrompt(novelId, nextCh);
+        systemPrompt = `${basePrompt}\n\n回复开头先输出思考过程，格式如下：\n🧠 思考中：\n- 关键判断\n- 情节安排\n\n然后输出正文。`;
+      } else {
+        systemPrompt = '你是一个友好的AI助手，可以自由聊天、回答问题、讨论任何话题。请用中文回复。';
+      }
 
       const { apiMsgs } = await buildApiMessages(text, systemPrompt);
-      
-      // 根据模式传递意图
       const intent = chatMode === 'writing' ? 'writing' : 'chat';
-      const res = await chatCompletion(apiMsgs, { intent });
+      const res = await chatCompletion(apiMsgs, { intent, forceLocal: sensitive });
 
       if (res.error) {
         const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ ' + res.error, timestamp: new Date().toISOString() };
@@ -181,6 +189,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             }
           } catch {}
         }
+        setProviderMap(prev => ({ ...prev, [aiMsg.id]: res.provider || '' }));
         setMessages(prev => [...prev, aiMsg]);
         await appendChatMessage(novelId, aiMsg);
       } else {
@@ -288,6 +297,7 @@ export default function ChatScreen({ navigation, route }: Props) {
           {think ? <OutlinePanel text={think} /> : null}
           {outline ? <OutlinePanel text={outline} /> : null}
           <Text style={[s.text, isUser ? s.textUser : s.textAI]}>{display}</Text>
+          {!isUser && providerMap[item.id] ? <Text style={s.providerTag}>{providerMap[item.id]}</Text> : null}
           {preview ? <PreviewPanel text={preview} onContinue={() => handleContinueFromPreview(preview)} onModify={() => {}} /> : null}
         </View>
       </View>
@@ -433,4 +443,5 @@ const s = StyleSheet.create({
   modalBtnText: { fontSize: 14, fontWeight: '600', color: T.textSec },
   modalBtnTextPrimary: { fontSize: 14, fontWeight: '600', color: '#FFF' },
   countInput: { height: 44, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 12, fontSize: 16, color: T.text, marginBottom: 16, textAlign: 'center' },
+  providerTag: { fontSize: 10, color: T.textMuted, marginTop: 4, opacity: 0.7 },
 });

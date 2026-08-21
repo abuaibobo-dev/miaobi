@@ -18,6 +18,12 @@ export const OLLAMA_MODELS = {
   CHAT: 'qwen2.5:1.5b' as string,  // 日常聊天
 } as const;
 
+const OLLAMA_FALLBACKS = {
+  WRITING: ['qwen3:1.7b', 'dqnwrite', 'deepseek-r1:1.7b', 'qwen2.5:1.5b'],
+  VISION: ['moondream', 'llava'],
+  CHAT: ['qwen2.5:1.5b', 'qwen3:1.7b', 'deepseek-r1:1.7b'],
+};
+
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
 
 // 意图检测：判断用户消息类型
@@ -110,12 +116,30 @@ export async function getOllamaModels(): Promise<string[]> {
   }
 }
 
+async function selectOllamaModel(intent: 'writing' | 'vision' | 'chat'): Promise<string | null> {
+  const installed = await getOllamaModels();
+  if (!installed.length) return null;
+  const preferred = intent === 'writing'
+    ? OLLAMA_FALLBACKS.WRITING
+    : intent === 'vision'
+      ? OLLAMA_FALLBACKS.VISION
+      : OLLAMA_FALLBACKS.CHAT;
+  for (const model of preferred) {
+    const match = installed.find(item => item === model || item.startsWith(model + ':'));
+    if (match) return match;
+  }
+  if (intent === 'vision') return null;
+  const generalModel = installed.find(item => !item.includes('embed') && !item.includes('moondream') && !item.includes('llava'));
+  return generalModel || installed[0] || null;
+}
+
 // 智能路由：根据意图选择模型
 export async function chatCompletion(
   messages: LLMMessage[],
   options?: {
     intent?: 'writing' | 'vision' | 'chat';
     images?: string[];
+    forceLocal?: boolean;
   }
 ): Promise<LLMResponse> {
   const settings = await getSettings() as any;
@@ -125,27 +149,24 @@ export async function chatCompletion(
   const ollamaAvailable = await checkOllamaAvailable();
   
   if (ollamaAvailable) {
-    // 根据意图选择模型
-    let model = OLLAMA_MODELS.CHAT;
-    if (intent === 'writing') model = OLLAMA_MODELS.WRITING;
-    if (intent === 'vision') model = OLLAMA_MODELS.VISION;
+    const model = await selectOllamaModel(intent);
     
-    const result = await callOllama(
-      model,
-      messages,
-      settings.temperature || 0.8,
-      settings.maxTokens || 2048,
-      options?.images
-    );
-    
-    // 如果本地模型失败，降级到 DeepSeek
-    if (result.error && !result.error.includes('连接失败')) {
-      return result;
+    if (model) {
+      const result = await callOllama(
+        model,
+        messages,
+        settings.temperature || 0.8,
+        settings.maxTokens || 2048,
+        options?.images
+      );
+      if (!result.error) return result;
     }
-    if (!result.error) return result;
   }
   
   // 降级到 DeepSeek 云端
+  if (options?.forceLocal) {
+    return { content: '', error: ollamaAvailable ? '本地模型调用失败，已阻止云端兜底。' : '敏感内容仅使用本地模型。请先启动 Ollama 并安装可用模型。' };
+  }
   if (!settings.apiKey) {
     return { 
       content: '', 
@@ -154,11 +175,15 @@ export async function chatCompletion(
         : '未配置 API Key，且 Ollama 不可用。请在设置中配置。' 
     };
   }
+
+  if (intent === 'vision') {
+    return { content: '', error: '未找到可用的本地识图模型。请先安装 moondream 或 llava。' };
+  }
   
   return callDeepSeek(
     settings.baseUrl,
     settings.apiKey,
-    settings.model,
+    intent === 'writing' ? (settings.model || 'deepseek-chat') : (settings.chatModel || settings.model || 'deepseek-chat'),
     messages,
     settings.temperature || 0.7,
     settings.maxTokens || 4096
@@ -217,29 +242,22 @@ export async function checkBalance(): Promise<{ balance?: number; currency?: str
 
 export async function checkApiKey(): Promise<{ valid: boolean; error?: string; provider?: string }> {
   const settings = await getSettings() as any;
-  
-  // 先测 Ollama
-  const ollamaOk = await checkOllamaAvailable();
-  if (ollamaOk) {
-    try {
-      const result = await callOllama(
-        OLLAMA_MODELS.CHAT,
-        [{ role: 'user', content: '回复ok' }],
-        0.1, 10
-      );
-      if (!result.error) return { valid: true, provider: 'ollama/' + OLLAMA_MODELS.CHAT };
-    } catch {}
-  }
-  
-  // 再测 DeepSeek
-  if (!settings.apiKey) return { valid: false, error: ollamaOk ? 'Ollama 可用，DeepSeek 未配置 Key' : 'Ollama 不可用且未配置 DeepSeek Key' };
+
+  if (!settings.apiKey) return { valid: false, error: 'DeepSeek API Key 未配置。本地模型状态请看 Ollama 区域。' };
   try {
-    const result = await chatCompletion([
-      { role: 'system', content: '回复ok' },
-      { role: 'user', content: 'ping' },
-    ], { intent: 'chat' });
+    const result = await callDeepSeek(
+      settings.baseUrl,
+      settings.apiKey,
+      settings.chatModel || settings.model || 'deepseek-chat',
+      [
+        { role: 'system', content: '回复ok' },
+        { role: 'user', content: 'ping' },
+      ],
+      0.1,
+      10
+    );
     if (result.error) return { valid: false, error: result.error };
-    return { valid: true, provider: result.provider || 'deepseek' };
+    return { valid: true, provider: settings.chatModel || settings.model || 'deepseek-chat' };
   } catch (e: any) {
     return { valid: false, error: e.message };
   }

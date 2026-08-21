@@ -76,9 +76,10 @@ export default function SettingsScreen({ navigation }: Props) {
     setTestResult(null);
     await saveSettings(settings);
     try {
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('超时（15秒）')), 15000));
+      // Short timeout for quick feedback
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('连接超时（10秒）')), 10000));
       const result = await Promise.race([checkApiKey(), timeout]);
-      setTestResult((result as any).valid ? '连接成功' : (result as any).error || '连接失败');
+      setTestResult((result as any).valid ? '连接成功（' + ((result as any).provider || 'unknown') + '）' : (result as any).error || '连接失败');
     } catch (e: any) {
       setTestResult(e.message || '测试超时');
     }
@@ -214,8 +215,10 @@ export default function SettingsScreen({ navigation }: Props) {
         <TextInput style={s.input} value={settings.apiKey} onChangeText={v => setSettings(prev => ({ ...prev, apiKey: v }))} placeholder="sk-..." placeholderTextColor={T.textMuted} secureTextEntry autoCapitalize="none" />
         <Text style={s.label}>API 地址</Text>
         <TextInput style={s.input} value={settings.baseUrl} onChangeText={v => setSettings(prev => ({ ...prev, baseUrl: v }))} placeholder="https://api.deepseek.com" placeholderTextColor={T.textMuted} autoCapitalize="none" />
-        <Text style={s.label}>模型</Text>
+        <Text style={s.label}>写作模型</Text>
         <TextInput style={s.input} value={settings.model} onChangeText={v => setSettings(prev => ({ ...prev, model: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+        <Text style={s.label}>对话模型</Text>
+        <TextInput style={s.input} value={settings.chatModel || 'deepseek-chat'} onChangeText={v => setSettings(prev => ({ ...prev, chatModel: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
         <Text style={s.label}>Temperature: {settings.temperature.toFixed(1)}</Text>
         <View style={s.tempRow}>
           {[0.1, 0.3, 0.5, 0.7, 0.9, 1.0].map(t => (

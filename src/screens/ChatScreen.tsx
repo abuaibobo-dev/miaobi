@@ -135,6 +135,10 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   const sendToAI = async (text: string) => {
     try {
+      const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
+      setMessages(prev => [...prev, userMsg]);
+      await appendChatMessage(novelId, userMsg);
+
       const nextCh = await getNextChapterNumber();
       const systemPrompt = chatMode === 'writing'
         ? await buildSystemPrompt(novelId, nextCh)
@@ -146,15 +150,11 @@ export default function ChatScreen({ navigation, route }: Props) {
       const intent = chatMode === 'writing' ? 'writing' : 'chat';
       const res = await chatCompletion(apiMsgs, { intent });
 
-      const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
-      setMessages(prev => [...prev, userMsg]);
-      await appendChatMessage(novelId, userMsg);
-
       if (res.error) {
         const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ ' + res.error, timestamp: new Date().toISOString() };
         setMessages(prev => [...prev, errMsg]);
         await appendChatMessage(novelId, errMsg);
-      } else if (res.content) {
+      } else if (res.content && res.content.trim()) {
         const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
         
         if (chatMode === 'writing') {
@@ -183,6 +183,10 @@ export default function ChatScreen({ navigation, route }: Props) {
         }
         setMessages(prev => [...prev, aiMsg]);
         await appendChatMessage(novelId, aiMsg);
+      } else {
+        const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ AI 返回了空内容，请重试。', timestamp: new Date().toISOString() };
+        setMessages(prev => [...prev, errMsg]);
+        await appendChatMessage(novelId, errMsg);
       }
     } catch (e: any) {
       const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ 发送失败：' + (e.message || '未知错误'), timestamp: new Date().toISOString() };
@@ -230,11 +234,13 @@ export default function ChatScreen({ navigation, route }: Props) {
     if (loading) return;
     setLoading(true);
     try {
-      const { apiMsgs } = await buildApiMessages('根据以下预告内容，直接开始写下一章正文（5000字左右）：\n\n' + previewText);
-      const res = await chatCompletion(apiMsgs, { intent: 'writing' });
       const userMsg: ChatMessage = { id: uid(), role: 'user', content: '续写下一章', timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, userMsg]);
       await appendChatMessage(novelId, userMsg);
+
+      const { apiMsgs } = await buildApiMessages('根据以下预告内容，直接开始写下一章正文（5000字左右）：\n\n' + previewText);
+      const res = await chatCompletion(apiMsgs, { intent: 'writing' });
+
       if (!res.error && res.content) {
         const parsed = parseThinking(res.content);
         const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };

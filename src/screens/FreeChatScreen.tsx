@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  KeyboardAvoidingView, Platform, Image, StatusBar,
 } from 'react-native';
 import { getChatHistory, appendChatMessage, clearChatHistory } from '../lib/storage';
-import { streamChatCompletion, getActiveModelInfo, type LLMMessage } from '../lib/llm';
+import { streamChatCompletion, getActiveModelInfo, detectIntent, type LLMMessage } from '../lib/llm';
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
+import { GenerationDots, StreamCursor, ThinkingPanel } from '../components/ChatIndicators';
 import ModelPicker, { type ModelOption } from '../components/ModelPicker';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
@@ -19,32 +20,11 @@ function uid(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function Panel({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  if (!text) return null;
-  return (
-    <View style={panel.card}>
-      <TouchableOpacity style={panel.header} onPress={() => setOpen(!open)} activeOpacity={0.7}>
-        <Icon.thinking size={13} color={T.textSec} />
-        <Text style={panel.label}>思考过程</Text>
-        <Icon.down size={13} color={T.textMuted} />
-      </TouchableOpacity>
-      {open && (
-        <View style={panel.body}>
-          <Text style={panel.text}>{text}</Text>
-        </View>
-      )}
-    </View>
-  );
+function extractImageMarkdown(content: string) {
+  const match = content.match(/!\[[^\]]*]\((https?:\/\/[^)\s]+)\)/i);
+  if (!match) return { imageUrl: '', body: content };
+  return { imageUrl: match[1], body: content.replace(match[0], '').trim() };
 }
-
-const panel = StyleSheet.create({
-  card: { marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#181818', overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 10 },
-  label: { flex: 1, fontSize: 12, fontWeight: '700', color: T.text },
-  body: { borderTopWidth: 1, borderTopColor: '#262626', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
-  text: { fontSize: 13, lineHeight: 20, color: '#C9C9C9' },
-});
 
 export default function FreeChatScreen({ navigation, route }: Props) {
   const channel: string = route.params?.novelId ? `free:${route.params.novelId}` : 'free:global';
@@ -123,18 +103,19 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     abortRef.current = controller;
     let provider = '';
     try {
-      const sensitive = shouldUseLocalModel(cleanText);
+      const intent = detectIntent(cleanText);
+      const sensitive = intent === 'adult' || shouldUseLocalModel(cleanText);
       const history: LLMMessage[] = messages.slice(-8).map(item => ({
         role: item.role === 'assistant' ? 'assistant' : 'user',
         content: item.content.slice(0, 800),
       }));
       const system = sensitive
         ? `${INTIMATE_SYSTEM_PROMPT}\n\n直接输出正文，不要输出思考过程。`
-        : '你是妙笔自由对话助手。回答准确、自然、简洁；不要输出思考过程，直接给出答案。';
+        : '你是妙笔自由对话助手。先用 <think> 标签写两三句简要思考，再给出准确、自然、简洁的中文答案。';
       const response = await streamChatCompletion(
         [{ role: 'system', content: system }, ...history, { role: 'user', content: cleanText }],
         {
-          intent: 'chat',
+          intent,
           forceLocal: sensitive,
           ...(modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
             providerOverride: modelChoice.provider,
@@ -193,19 +174,17 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const parsed = isUser ? { body: item.content, thinking: '' } : parseThinking(item.content);
+    const rendered = !isUser ? extractImageMarkdown(parsed.body) : { imageUrl: '', body: item.content };
     const isLoading = !isUser && loading && item.id === messages[messages.length - 1]?.id;
     return (
       <View style={[styles.row, isUser ? styles.userRow : styles.aiRow]}>
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          {!isUser && parsed.thinking ? <Panel text={parsed.thinking} /> : null}
-          {isLoading && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color="#F5F5F5" />
-              <Text style={styles.loadingText}>{streamThinking ? '正在思考...' : '正在回复...'}</Text>
-            </View>
-          )}
-          {isLoading && streamThinking ? <Panel text={streamThinking} /> : null}
-          {parsed.body ? <Text style={[styles.messageText, isUser && styles.userText]}>{parsed.body}</Text> : null}
+          {isLoading && <GenerationDots label={streamThinking ? '正在思考' : '正在回复'} />}
+          {!isUser && (isLoading ? streamThinking : parsed.thinking) ? (
+            <ThinkingPanel text={isLoading ? streamThinking : parsed.thinking} streaming={isLoading} />
+          ) : null}
+          {rendered.imageUrl ? <Image source={{ uri: rendered.imageUrl }} style={styles.generatedImage} resizeMode="cover" /> : null}
+          {rendered.body ? <Text style={[styles.messageText, isUser && styles.userText]}>{rendered.body}</Text> : isLoading ? <StreamCursor /> : null}
           {!isUser && item.provider ? <Text style={styles.modelTag}>{item.provider}</Text> : null}
         </View>
       </View>
@@ -311,6 +290,7 @@ const styles = StyleSheet.create({
   userBubble: { maxWidth: '84%', backgroundColor: T.userBubble, borderBottomRightRadius: 6 },
   aiBubble: { width: '100%', backgroundColor: T.aiBubble, borderWidth: 1, borderColor: '#262626', borderBottomLeftRadius: 6 },
   messageText: { fontSize: 15, lineHeight: 24, color: T.text },
+  generatedImage: { width: '100%', aspectRatio: 0.72, borderRadius: 14, marginBottom: 10, backgroundColor: '#222' },
   userText: { color: '#0D0D0D' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadingText: { fontSize: 12, color: T.textMuted },

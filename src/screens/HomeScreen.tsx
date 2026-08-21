@@ -126,7 +126,7 @@ export default function HomeScreen({ navigation }: Props) {
       )}
 
       <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateNovel')} activeOpacity={0.8}>
-        <Icon.add size={24} color="#0D0D0D" />
+        <Icon.add size={19} color="#0D0D0D" />
       </TouchableOpacity>
 
       <CapsuleAlert
@@ -176,5 +176,5 @@ const s = StyleSheet.create({
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: T.accent + '10', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 8 },
   emptySub: { fontSize: 14, color: T.textMuted },
-  fab: { position: 'absolute', bottom: 32, right: 24, width: 56, height: 56, borderRadius: 18, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: T.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
+  fab: { position: 'absolute', bottom: 32, right: 24, width: 44, height: 44, borderRadius: 14, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: T.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
 });

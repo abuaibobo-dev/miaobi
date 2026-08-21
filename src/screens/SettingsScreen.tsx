@@ -150,7 +150,7 @@ export default function SettingsScreen({ navigation }: Props) {
         '-lc',
         'export OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_KEEP_ALIVE=5m; termux-wake-lock; exec ollama serve',
       ]);
-      setToast('启动命令已发送，正在检测...');
+      setToast('已发送');
       for (let i = 0; i < 8; i++) {
         await new Promise(resolve => setTimeout(resolve, 1200));
         if (await checkOllamaAvailable()) {

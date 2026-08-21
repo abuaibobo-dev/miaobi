@@ -1,20 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
+  KeyboardAvoidingView, Platform, Image, StatusBar,
 } from 'react-native';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
 import { buildSystemPrompt, processPostWrite, addChapter } from '../lib/novelMemory';
-import { streamChatCompletion, chatCompletion, getActiveModelInfo, type LLMMessage } from '../lib/llm';
+import { streamChatCompletion, chatCompletion, getActiveModelInfo, detectIntent, type LLMMessage } from '../lib/llm';
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
 import ModelPicker, { type ModelOption } from '../components/ModelPicker';
+import { GenerationDots, StreamCursor, ThinkingPanel } from '../components/ChatIndicators';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { ChatMessage } from '../types/novel';
 
 type ChatMode = 'writing' | 'chat';
+
+function extractImageMarkdown(content: string) {
+  const match = content.match(/!\[[^\]]*]\((https?:\/\/[^)\s]+)\)/i);
+  if (!match) return { imageUrl: '', body: content };
+  return { imageUrl: match[1], body: content.replace(match[0], '').trim() };
+}
 
 function uid(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
@@ -175,7 +182,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     return [{ role: 'system' as const, content: system }, ...recent, { role: 'user' as const, content: userContent }];
   };
 
-  const runStreaming = async (apiMessages: any[], sensitive: boolean) => {
+  const runStreaming = async (apiMessages: any[], sensitive: boolean, intent: ReturnType<typeof detectIntent> = 'writing') => {
     const assistantId = uid();
     const placeholder: ChatMessage = {
       id: assistantId,
@@ -196,7 +203,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
 
     try {
       const response = await streamChatCompletion(apiMessages, {
-        intent: mode,
+        intent,
         forceLocal: sensitive,
         ...requestOverrides(sensitive),
         signal: controller.signal,
@@ -261,7 +268,9 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     setMessages(previous => [...previous, userMessage]);
     await appendChatMessage(novelId, userMessage);
 
-    const sensitive = shouldUseLocalModel(cleanText);
+    const detectedIntent = detectIntent(cleanText);
+    const intent = detectedIntent === 'image' || detectedIntent === 'vision' ? detectedIntent : detectedIntent === 'adult' ? 'adult' : 'writing';
+    const sensitive = intent === 'adult' || shouldUseLocalModel(cleanText);
     const nextChapter = await getNextChapterNumber();
     const activeInfo = await getActiveModelInfo(mode);
     const usingLocal = sensitive || (modelChoice ? modelChoice.provider === 'local' : activeInfo?.provider === 'local');
@@ -270,14 +279,17 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     if (sensitive) {
       const storyContext = mode === 'writing' ? await buildSystemPrompt(novelId, nextChapter, true) : '';
       systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n直接输出正文，不要输出思考过程。`;
+    } else if (intent === 'image') {
+      systemPrompt = '你是图像创作助手。根据用户描述生成图片。';
     } else if (mode === 'writing') {
       systemPrompt = await buildSystemPrompt(novelId, nextChapter, usingLocal);
+      if (usingLocal) systemPrompt += '\n\n先在 <think> 标签里写两三句剧情推进思考，再按格式输出正文。';
     } else {
       systemPrompt = '你是妙笔的中文创作助手。回答准确、自然、简洁；不要输出思考过程，直接给出答案。';
     }
 
     const apiMessages = await buildApiMessages(cleanText, systemPrompt);
-    const result = await runStreaming(apiMessages, sensitive);
+    const result = await runStreaming(apiMessages, sensitive, intent);
     if (!result) return;
 
     if (!result.body) {
@@ -288,8 +300,14 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     result.message.content = result.body;
     await appendChatMessage(novelId, result.message);
 
-    if (mode !== 'writing') return;
+    if (mode !== 'writing' || intent === 'image') return;
     const chapter = parseChapter(result.body);
+    if (chapter.body.length >= 400) {
+      const headingMatch = chapter.body.match(/^第\s*[0-9一二三四五六七八九十百千]+\s*章\s*[^\n]*/);
+      const outlineTitle = chapter.outline.split('\n')[0]?.replace(/^(标题|章节标题)\s*[：:]\s*/, '').trim();
+      const title = headingMatch?.[0]?.trim() || outlineTitle || `第${nextChapter}章`;
+      await addChapter(novelId, title, chapter.body, chapter.outline || chapter.body.slice(0, 260));
+    }
     try {
       const jsonMatch = result.body.match(/```json\s*([\s\S]*?)```/) || result.body.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -350,21 +368,19 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     const isUser = item.role === 'user';
     const parsed = isUser ? { body: item.content, thinking: '' } : parseThinking(item.content);
     const chapter = !isUser && mode === 'writing' ? parseChapter(parsed.body) : { outline: '', preview: '', body: parsed.body };
-    const display = chapter.body || parsed.body;
+    const renderedImage = !isUser ? extractImageMarkdown(chapter.body || parsed.body) : { imageUrl: '', body: '' };
+    const display = renderedImage.imageUrl ? '' : (chapter.body || parsed.body);
     const isLoadingPlaceholder = !isUser && loading && item.id === messages[messages.length - 1]?.id;
 
     return (
       <View style={[styles.row, isUser ? styles.userRow : styles.aiRow]}>
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          {!isUser && parsed.thinking ? <Panel title="思考过程" text={parsed.thinking} icon={<Icon.thinking size={13} color={T.textSec} />} muted /> : null}
-          {isLoadingPlaceholder ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color="#F5F5F5" />
-              <Text style={styles.loadingText}>{streamThinking ? '正在思考...' : '正在生成...'}</Text>
-            </View>
+          {isLoadingPlaceholder && <GenerationDots label={streamThinking ? '正在思考' : '正在生成'} />}
+          {!isUser && (isLoadingPlaceholder ? streamThinking : parsed.thinking) ? (
+            <ThinkingPanel text={isLoadingPlaceholder ? streamThinking : parsed.thinking} streaming={isLoadingPlaceholder} />
           ) : null}
-          {!isUser && streamThinking && isLoadingPlaceholder ? <Panel title="实时思考" text={streamThinking} icon={<Icon.thinking size={13} color={T.textSec} />} muted /> : null}
-          {display ? <Text style={[styles.messageText, isUser && styles.userText]}>{display}</Text> : null}
+          {renderedImage.imageUrl ? <Image source={{ uri: renderedImage.imageUrl }} style={styles.generatedImage} resizeMode="cover" /> : null}
+          {!renderedImage.imageUrl && display ? <Text style={[styles.messageText, isUser && styles.userText]}>{display}</Text> : isLoadingPlaceholder && !renderedImage.imageUrl ? <StreamCursor /> : null}
           {chapter.outline ? <Panel title="本章大纲" text={chapter.outline} icon={<Icon.outline size={13} color={T.textSec} />} /> : null}
           {chapter.preview ? <PreviewPanel text={chapter.preview} onContinue={() => sendToAI(`根据以下预告继续下一章：\n\n${chapter.preview}`)} /> : null}
           {!isUser && item.provider ? <Text style={styles.modelTag}>{item.provider}</Text> : null}
@@ -497,6 +513,7 @@ const styles = StyleSheet.create({
   userBubble: { maxWidth: '84%', backgroundColor: T.userBubble, borderBottomRightRadius: 6 },
   aiBubble: { width: '100%', backgroundColor: T.aiBubble, borderWidth: 1, borderColor: '#262626', borderBottomLeftRadius: 6 },
   messageText: { fontSize: 15, lineHeight: 24, color: T.text },
+  generatedImage: { width: '100%', aspectRatio: 0.72, borderRadius: 14, marginBottom: 10, backgroundColor: '#222' },
   userText: { color: '#0D0D0D' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadingText: { fontSize: 12, color: T.textMuted },

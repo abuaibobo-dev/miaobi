@@ -13,7 +13,7 @@ export interface LLMResponse {
 }
 
 export interface StreamOptions {
-  intent?: 'writing' | 'vision' | 'chat';
+  intent?: 'writing' | 'vision' | 'chat' | 'adult' | 'image';
   images?: string[];
   forceLocal?: boolean;
   providerOverride?: 'local' | 'cloud';
@@ -28,8 +28,10 @@ type Intent = NonNullable<StreamOptions['intent']>;
 
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
 const PREFERRED_MODELS: Record<Intent, string[]> = {
-  writing: ['qwen3:1.7b', 'dqnwrite', 'deepseek-r1:1.7b', 'qwen2.5:1.5b'],
+  writing: ['dqnwrite', 'qwen3:1.7b', 'deepseek-r1:1.7b', 'qwen2.5:1.5b'],
+  adult: ['dqnwrite', 'qwen3:1.7b', 'deepseek-r1:1.7b', 'qwen2.5:1.5b'],
   vision: ['moondream', 'llava'],
+  image: ['moondream', 'llava'],
   chat: ['qwen2.5:1.5b', 'qwen3:1.7b', 'deepseek-r1:1.7b'],
 };
 
@@ -49,8 +51,14 @@ function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
 
 export function detectIntent(text: string, hasImage?: boolean): Intent {
   if (hasImage) return 'vision';
+  if (/生图|生成图|画一[张幅]|画个|绘图|插画/.test(text)) return 'image';
+  if (/(成人|情欲|激情|床戏|性爱|做爱|上床|缠绵|云雨|鱼水之欢|亲密|裸|肌肤|抚摸|挑逗|诱惑|翻云覆雨)/.test(text)) return 'adult';
   const keywords = ['写','创作','续写','章节','大纲','剧情','角色','小说','故事','对话','描写','场景','结局','开头','伏笔','设定','世界观','修改','润色'];
   return keywords.some(keyword => text.includes(keyword)) ? 'writing' : 'chat';
+}
+
+export function isAdultIntent(intent: Intent): boolean {
+  return intent === 'adult';
 }
 
 export async function checkOllamaAvailable(): Promise<boolean> {
@@ -82,6 +90,15 @@ async function selectOllamaModel(intent: Intent): Promise<string | null> {
   }
   if (intent === 'vision') return null;
   return installed.find(item => !/embed|moondream|llava/i.test(item)) || installed[0];
+}
+
+export async function generateLocalImage(prompt: string, signal?: AbortSignal): Promise<string> {
+  const seed = Math.floor(Math.random() * 1000000);
+  const encodedPrompt = encodeURIComponent(prompt.slice(0, 900));
+  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=768&height=1152&seed=${seed}&nologo=true&safe=false`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(`图片生成失败（HTTP ${response.status}）`);
+  return url;
 }
 
 export async function getActiveModelInfo(intent: Intent = 'chat'): Promise<{ provider: 'local' | 'deepseek'; label: string } | null> {
@@ -273,6 +290,19 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     }
   }
 
+  if (intent === 'image') {
+    try {
+      const prompt = messages[messages.length - 1]?.content || '';
+      const imageUrl = await generateLocalImage(prompt, options.signal);
+      options.onProvider?.('图像 · Pollinations');
+      const markdown = `![AI 生图](${imageUrl})\n\n${prompt}`;
+      options.onContent?.(markdown);
+      return { content: markdown, provider: 'image:pollinations' };
+    } catch (error) {
+      return { content: '', error: (error as Error).message || '图片生成失败。' };
+    }
+  }
+
   if (await checkOllamaAvailable()) {
     let model = await selectOllamaModel(intent);
     if (options.providerOverride === 'local' && options.modelOverride) {
@@ -310,7 +340,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       }
     }
     if (options.forceLocal) {
-      return { content: '', error: '本地模型不可用。成人文学内容只在本机处理，不会发送到云端。' };
+      return { content: '', error: '本地模型不可用。成人文学内容只在本机处理，不会发送到云端。', provider: model ? `local:${model}` : undefined };
     }
   } else if (options.forceLocal) {
     return { content: '', error: 'Ollama 未运行。成人文学内容只在本机处理，请先启动本地模型。' };

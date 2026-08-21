@@ -1,6 +1,6 @@
 {
   "name": "miaobi",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

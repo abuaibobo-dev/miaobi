@@ -270,7 +270,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.2</Text>
+        <Text style={s.footerText}>妙笔 v1.9.3</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 

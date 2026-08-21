@@ -15,7 +15,7 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   return (
     <NavigationContainer>
-      <StatusBar style="light"  />
+      <StatusBar style="light" />
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -26,7 +26,15 @@ export default function App() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="CreateNovel" component={CreateNovelScreen} />
         <Stack.Screen name="NovelDetail" component={NovelDetailScreen} />
-        <Stack.Screen name="Chat" component={ChatScreen} />
+        <Stack.Screen name="WritingChat">
+          {props => <ChatScreen {...props} route={{ ...props.route, params: { ...props.route.params, mode: 'writing' } }} />}
+        </Stack.Screen>
+        <Stack.Screen name="FreeChat">
+          {props => <ChatScreen {...props} route={{ ...props.route, params: { ...props.route.params, mode: 'chat' } }} />}
+        </Stack.Screen>
+        <Stack.Screen name="Chat">
+          {props => <ChatScreen {...props} route={{ ...props.route, params: { ...props.route.params, mode: 'writing' } }} />}
+        </Stack.Screen>
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AutoWrite" component={AutoWriteScreen} />
         <Stack.Screen name="Reader" component={ReaderScreen} />

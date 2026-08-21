@@ -1,14 +1,18 @@
-/**
- * 从 AI 回复中解析思考过程
- * 格式：🧠 思考中：\n- 步骤1\n- 步骤2\n\n正文...
- */
 export function parseThinking(content: string): { thinking: string; body: string } {
-  const thinkMatch = content.match(/🧠\s*思考中[：:]\s*\n([\s\S]*?)(?=\n\n|$)/);
-  if (thinkMatch) {
-    const thinking = thinkMatch[1].trim();
-    const body = content.slice(thinkMatch.index! + thinkMatch[0].length).trim();
-    return { thinking, body };
+  let working = content;
+  let thinking = '';
+
+  const tagged = working.match(/<(?:think|thinking)>([\s\S]*?)(?:<\/(?:think|thinking)>|$)/i);
+  if (tagged) {
+    thinking = tagged[1].trim();
+    working = working.replace(/<(?:think|thinking)>[\s\S]*?(?:<\/(?:think|thinking)>|$)/gi, '');
   }
-  // fallback: 没有思考标记就返回原文
-  return { thinking: '', body: content };
+
+  const marked = working.match(/🧠\s*思考中[：:]\s*\n([\s\S]*?)(?=\n\n|\n(?!(?:[-*•]|\d+\.|【)))|🧠\s*思考中[：:]\s*\n[\s\S]*$/i);
+  if (marked) {
+    thinking = [thinking, marked[1] || marked[0].replace(/^🧠\s*思考中[：:]\s*\n?/i, '')].filter(Boolean).join('\n');
+    working = working.replace(/^🧠\s*思考中[：:]\s*\n[\s\S]*$/im, '');
+  }
+
+  return { thinking: thinking.trim(), body: working.trim() };
 }

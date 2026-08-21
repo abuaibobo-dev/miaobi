@@ -153,5 +153,5 @@ const s = StyleSheet.create({
   modalBtnCancel: { flex: 1, paddingVertical: 11, borderRadius: T.r.md, backgroundColor: T.surface, alignItems: 'center', borderWidth: 1, borderColor: T.border },
   modalBtnCancelTxt: { fontSize: 13, color: T.textSec },
   modalBtnOk: { flex: 1, paddingVertical: 11, borderRadius: T.r.md, backgroundColor: T.accent, alignItems: 'center' },
-  modalBtnOkTxt: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  modalBtnOkTxt: { fontSize: 13, fontWeight: '700', color: '#0D0D0D' },
 });

@@ -90,6 +90,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  provider?: string;
 }
 
 export interface NovelSettings {

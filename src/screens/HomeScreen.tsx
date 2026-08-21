@@ -15,14 +15,14 @@ const BOOK_W = (SCREEN_W - 48) / 3;
 const BOOK_H = BOOK_W * 1.4;
 
 const COVER_COLORS = [
-  ['#8B5CF6', '#6D28D9'],
-  ['#EC4899', '#BE185D'],
-  ['#3B82F6', '#1D4ED8'],
-  ['#10B981', '#047857'],
-  ['#F59E0B', '#D97706'],
-  ['#EF4444', '#B91C1C'],
-  ['#6366F1', '#4338CA'],
-  ['#14B8A6', '#0D9488'],
+  ['#242424', '#111'],
+  ['#2E2E2E', '#161616'],
+  ['#383838', '#1A1A1A'],
+  ['#424242', '#1F1F1F'],
+  ['#4A4A4A', '#242424'],
+  ['#333', '#141414'],
+  ['#3B3B3B', '#181818'],
+  ['#454545', '#202020'],
 ];
 
 export default function HomeScreen({ navigation }: Props) {
@@ -70,8 +70,11 @@ export default function HomeScreen({ navigation }: Props) {
           }}>
             <Icon.book size={12} color={count > 0 ? T.accent : T.textMuted} />
           </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('Chat', { novelId: item.id })}>
-            <Icon.write size={12} color={T.accent} />
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('WritingChat', { novelId: item.id })}>
+            <Icon.write size={12} color={T.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('FreeChat', { novelId: item.id })}>
+            <Icon.chat size={12} color={T.textSec} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -126,7 +129,7 @@ export default function HomeScreen({ navigation }: Props) {
       )}
 
       <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateNovel')} activeOpacity={0.8}>
-        <Icon.add size={24} color="#FFF" />
+        <Icon.add size={24} color="#0D0D0D" />
       </TouchableOpacity>
 
       <CapsuleAlert

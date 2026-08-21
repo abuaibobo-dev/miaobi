@@ -53,8 +53,17 @@ export async function saveNovel(n: NovelProject): Promise<void> {
 }
 
 export async function deleteNovel(id: string): Promise<void> {
-  const list = await getNovels();
-  await save('novels', list.filter(x => x.id !== id));
+  const novels = await getNovels();
+  await save('novels', novels.filter(item => item.id !== id));
+  await Promise.all([
+    save(`chapters.${id}`, []),
+    save(`chars.${id}`, []),
+    save(`fs.${id}`, []),
+    save(`mem.${id}`, []),
+    save(`snap.${id}`, []),
+    AsyncStorage.removeItem(`${PREFIX}chat.${id}`),
+    AsyncStorage.removeItem(`miaobi.ideas.${id}`),
+  ]);
 }
 
 // ============================================================

@@ -19,7 +19,7 @@ import type { NovelProject, Chapter, Character, Foreshadowing, MemorySnapshot } 
 
 const COLORS = {
   bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0', danger: '#FF0044',
+  text: '#F5F5F5', sub: '#A3A3A3', accent: '#F5F5F5', danger: '#737373',
 };
 
 type Props = any;

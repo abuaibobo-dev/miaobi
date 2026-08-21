@@ -1,12 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 
-const COLORS = {
-  bg: '#0D0D0D', card: '#1A1A1A', border: '#2A2A2A',
-  text: '#FFFFFF', sub: '#888888', accent: '#66D9A0', danger: '#FF0044',
-};
-
 interface Props {
+  children?: React.ReactNode;
   visible: boolean;
   title: string;
   message?: string;
@@ -17,21 +13,19 @@ interface Props {
   onConfirm: () => void;
 }
 
-export default function CapsuleAlert({ visible, title, message, cancelText = '取消', confirmText = '确定', danger, onCancel, onConfirm }: Props) {
+export default function CapsuleAlert({ children, visible, title, message, cancelText = '取消', confirmText = '确定', danger, onCancel, onConfirm }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <Text style={styles.title}>{title}</Text>
           {message ? <Text style={styles.message}>{message}</Text> : null}
+          {children}
           <View style={styles.btnRow}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
               <Text style={styles.cancelText}>{cancelText}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.confirmBtn, danger && { backgroundColor: COLORS.danger }]}
-              onPress={onConfirm}
-            >
+            <TouchableOpacity style={[styles.confirmBtn, danger && styles.dangerBtn]} onPress={onConfirm}>
               <Text style={styles.confirmText}>{confirmText}</Text>
             </TouchableOpacity>
           </View>
@@ -41,25 +35,18 @@ export default function CapsuleAlert({ visible, title, message, cancelText = '�
   );
 }
 
-interface ToastProps {
-  visible: boolean;
-  text: string;
-  onHide: () => void;
-}
-
-export function CapsuleToast({ visible, text, onHide }: ToastProps) {
+export function CapsuleToast({ visible, text, onHide }: { visible: boolean; text: string; onHide: () => void }) {
   React.useEffect(() => {
-    if (visible) {
-      const t = setTimeout(onHide, 2000);
-      return () => clearTimeout(t);
-    }
+    if (!visible) return;
+    const timer = setTimeout(onHide, 1800);
+    return () => clearTimeout(timer);
   }, [visible, onHide]);
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
-        <View style={[styles.modal, { paddingVertical: 14 }]}>
-          <Text style={styles.title}>{text}</Text>
+      <View pointerEvents="none" style={styles.toastOverlay}>
+        <View style={styles.toast}>
+          <Text style={styles.toastText} numberOfLines={2}>{text}</Text>
         </View>
       </View>
     </Modal>
@@ -67,16 +54,17 @@ export function CapsuleToast({ visible, text, onHide }: ToastProps) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modal: {
-    backgroundColor: '#2A2A2A', borderRadius: 20, padding: 18, width: '80%',
-    borderWidth: 1, borderColor: '#3A3A3A', elevation: 8,
-  },
-  title: { fontSize: 15, fontWeight: '600', color: COLORS.text, textAlign: 'center', marginBottom: 6 },
-  message: { fontSize: 13, color: COLORS.sub, textAlign: 'center', lineHeight: 18, marginBottom: 14 },
-  btnRow: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, paddingVertical: 10, borderRadius: 14, backgroundColor: '#3A3A3A', alignItems: 'center' },
-  cancelText: { fontSize: 13, color: COLORS.sub },
-  confirmBtn: { flex: 1, paddingVertical: 10, borderRadius: 14, backgroundColor: COLORS.accent, alignItems: 'center' },
-  confirmText: { fontSize: 13, fontWeight: '600', color: '#000' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modal: { width: '100%', maxWidth: 360, backgroundColor: '#1A1A1A', borderRadius: 22, borderWidth: 1, borderColor: '#2E2E2E', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  title: { fontSize: 16, fontWeight: '700', color: '#F5F5F5', textAlign: 'center' },
+  message: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#A3A3A3', textAlign: 'center' },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  cancelBtn: { flex: 1, height: 42, borderRadius: 21, backgroundColor: '#242424', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333' },
+  cancelText: { fontSize: 14, fontWeight: '600', color: '#D4D4D4' },
+  confirmBtn: { flex: 1, height: 42, borderRadius: 21, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  dangerBtn: { backgroundColor: '#D4D4D4' },
+  confirmText: { fontSize: 14, fontWeight: '700', color: '#0D0D0D' },
+  toastOverlay: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 48 },
+  toast: { maxWidth: '88%', minWidth: 120, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, backgroundColor: 'rgba(245,245,245,0.96)', borderWidth: 1, borderColor: '#FFF' },
+  toastText: { fontSize: 12, fontWeight: '600', color: '#0D0D0D', textAlign: 'center' },
 });

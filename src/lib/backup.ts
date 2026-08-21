@@ -8,7 +8,8 @@ export async function exportBackup(): Promise<boolean> {
   const novels = await Store.getNovels();
   const settings = await Store.getSettings();
 
-  const backup: any = { version: '1.0.0', exportedAt: new Date().toISOString(), settings, novels: [] };
+  const { apiKey, ...safeSettings } = settings;
+  const backup: any = { version: '1.1.0', exportedAt: new Date().toISOString(), settings: safeSettings, novels: [] };
 
   for (const novel of novels) {
     const chapters = await Store.getChapters(novel.id);
@@ -33,7 +34,10 @@ export async function restoreFromBackup(jsonString: string): Promise<{ success: 
     if (!backup.version || !backup.novels) return { success: false, message: '备份文件格式无效' };
 
     let novelCount = 0, chapterCount = 0;
-    if (backup.settings) await Store.saveSettings(backup.settings);
+    if (backup.settings) {
+      const current = await Store.getSettings();
+      await Store.saveSettings({ ...current, ...backup.settings, apiKey: current.apiKey });
+    }
 
     for (const novelData of backup.novels) {
       const { chapters, characters, foreshadowing, memoryChunks, snapshots, chatHistory, ...novel } = novelData;

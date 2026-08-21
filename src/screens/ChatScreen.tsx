@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar,
 } from 'react-native';
-import * as Speech from 'expo-speech';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
-import { buildSystemPrompt, processPostWrite, addChapter, getStoryBible } from '../lib/novelMemory';
-import { chatCompletion } from '../lib/llm';
+import { buildSystemPrompt, processPostWrite, addChapter } from '../lib/novelMemory';
+import { streamChatCompletion, chatCompletion, getActiveModelInfo, type LLMMessage } from '../lib/llm';
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
@@ -14,434 +13,469 @@ import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { ChatMessage } from '../types/novel';
 
-function uid(): string { return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+type ChatMode = 'writing' | 'chat';
 
-function parseChapter(content: string): { outline: string; body: string; preview: string } {
-  let outline = '', body = '', preview = '';
-  const outlineMatch = content.match(/【本章大纲】\s*\n([\s\S]*?)(?=\n【|\n\n|$)/);
-  if (outlineMatch) outline = outlineMatch[1].trim();
-  const previewMatch = content.match(/【下一章预告】\s*\n([\s\S]*?)(?=\n```json|$)/);
-  if (previewMatch) preview = previewMatch[1].trim();
-  let bodyText = content;
-  if (outlineMatch) bodyText = bodyText.slice(bodyText.indexOf(outlineMatch[0]) + outlineMatch[0].length);
-  if (previewMatch) bodyText = bodyText.slice(0, bodyText.indexOf(previewMatch[0]));
-  body = bodyText.replace(/```json[\s\S]*?```/g, '').trim();
-  return { outline, body, preview };
+function uid(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function OutlinePanel({ text }: { text: string }) {
+function parseChapter(content: string) {
+  const outlineMatch = content.match(/【本章大纲】\s*\n([\s\S]*?)(?=\n【|\n\n|$)/);
+  const previewMatch = content.match(/【下一章预告】\s*\n([\s\S]*?)(?=\n```json|$)/i);
+  let body = content;
+  if (outlineMatch) body = body.slice(body.indexOf(outlineMatch[0]) + outlineMatch[0].length);
+  if (previewMatch) body = body.slice(0, body.indexOf(previewMatch[0]));
+  return {
+    outline: outlineMatch?.[1]?.trim() || '',
+    preview: previewMatch?.[1]?.trim() || '',
+    body: body.replace(/```json[\s\S]*?```/g, '').trim(),
+  };
+}
+
+function Panel({ title, text, icon, muted }: { title: string; text: string; icon: React.ReactNode; muted?: boolean }) {
   const [open, setOpen] = useState(false);
   if (!text) return null;
   return (
-    <View style={p.card}>
-      <TouchableOpacity style={p.header} onPress={() => setOpen(!open)} activeOpacity={0.7}>
-        <Icon.outline size={14} color={T.accent} />
-        <Text style={p.label}>本章大纲</Text>
-        {open ? <Icon.up size={14} color={T.textMuted} /> : <Icon.down size={14} color={T.textMuted} />}
-      </TouchableOpacity>
-      {open && <View style={p.body}><Text style={p.text}>{text}</Text></View>}
-    </View>
-  );
-}
-
-function PreviewPanel({ text, onContinue, onModify }: { text: string; onContinue: () => void; onModify: () => void }) {
-  const [open, setOpen] = useState(true);
-  if (!text) return null;
-  return (
-    <View style={[p.card, { borderColor: T.accentOrange + '30', backgroundColor: T.accentOrange + '06' }]}>
-      <TouchableOpacity style={p.header} onPress={() => setOpen(!open)} activeOpacity={0.7}>
-        <Icon.preview size={14} color={T.accentOrange} />
-        <Text style={[p.label, { color: T.accentOrange }]}>下一章预告</Text>
-        {open ? <Icon.up size={14} color={T.textMuted} /> : <Icon.down size={14} color={T.textMuted} />}
+    <View style={[panel.card, muted && panel.mutedCard]}>
+      <TouchableOpacity style={panel.header} onPress={() => setOpen(!open)} activeOpacity={0.7}>
+        {icon}
+        <Text style={[panel.label, muted && panel.mutedLabel]} numberOfLines={1}>{title}</Text>
+        <Icon.down size={13} color={T.textMuted} />
       </TouchableOpacity>
       {open && (
-        <View style={p.body}>
-          <Text style={p.text}>{text}</Text>
-          <View style={p.actions}>
-            <TouchableOpacity style={p.btn} onPress={onModify}>
-              <Icon.modify size={12} color={T.textSec} />
-              <Text style={p.btnText}>修改预告</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[p.btn, p.btnPrimary]} onPress={onContinue}>
-              <Text style={p.btnPrimaryText}>续写</Text>
-              <Icon.continueWrite size={12} color="#FFF" />
-            </TouchableOpacity>
-          </View>
+        <View style={panel.body}>
+          <Text style={panel.text}>{text}</Text>
         </View>
       )}
     </View>
   );
 }
 
-const p = StyleSheet.create({
-  card: { borderRadius: T.r.md, borderWidth: 1, borderColor: T.accent + '20', backgroundColor: T.accent + '06', marginBottom: 8, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-  label: { fontSize: 12, fontWeight: '600', color: T.accent, flex: 1 },
-  body: { paddingHorizontal: 12, paddingBottom: 10, borderTopWidth: 1, borderTopColor: T.border },
-  text: { fontSize: 13, color: T.textSec, lineHeight: 20, marginTop: 8 },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  btn: { flexDirection: 'row', flex: 1, paddingVertical: 8, borderRadius: T.r.sm, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.border },
-  btnText: { fontSize: 12, color: T.textSec, fontWeight: '600' },
-  btnPrimary: { backgroundColor: T.accent, borderWidth: 0 },
-  btnPrimaryText: { fontSize: 12, color: '#FFF', fontWeight: '700' },
+function PreviewPanel({ text, onContinue }: { text: string; onContinue: () => void }) {
+  const [open, setOpen] = useState(true);
+  if (!text) return null;
+  return (
+    <View style={[panel.card, panel.previewCard]}>
+      <TouchableOpacity style={panel.header} onPress={() => setOpen(!open)} activeOpacity={0.7}>
+        <Icon.preview size={13} color={T.text} />
+        <Text style={panel.label}>下一章预告</Text>
+        <Icon.up size={13} color={T.textMuted} />
+      </TouchableOpacity>
+      {open && (
+        <View style={panel.body}>
+          <Text style={panel.text}>{text}</Text>
+          <TouchableOpacity style={panel.button} onPress={onContinue} activeOpacity={0.8}>
+            <Text style={panel.buttonText}>续写下一章</Text>
+            <Icon.continueWrite size={12} color="#0D0D0D" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const panel = StyleSheet.create({
+  card: { marginTop: 10, borderRadius: 14, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#181818', overflow: 'hidden' },
+  mutedCard: { borderColor: '#262626', backgroundColor: '#161616' },
+  previewCard: { borderColor: '#3A3A3A' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 10 },
+  label: { flex: 1, fontSize: 12, fontWeight: '700', color: T.text },
+  mutedLabel: { color: T.textSec },
+  body: { borderTopWidth: 1, borderTopColor: '#262626', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
+  text: { fontSize: 13, lineHeight: 20, color: '#C9C9C9' },
+  button: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', gap: 5, marginTop: 10, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: T.accent },
+  buttonText: { fontSize: 12, fontWeight: '700', color: '#0D0D0D' },
 });
 
 type Props = any;
 
 export default function ChatScreen({ navigation, route }: Props) {
-  const { novelId } = route.params;
+  const mode: ChatMode = route.params?.mode === 'chat' ? 'chat' : 'writing';
+  const novelId: string = route.params.novelId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
+  const [modelLabel, setModelLabel] = useState('检测模型...');
+  const [streamThinking, setStreamThinking] = useState('');
   const [outlineModal, setOutlineModal] = useState(false);
   const [pendingOutline, setPendingOutline] = useState('');
-  const [clearConfirm, setClearConfirm] = useState(false);
-  const [thinkingMap, setThinkingMap] = useState<Record<string, string>>({});
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const [outlineMap, setOutlineMap] = useState<Record<string, string>>({});
-  const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
   const [showCountModal, setShowCountModal] = useState(false);
   const [chapterCountInput, setChapterCountInput] = useState('1');
-  const [chatMode, setChatMode] = useState<'writing' | 'chat'>('writing');
-  const [providerMap, setProviderMap] = useState<Record<string, string>>({});
+  const [clearConfirm, setClearConfirm] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  const flatListRef = useRef<FlatList>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const rawContentRef = useRef('');
+  const reasoningRef = useRef('');
+  const nearBottomRef = useRef(true);
+
+  const refreshModel = useCallback(async () => {
+    const info = await getActiveModelInfo(mode);
+    setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
+  }, [mode]);
 
   useEffect(() => {
-    (async () => {
-      const history = await getChatHistory(novelId);
-      if (history && history.length > 0) setMessages(history);
-    })();
-  }, [novelId]);
+    getChatHistory(novelId).then(history => setMessages(history));
+    refreshModel();
+  }, [novelId, refreshModel]);
 
   useEffect(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
-  }, [messages]);
+    if (!nearBottomRef.current) return;
+    const timer = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+    return () => clearTimeout(timer);
+  }, [messages, streamThinking]);
 
-  const getNextChapterNumber = async (): Promise<number> => {
-    const novels = await getNovels();
-    const novel = novels.find(n => n.id === novelId);
-    return (novel?.totalChapters || 0) + 1;
+  const scrollOnScroll = (event: any) => {
+    const { y, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distance = contentSize.height - layoutMeasurement.height - y;
+    nearBottomRef.current = distance < 80;
+    setShowScrollButton(distance > 240);
   };
 
-  const buildApiMessages = async (userContent: string, systemPrompt?: string) => {
-    const nextCh = await getNextChapterNumber();
-    const system = systemPrompt || await buildSystemPrompt(novelId, nextCh);
-    const apiMsgs: { role: 'system' | 'user' | 'assistant'; content: string }[] = [{ role: 'system', content: system }];
-    const recent = messages.slice(-20);
-    for (const m of recent) {
-      apiMsgs.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+  const getNextChapterNumber = async () => {
+    const novels = await getNovels();
+    return (novels.find(item => item.id === novelId)?.totalChapters || 0) + 1;
+  };
+
+  const buildApiMessages = async (userContent: string, systemPrompt?: string): Promise<LLMMessage[]> => {
+    const nextChapter = await getNextChapterNumber();
+    const system = systemPrompt || await buildSystemPrompt(novelId, nextChapter);
+    const recent: LLMMessage[] = messages.slice(-12).map(message => ({
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: message.content,
+    }));
+    return [{ role: 'system' as const, content: system }, ...recent, { role: 'user' as const, content: userContent }];
+  };
+
+  const runStreaming = async (apiMessages: any[], sensitive: boolean) => {
+    const assistantId = uid();
+    const placeholder: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+    };
+    rawContentRef.current = '';
+    reasoningRef.current = '';
+    setStreamThinking('');
+    setMessages(previous => [...previous, placeholder]);
+    setLoading(true);
+    nearBottomRef.current = true;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let activeProvider = '';
+
+    try {
+      const response = await streamChatCompletion(apiMessages, {
+        intent: mode,
+        forceLocal: sensitive,
+        signal: controller.signal,
+        onProvider: provider => {
+          activeProvider = provider;
+          setModelLabel(provider);
+          setMessages(previous => previous.map(item => item.id === assistantId ? { ...item, provider } : item));
+        },
+        onThinking: delta => {
+          reasoningRef.current += delta;
+          setStreamThinking(reasoningRef.current);
+        },
+        onContent: delta => {
+          rawContentRef.current += delta;
+          const current = parseThinking(rawContentRef.current);
+          setMessages(previous => previous.map(item => item.id === assistantId ? { ...item, content: current.body || '' } : item));
+          if (current.thinking) setStreamThinking(current.thinking);
+        },
+      });
+
+      const raw = rawContentRef.current || response.content || '';
+      const parsed = parseThinking(raw);
+      const thinking = [reasoningRef.current, parsed.thinking, response.thinking].filter(Boolean).join('\n').trim();
+      const body = parsed.body.trim();
+      const provider = response.provider || activeProvider;
+
+      if (!body && !thinking) {
+        const errorMessage = response.error || '模型没有返回内容，请重试。';
+        setMessages(previous => previous.map(item => item.id === assistantId ? {
+          ...item,
+          content: `⚠️ ${errorMessage}`,
+          provider,
+        } : item));
+        return null;
+      }
+
+      const finalMessage: ChatMessage = {
+        id: assistantId,
+        role: 'assistant',
+        content: body || thinking,
+        timestamp: new Date().toISOString(),
+        provider,
+      };
+      setMessages(previous => previous.map(item => item.id === assistantId ? finalMessage : item));
+      return { id: assistantId, body, thinking, provider, message: finalMessage };
+    } catch (error) {
+      const message = `⚠️ ${(error as Error).message}`;
+      setMessages(previous => previous.map(item => item.id === assistantId ? { ...item, content: message } : item));
+      return null;
+    } finally {
+      abortRef.current = null;
+      setLoading(false);
+      setStreamThinking('');
+      refreshModel();
     }
-    apiMsgs.push({ role: 'user', content: userContent });
-    return { apiMsgs };
   };
 
   const sendToAI = async (text: string) => {
-    try {
-      const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
-      setMessages(prev => [...prev, userMsg]);
-      await appendChatMessage(novelId, userMsg);
+    const cleanText = text.trim();
+    if (!cleanText || loading) return;
+    const userMessage: ChatMessage = { id: uid(), role: 'user', content: cleanText, timestamp: new Date().toISOString() };
+    setMessages(previous => [...previous, userMessage]);
+    await appendChatMessage(novelId, userMessage);
 
-      const nextCh = await getNextChapterNumber();
-      const sensitive = shouldUseLocalModel(text);
-      let systemPrompt: string;
-      if (sensitive) {
-        const storyContext = chatMode === 'writing' ? await buildSystemPrompt(novelId, nextCh) : '';
-        systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n请保持当前作品设定，直接继续用户要求的情节。`;
-      } else if (chatMode === 'writing') {
-        const basePrompt = await buildSystemPrompt(novelId, nextCh);
-        systemPrompt = `${basePrompt}\n\n回复开头先输出思考过程，格式如下：\n🧠 思考中：\n- 关键判断\n- 情节安排\n\n然后输出正文。`;
-      } else {
-        systemPrompt = '你是一个友好的AI助手，可以自由聊天、回答问题、讨论任何话题。请用中文回复。';
-      }
+    const sensitive = shouldUseLocalModel(cleanText);
+    const nextChapter = await getNextChapterNumber();
+    let systemPrompt: string;
 
-      const { apiMsgs } = await buildApiMessages(text, systemPrompt);
-      const intent = chatMode === 'writing' ? 'writing' : 'chat';
-      const res = await chatCompletion(apiMsgs, { intent, forceLocal: sensitive });
-
-      if (res.error) {
-        const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ ' + res.error, timestamp: new Date().toISOString() };
-        setMessages(prev => [...prev, errMsg]);
-        await appendChatMessage(novelId, errMsg);
-      } else if (res.content && res.content.trim()) {
-        const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
-        
-        if (chatMode === 'writing') {
-          const parsed = parseThinking(res.content);
-          if (parsed.thinking) setThinkingMap(prev => ({ ...prev, [aiMsg.id]: parsed.thinking }));
-          const chapter = parseChapter(res.content);
-          if (chapter.outline) setOutlineMap(prev => ({ ...prev, [aiMsg.id]: chapter.outline }));
-          if (chapter.preview) setPreviewMap(prev => ({ ...prev, [aiMsg.id]: chapter.preview }));
-          try {
-            let jsonStr = '';
-            const jsonMatch = res.content.match(/```json\s*([\s\S]*?)```/);
-            if (jsonMatch) jsonStr = jsonMatch[1].trim();
-            else { const braceMatch = parseThinking(res.content).body.match(/\{[\s\S]*\}/); if (braceMatch) jsonStr = braceMatch[0]; }
-            if (jsonStr) {
-              jsonStr = jsonStr.replace(/，/g, ',').replace(/：/g, ':');
-              const update = JSON.parse(jsonStr);
-              if (update.summary || update.characterChanges) {
-                const novels = await getNovels();
-                const novel = novels.find(n => n.id === novelId);
-                const nCh = (novel?.totalChapters || 0) + 1;
-                await processPostWrite(novelId, nCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
-                if (update.summary) await addChapter(novelId, '第' + nCh + '章', parseThinking(res.content).body, update.summary);
-              }
-            }
-          } catch {}
-        }
-        setProviderMap(prev => ({ ...prev, [aiMsg.id]: res.provider || '' }));
-        setMessages(prev => [...prev, aiMsg]);
-        await appendChatMessage(novelId, aiMsg);
-      } else {
-        const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ AI 返回了空内容，请重试。', timestamp: new Date().toISOString() };
-        setMessages(prev => [...prev, errMsg]);
-        await appendChatMessage(novelId, errMsg);
-      }
-    } catch (e: any) {
-      const errMsg: ChatMessage = { id: uid(), role: 'assistant', content: '⚠️ 发送失败：' + (e.message || '未知错误'), timestamp: new Date().toISOString() };
-      setMessages(prev => [...prev, errMsg]);
+    if (sensitive) {
+      const storyContext = mode === 'writing' ? await buildSystemPrompt(novelId, nextChapter) : '';
+      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n先用 2 到 4 行输出“🧠 思考中：”，再空一行进入正文。`;
+    } else if (mode === 'writing') {
+      const basePrompt = await buildSystemPrompt(novelId, nextChapter);
+      systemPrompt = `${basePrompt}\n\n回复开头先用 3 到 5 行说明本章关键判断，格式为“🧠 思考中：”。随后空一行输出正文。`;
+    } else {
+      systemPrompt = '你是妙笔的中文创作助手。回答准确、自然、简洁；复杂问题先用 1 到 3 行“🧠 思考中：”说明思路，再给出答案。';
     }
-    setLoading(false);
-  };
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
-    const text = input.trim();
-    setInput('');
-    setLoading(true);
-    await sendToAI(text);
-  };
+    const apiMessages = await buildApiMessages(cleanText, systemPrompt);
+    const result = await runStreaming(apiMessages, sensitive);
+    if (!result) return;
 
-  const handleAutoWrite = () => { setShowCountModal(true); };
+    if (!result.body) {
+      await appendChatMessage(novelId, result.message);
+      return;
+    }
 
-  const startAutoWrite = async (count: number) => {
-    setShowCountModal(false);
-    if (loading) return;
-    setLoading(true);
+    result.message.content = result.body;
+    await appendChatMessage(novelId, result.message);
+
+    if (mode !== 'writing') return;
+    const chapter = parseChapter(result.body);
     try {
-      const novel = await getStoryBible(novelId);
-      const startCh = (novel?.totalChapters || 0) + 1;
-      const chRange = count === 1 ? `第${startCh}章` : `第${startCh}章到第${startCh + count - 1}章`;
-      const { apiMsgs } = await buildApiMessages(`根据之前的剧情，请为${chRange}各生成一个简要大纲（每章100-200字），包括：核心事件、角色发展、冲突与转折。输出格式：每章用"## 第X章 标题"开头，后面跟大纲内容。`);
-      const res = await chatCompletion(apiMsgs, { intent: 'writing' });
-      if (!res.error) { setPendingOutline(res.content); setOutlineModal(true); }
-    } catch {}
-    setLoading(false);
-  };
-
-  const handleOutlineConfirm = async () => {
-    setOutlineModal(false);
-    setLoading(true);
-    const userMsg: ChatMessage = { id: uid(), role: 'user', content: `请按照以下大纲写出完整章节（每章5000字左右）：\n\n${pendingOutline}`, timestamp: new Date().toISOString() };
-    setMessages(prev => [...prev, userMsg]);
-    await appendChatMessage(novelId, userMsg);
-    await sendToAI(userMsg.content);
-    setPendingOutline('');
-  };
-
-  const handleContinueFromPreview = async (previewText: string) => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const userMsg: ChatMessage = { id: uid(), role: 'user', content: '续写下一章', timestamp: new Date().toISOString() };
-      setMessages(prev => [...prev, userMsg]);
-      await appendChatMessage(novelId, userMsg);
-
-      const { apiMsgs } = await buildApiMessages('根据以下预告内容，直接开始写下一章正文（5000字左右）：\n\n' + previewText);
-      const res = await chatCompletion(apiMsgs, { intent: 'writing' });
-
-      if (!res.error && res.content) {
-        const parsed = parseThinking(res.content);
-        const aiMsg: ChatMessage = { id: uid(), role: 'assistant', content: res.content, timestamp: new Date().toISOString() };
-        if (parsed.thinking) setThinkingMap(prev => ({ ...prev, [aiMsg.id]: parsed.thinking }));
-        const chapter = parseChapter(res.content);
-        if (chapter.outline) setOutlineMap(prev => ({ ...prev, [aiMsg.id]: chapter.outline }));
-        if (chapter.preview) setPreviewMap(prev => ({ ...prev, [aiMsg.id]: chapter.preview }));
-        setMessages(prev => [...prev, aiMsg]);
-        await appendChatMessage(novelId, aiMsg);
-        try {
-          let jsonStr = '';
-          const jsonMatch = res.content.match(/```json\s*([\s\S]*?)```/);
-          if (jsonMatch) jsonStr = jsonMatch[1].trim();
-          else { const braceMatch = parsed.body.match(/\{[\s\S]*\}/); if (braceMatch) jsonStr = braceMatch[0]; }
-          if (jsonStr) {
-            jsonStr = jsonStr.replace(/，/g, ',').replace(/：/g, ':');
-            const update = JSON.parse(jsonStr);
-            if (update.summary || update.characterChanges) {
-              const novels = await getNovels();
-              const novel = novels.find(n => n.id === novelId);
-              const nCh = (novel?.totalChapters || 0) + 1;
-              await processPostWrite(novelId, nCh, update.summary || '', update.characterChanges || [], update.newForeshadowing || [], update.resolvedForeshadowing || []);
-              if (update.summary) await addChapter(novelId, '第' + nCh + '章', parsed.body, update.summary);
-            }
-          }
-        } catch {}
+      const jsonMatch = result.body.match(/```json\s*([\s\S]*?)```/) || result.body.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const normalized = jsonMatch[0].replace(/^```json\s*|```$/g, '').replace(/，/g, ',').replace(/：/g, ':');
+        const update = JSON.parse(normalized);
+        const novels = await getNovels();
+        const chapterNumber = (novels.find(item => item.id === novelId)?.totalChapters || 0) + 1;
+        if (update.summary || update.characterChanges) {
+          await processPostWrite(
+            novelId,
+            chapterNumber,
+            update.summary || chapter.outline,
+            update.characterChanges || [],
+            update.newForeshadowing || [],
+            update.resolvedForeshadowing || [],
+          );
+        }
       }
     } catch {}
-    setLoading(false);
+  };
+
+  const handleSubmit = () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput('');
+    sendToAI(text);
+  };
+
+  const generateOutline = async () => {
+    if (loading) return;
+    setShowCountModal(false);
+    setLoading(true);
+    try {
+      const novels = await getNovels();
+      const totalChapters = novels.find(item => item.id === novelId)?.totalChapters || 0;
+      const count = Math.min(Math.max(parseInt(chapterCountInput, 10) || 1, 1), 50);
+      const prompt = `从第 ${totalChapters + 1} 章开始，连续生成 ${count} 个章节大纲。每章包含：标题、核心事件、角色变化、冲突转折、下一章钩子。不要重复旧剧情，不要输出正文。`;
+      const apiMessages = await buildApiMessages(prompt);
+      const response = await chatCompletion(apiMessages, { intent: 'writing' });
+      if (response.error) throw new Error(response.error);
+      setPendingOutline(response.content.trim() || '大纲为空，请重试。');
+      setOutlineModal(true);
+    } catch (error) {
+      setPendingOutline(`生成失败：${(error as Error).message}`);
+      setOutlineModal(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmOutline = async () => {
+    setOutlineModal(false);
+    await sendToAI(`请严格按照以下大纲写作完整章节，每章约 5000 字：\n\n${pendingOutline}`);
+    setPendingOutline('');
   };
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
-    const think = thinkingMap[item.id] || '';
-    const outline = outlineMap[item.id] || '';
-    const preview = previewMap[item.id] || '';
-    let display = item.content;
-    if (!isUser) {
-      display = parseThinking(item.content).body || item.content;
-      display = display.replace(/```json[\s\S]*?```/g, '').trim();
-    }
+    const parsed = isUser ? { body: item.content, thinking: '' } : parseThinking(item.content);
+    const chapter = !isUser && mode === 'writing' ? parseChapter(parsed.body) : { outline: '', preview: '', body: parsed.body };
+    const display = chapter.body || parsed.body;
+    const isLoadingPlaceholder = !isUser && loading && item.id === messages[messages.length - 1]?.id;
+
     return (
-      <View style={[s.row, isUser ? s.rowUser : s.rowAI]}>
-        <View style={[s.bubble, isUser ? s.bubbleUser : s.bubbleAI]}>
-          {think ? <OutlinePanel text={think} /> : null}
-          {outline ? <OutlinePanel text={outline} /> : null}
-          <Text style={[s.text, isUser ? s.textUser : s.textAI]}>{display}</Text>
-          {!isUser && providerMap[item.id] ? <Text style={s.providerTag}>{providerMap[item.id]}</Text> : null}
-          {preview ? <PreviewPanel text={preview} onContinue={() => handleContinueFromPreview(preview)} onModify={() => {}} /> : null}
+      <View style={[styles.row, isUser ? styles.userRow : styles.aiRow]}>
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
+          {!isUser && parsed.thinking ? <Panel title="思考过程" text={parsed.thinking} icon={<Icon.thinking size={13} color={T.textSec} />} muted /> : null}
+          {isLoadingPlaceholder ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color="#F5F5F5" />
+              <Text style={styles.loadingText}>{streamThinking ? '正在思考...' : '正在生成...'}</Text>
+            </View>
+          ) : null}
+          {!isUser && streamThinking && isLoadingPlaceholder ? <Panel title="实时思考" text={streamThinking} icon={<Icon.thinking size={13} color={T.textSec} />} muted /> : null}
+          {display ? <Text style={[styles.messageText, isUser && styles.userText]}>{display}</Text> : null}
+          {chapter.outline ? <Panel title="本章大纲" text={chapter.outline} icon={<Icon.outline size={13} color={T.textSec} />} /> : null}
+          {chapter.preview ? <PreviewPanel text={chapter.preview} onContinue={() => sendToAI(`根据以下预告继续下一章：\n\n${chapter.preview}`)} /> : null}
+          {!isUser && item.provider ? <Text style={styles.modelTag}>{item.provider}</Text> : null}
         </View>
       </View>
     );
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}>
-      <View style={s.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Icon.back size={20} color={T.text} />
-        </TouchableOpacity>
-        <View style={s.modeSwitch}>
-          <TouchableOpacity style={[s.modeBtn, chatMode === 'writing' && s.modeBtnActive]} onPress={() => setChatMode('writing')}>
-            <Icon.edit size={14} color={chatMode === 'writing' ? '#FFF' : T.textMuted} />
-            <Text style={[s.modeBtnText, chatMode === 'writing' && s.modeBtnTextActive]}>AI写作</Text>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar barStyle="light-content" backgroundColor="#0D0D0D" />
+      <View style={styles.topBar}>
+        <View style={styles.topRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
+            <Icon.back size={19} color={T.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={[s.modeBtn, chatMode === 'chat' && s.modeBtnActive]} onPress={() => setChatMode('chat')}>
-            <Icon.chat size={14} color={chatMode === 'chat' ? '#FFF' : T.textMuted} />
-            <Text style={[s.modeBtnText, chatMode === 'chat' && s.modeBtnTextActive]}>自由对话</Text>
+          <View style={styles.titleBlock}>
+            <Text style={styles.title}>{mode === 'writing' ? 'AI 写作' : '自由对话'}</Text>
+            <Text style={styles.model} numberOfLines={1}>{modelLabel}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setClearConfirm(true)} style={styles.iconButton}>
+            <Icon.delete size={17} color={T.textSec} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => setClearConfirm(true)} style={s.clearBtn}>
-          <Icon.trash size={18} color={T.textMuted} />
-        </TouchableOpacity>
+        <View style={styles.switchBar}>
+          <TouchableOpacity
+            style={[styles.switchOption, mode === 'writing' && styles.switchActive]}
+            onPress={() => navigation.replace('WritingChat', { novelId })}
+          >
+            <Icon.write size={14} color={mode === 'writing' ? '#0D0D0D' : T.textSec} />
+            <Text style={[styles.switchText, mode === 'writing' && styles.switchTextActive]}>AI 写作</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.switchOption, mode === 'chat' && styles.switchActive]}
+            onPress={() => navigation.replace('FreeChat', { novelId })}
+          >
+            <Icon.chat size={14} color={mode === 'chat' ? '#0D0D0D' : T.textSec} />
+            <Text style={[styles.switchText, mode === 'chat' && styles.switchTextActive]}>自由对话</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
         ref={flatListRef}
         data={messages}
-        renderItem={renderMessage}
         keyExtractor={item => item.id}
-        contentContainerStyle={s.list}
-        onScrollBeginDrag={() => setShowScrollBtn(false)}
-        onScroll={(e) => {
-          const y = e.nativeEvent.contentOffset.y;
-          const h = e.nativeEvent.contentSize.height - e.nativeEvent.layoutMeasurement.height;
-          setShowScrollBtn(h - y > 200);
-        }}
+        renderItem={renderMessage}
+        contentContainerStyle={styles.list}
+        onScroll={scrollOnScroll}
+        scrollEventThrottle={32}
+        ListEmptyComponent={(
+          <View style={styles.empty}>
+            <Icon.chat size={42} color="#333" />
+            <Text style={styles.emptyTitle}>{mode === 'writing' ? '开始你的故事' : '开始自由对话'}</Text>
+            <Text style={styles.emptySubtitle}>{mode === 'writing' ? '描述剧情、修改章节或一键生成大纲' : '讨论灵感、设定和创作问题'}</Text>
+          </View>
+        )}
       />
 
-      {showScrollBtn && (
-        <TouchableOpacity style={s.scrollBtn} onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}>
-          <Icon.down size={18} color="#FFF" />
+      {showScrollButton && (
+        <TouchableOpacity style={styles.scrollButton} onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}>
+          <Icon.down size={18} color="#0D0D0D" />
         </TouchableOpacity>
       )}
 
-      <View style={s.inputBar}>
-        {chatMode === 'writing' && (
-          <TouchableOpacity style={s.autoBtn} onPress={handleAutoWrite}>
-            <Icon.auto size={18} color={T.accent} />
+      <View style={styles.inputBar}>
+        {mode === 'writing' && (
+          <TouchableOpacity style={styles.toolButton} onPress={() => setShowCountModal(true)}>
+            <Icon.auto size={18} color={T.text} />
+          </TouchableOpacity>
+        )}
+        {loading ? (
+          <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()}>
+            <Icon.close size={17} color="#F5F5F5" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={handleSubmit} disabled={!input.trim()}>
+            <Icon.send size={17} color="#0D0D0D" />
           </TouchableOpacity>
         )}
         <TextInput
-          style={s.input}
+          style={styles.input}
           value={input}
           onChangeText={setInput}
-          placeholder={chatMode === 'writing' ? '输入剧情或指令...' : '随便聊点什么...'}
-          placeholderTextColor={T.textMuted}
+          placeholder={mode === 'writing' ? '输入剧情指令...' : '随便聊点什么...'}
+          placeholderTextColor="#666"
           multiline
-          maxLength={4000}
+          textAlignVertical="top"
         />
-        <TouchableOpacity style={[s.sendBtn, (!input.trim() || loading) && s.sendBtnDisabled]} onPress={handleSend} disabled={!input.trim() || loading}>
-          {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Icon.send size={18} color="#FFF" />}
-        </TouchableOpacity>
       </View>
 
-      {outlineModal && (
-        <View style={s.modalOverlay}>
-          <View style={s.modalBox}>
-            <Text style={s.modalTitle}>确认大纲</Text>
-            <Text style={s.modalContent} numberOfLines={15}>{pendingOutline}</Text>
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtn} onPress={() => setOutlineModal(false)}>
-                <Text style={s.modalBtnText}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.modalBtn, s.modalBtnPrimary]} onPress={handleOutlineConfirm}>
-                <Text style={s.modalBtnTextPrimary}>开始写作</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      <CapsuleAlert visible={outlineModal} title="章节大纲" message={pendingOutline} confirmText="开始写作" onCancel={() => setOutlineModal(false)} onConfirm={confirmOutline} />
+      <CapsuleAlert visible={clearConfirm} title="清空对话" message="将删除本书的全部聊天记录。" danger confirmText="清空" onCancel={() => setClearConfirm(false)} onConfirm={async () => { await clearChatHistory(novelId); setMessages([]); setClearConfirm(false); }} />
 
-      {showCountModal && (
-        <View style={s.modalOverlay}>
-          <View style={s.modalBox}>
-            <Text style={s.modalTitle}>生成章节数量</Text>
-            <TextInput style={s.countInput} value={chapterCountInput} onChangeText={setChapterCountInput} keyboardType="number-pad" placeholder="输入数量" placeholderTextColor={T.textMuted} />
-            <View style={s.modalActions}>
-              <TouchableOpacity style={s.modalBtn} onPress={() => setShowCountModal(false)}>
-                <Text style={s.modalBtnText}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.modalBtn, s.modalBtnPrimary]} onPress={() => {
-                const count = parseInt(chapterCountInput) || 1;
-                startAutoWrite(Math.min(Math.max(count, 1), 50));
-              }}>
-                <Text style={s.modalBtnTextPrimary}>确认</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
-
-      <CapsuleAlert visible={clearConfirm} title="清空对话" message="确定要清空所有对话记录吗？此操作不可恢复。" onConfirm={async () => { await clearChatHistory(novelId); setMessages([]); setClearConfirm(false); }} onCancel={() => setClearConfirm(false)} />
+      <CapsuleAlert visible={showCountModal} title="连续大纲章数" message="建议一次生成 5–10 章，小模型更稳定。" cancelText="取消" confirmText="生成" onCancel={() => setShowCountModal(false)} onConfirm={generateOutline}>
+        <TextInput
+          value={chapterCountInput}
+          onChangeText={setChapterCountInput}
+          keyboardType="number-pad"
+          style={styles.countInput}
+        />
+      </CapsuleAlert>
     </KeyboardAvoidingView>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: (StatusBar.currentHeight || 44), paddingBottom: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
-  backBtn: { padding: 8 },
-  clearBtn: { padding: 8 },
-  modeSwitch: { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 8 },
-  modeBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 4 },
-  modeBtnActive: { backgroundColor: T.accent },
-  modeBtnText: { fontSize: 13, fontWeight: '600', color: T.textMuted },
-  modeBtnTextActive: { color: '#FFF' },
-  list: { padding: 16, paddingBottom: 8 },
-  row: { marginBottom: 12 },
-  rowUser: { alignItems: 'flex-end' },
-  rowAI: { alignItems: 'flex-start' },
-  bubble: { maxWidth: '85%', borderRadius: T.r.lg, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleUser: { backgroundColor: T.accent, borderBottomRightRadius: 4 },
-  bubbleAI: { backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderBottomLeftRadius: 4 },
-  text: { fontSize: 15, lineHeight: 22 },
-  textUser: { color: '#FFF' },
-  textAI: { color: T.text },
-  scrollBtn: { position: 'absolute', bottom: 100, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', elevation: 4 },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingBottom: 8, paddingTop: 8, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, gap: 8 },
-  autoBtn: { padding: 10, borderRadius: 20, backgroundColor: T.accent + '15' },
-  input: { flex: 1, minHeight: 40, maxHeight: 120, borderRadius: T.r.lg, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: T.text, textAlignVertical: 'center' },
-  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { opacity: 0.5 },
-  modalOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 100 },
-  modalBox: { width: '85%', maxHeight: '70%', backgroundColor: T.surface, borderRadius: T.r.lg, padding: 20 },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: T.text, marginBottom: 12 },
-  modalContent: { fontSize: 14, color: T.textSec, lineHeight: 20, marginBottom: 16 },
-  modalActions: { flexDirection: 'row', gap: 12 },
-  modalBtn: { flex: 1, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.bg, alignItems: 'center' },
-  modalBtnPrimary: { backgroundColor: T.accent },
-  modalBtnText: { fontSize: 14, fontWeight: '600', color: T.textSec },
-  modalBtnTextPrimary: { fontSize: 14, fontWeight: '600', color: '#FFF' },
-  countInput: { height: 44, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 12, fontSize: 16, color: T.text, marginBottom: 16, textAlign: 'center' },
-  providerTag: { fontSize: 10, color: T.textMuted, marginTop: 4, opacity: 0.7 },
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: T.bg },
+  topBar: { paddingTop: (StatusBar.currentHeight || 44), backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: '#242424' },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  iconButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', justifyContent: 'center' },
+  titleBlock: { flex: 1, minWidth: 0 },
+  title: { fontSize: 17, fontWeight: '800', color: T.text },
+  model: { marginTop: 1, fontSize: 11, color: T.textMuted },
+  switchBar: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginBottom: 12, backgroundColor: '#111', borderRadius: 999, padding: 4, borderWidth: 1, borderColor: '#242424' },
+  switchOption: { flex: 1, height: 34, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  switchActive: { backgroundColor: T.accent },
+  switchText: { fontSize: 13, fontWeight: '700', color: T.textSec },
+  switchTextActive: { color: '#0D0D0D' },
+  list: { padding: 16, paddingBottom: 28, flexGrow: 1 },
+  row: { marginBottom: 14 },
+  userRow: { alignItems: 'flex-end' },
+  aiRow: { alignItems: 'stretch' },
+  bubble: { maxWidth: '92%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 12, overflow: 'hidden' },
+  userBubble: { maxWidth: '84%', backgroundColor: T.userBubble, borderBottomRightRadius: 6 },
+  aiBubble: { width: '100%', backgroundColor: T.aiBubble, borderWidth: 1, borderColor: '#262626', borderBottomLeftRadius: 6 },
+  messageText: { fontSize: 15, lineHeight: 24, color: T.text },
+  userText: { color: '#0D0D0D' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  loadingText: { fontSize: 12, color: T.textMuted },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: T.text },
+  emptySubtitle: { textAlign: 'center', fontSize: 13, lineHeight: 20, color: T.textMuted },
+  scrollButton: { position: 'absolute', right: 18, bottom: 96, width: 38, height: 38, borderRadius: 19, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
+  inputBar: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
+  input: { flex: 1, minHeight: 44, maxHeight: 160, borderRadius: 22, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, lineHeight: 21, color: T.text },
+  toolButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2E2E2E', alignItems: 'center', justifyContent: 'center' },
+  sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
+  stopButton: { backgroundColor: '#333', borderColor: '#444', borderWidth: 1 },
+  disabledButton: { backgroundColor: '#2A2A2A' },
+  modelTag: { marginTop: 8, fontSize: 10, color: '#666' },
+  countInput: { height: 42, marginTop: 12, borderRadius: 14, borderWidth: 1, borderColor: '#333', backgroundColor: '#111', color: '#F5F5F5', textAlign: 'center', fontSize: 15 },
 });

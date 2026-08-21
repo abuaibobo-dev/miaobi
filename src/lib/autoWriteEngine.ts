@@ -13,6 +13,8 @@ import {
   addChapter,
   getStoryBible,
   assembleNovelContext,
+  upsertCharacter,
+  addForeshadowing,
 } from './novelMemory';
 import {
   getChapters,
@@ -501,14 +503,15 @@ export async function autoWriteNovel(
         continue;
       }
 
-      // 保存章节
-      await addChapter(
-        novelId,
-        chapterOutline.title,
-        body,
-        chapterOutline.summary
-      );
-
+      await addChapter(novelId, chapterOutline.title, body, chapterOutline.summary);
+      for (const name of chapterOutline.characters) {
+        if (name.trim()) await upsertCharacter(novelId, name.trim(), '', '', `第${chapterOutline.chapterNumber}章出场`, chapterOutline.chapterNumber);
+      }
+      for (const description of chapterOutline.foreshadowing) {
+        if (description.trim()) {
+          await addForeshadowing(novelId, description.slice(0, 40), description, chapterOutline.chapterNumber);
+        }
+      }
       chaptersWritten++;
       callbacks?.onChapterComplete?.(chapterOutline.chapterNumber, chapterOutline.title);
 

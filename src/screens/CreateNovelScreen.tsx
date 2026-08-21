@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, StatusBar } from 'react-native';
 import { createNovel } from '../lib/novelMemory';
-import { getSettings } from '../lib/storage';
 import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
@@ -22,8 +21,6 @@ export default function CreateNovelScreen({ navigation }: Props) {
   const handleCreate = async () => {
     if (!title.trim()) { setToast('请输入书名'); return; }
     if (!genre) { setToast('请选择类型'); return; }
-    const settings = await getSettings();
-    if (!settings.apiKey) { setConfirmModal(true); return; }
     await doCreate();
   };
 
@@ -98,7 +95,7 @@ const s = StyleSheet.create({
   genreChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: T.r.full, backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
   genreActive: { backgroundColor: T.accent, borderColor: T.accent },
   genreTxt: { fontSize: 13, color: T.textSec },
-  genreTxtActive: { color: '#FFF', fontWeight: '700' },
+  genreTxtActive: { color: '#0D0D0D', fontWeight: '700' },
   submitBtn: { marginTop: 32, backgroundColor: T.accent, borderRadius: T.r.md, paddingVertical: 16, alignItems: 'center' },
-  submitTxt: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  submitTxt: { fontSize: 16, fontWeight: '700', color: '#0D0D0D' },
 });

@@ -182,7 +182,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
             <Text style={s.primaryBtnText}>加载中...</Text>
           </View>
         ) : (
-          <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>生成大纲</Text><Icon.arrow size={16} color="#FFF" /></View>
+          <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>生成大纲</Text><Icon.arrow size={16} color="#0D0D0D" /></View>
         )}
       </TouchableOpacity>
     </View>
@@ -220,7 +220,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
             <Text style={s.secondaryBtnText}>重新生成</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.primaryBtn, isWriting && s.primaryBtnDisabled]} onPress={handleStartWriting} disabled={isWriting}>
-            <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>开始写作</Text><Icon.arrow size={16} color="#FFF" /></View>
+            <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>开始写作</Text><Icon.arrow size={16} color="#0D0D0D" /></View>
           </TouchableOpacity>
         </View>
       </View>
@@ -293,7 +293,7 @@ export default function AutoWriteScreen({ navigation, route }: Props) {
             <Text style={s.secondaryBtnText}>返回首页</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.primaryBtn} onPress={() => navigation.navigate('NovelDetail', { novelId })}>
-            <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>查看作品</Text><Icon.arrow size={16} color="#FFF" /></View>
+            <View style={{flexDirection: "row", alignItems: "center", gap: 6}}><Text style={s.primaryBtnText}>查看作品</Text><Icon.arrow size={16} color="#0D0D0D" /></View>
           </TouchableOpacity>
         </View>
       </View>
@@ -392,7 +392,7 @@ const s = StyleSheet.create({
   actionButtons: { flexDirection: 'row', gap: T.sp.md, marginTop: T.sp.lg },
   primaryBtn: { flex: 1, backgroundColor: T.accent, borderRadius: T.r.lg, paddingVertical: T.sp.md, alignItems: 'center' },
   primaryBtnDisabled: { opacity: 0.5 },
-  primaryBtnText: { fontSize: 15, fontWeight: '700', color: T.text },
+  primaryBtnText: { fontSize: 15, fontWeight: '700', color: '#0D0D0D' },
   secondaryBtn: { flex: 1, backgroundColor: T.card, borderRadius: T.r.lg, paddingVertical: T.sp.md, alignItems: 'center', borderWidth: 1, borderColor: T.border },
   secondaryBtnText: { fontSize: 15, fontWeight: '600', color: T.textSec },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

@@ -30,6 +30,7 @@ export async function getSettings(): Promise<NovelSettings> {
     temperature: 0.7,
     maxTokens: 12000,
     localThinking: false,
+    customPrompt: '',
   });
 }
 

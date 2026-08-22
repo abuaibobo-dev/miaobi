@@ -37,7 +37,7 @@ const OLLAMA_TIP = '首次授权（只需一次）：在 Termux 执行下面两�
 export default function SettingsScreen({ navigation }: Props) {
   const [settings, setSettings] = useState<NovelSettings>({
     apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temperature: 0.7, maxTokens: 12000, localThinking: false,
+    temperature: 0.7, maxTokens: 12000, localThinking: false, customPrompt: '',
   });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -248,6 +248,17 @@ export default function SettingsScreen({ navigation }: Props) {
         <TextInput style={s.input} value={settings.model} onChangeText={v => setSettings(prev => ({ ...prev, model: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
         <Text style={s.label}>对话模型</Text>
         <TextInput style={s.input} value={settings.chatModel || 'deepseek-chat'} onChangeText={v => setSettings(prev => ({ ...prev, chatModel: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+        <Text style={s.label}>自定义提示词 / 创作偏好</Text>
+        <TextInput
+          style={[s.input, s.textArea]}
+          value={settings.customPrompt || ''}
+          onChangeText={v => setSettings(prev => ({ ...prev, customPrompt: v }))}
+          placeholder="例：第一人称、冷峻克制、短句节奏、重视心理描写"
+          placeholderTextColor={T.textMuted}
+          multiline
+          textAlignVertical="top"
+        />
+        <Text style={s.thinkingHint}>用于写作风格、叙事视角、用词偏好；不能用于绕过安全边界。</Text>
         <Text style={s.label}>创作自由度：{settings.temperature.toFixed(1)}</Text>
         <View style={s.tempRow}>
           {[0.1, 0.3, 0.5, 0.7, 0.9, 1.0].map(t => (
@@ -286,7 +297,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.5</Text>
+        <Text style={s.footerText}>妙笔 v1.9.6</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 
@@ -309,6 +320,7 @@ const s = StyleSheet.create({
   sectionArrow: { fontSize: 14, color: T.textMuted },
   sectionBody: { paddingHorizontal: 14, paddingBottom: 14 },
   label: { fontSize: 13, fontWeight: '600', color: T.textSec, marginBottom: 6, marginTop: 10 },
+  textArea: { height: 108, paddingTop: 10, paddingBottom: 10, lineHeight: 20 },
   input: { height: 44, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 12, fontSize: 14, color: T.text },
   tempRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   tempChip: { minWidth: 58, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },

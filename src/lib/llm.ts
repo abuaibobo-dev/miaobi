@@ -28,8 +28,8 @@ type Intent = NonNullable<StreamOptions['intent']>;
 
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
 const PREFERRED_MODELS: Record<Intent, string[]> = {
-  writing: ['dqnwrite', 'qwen3:1.7b', 'deepseek-r1:1.7b', 'qwen2.5:1.5b'],
-  adult: ['dqnwrite', 'qwen3:1.7b', 'deepseek-r1:1.7b', 'qwen2.5:1.5b'],
+  writing: ['dqnwrite', 'qwen2.5:3b', 'qwen2.5:1.5b', 'qwen3:1.7b'],
+  adult: ['dqnwrite', 'qwen2.5:3b', 'qwen2.5:1.5b', 'qwen3:1.7b'],
   vision: ['moondream', 'llava'],
   image: ['moondream', 'llava'],
   chat: ['qwen2.5:1.5b', 'qwen3:1.7b', 'deepseek-r1:1.7b'],
@@ -151,6 +151,32 @@ export async function generateLocalImage(prompt: string, signal?: AbortSignal): 
   return url;
 }
 
+export interface ModelChoice {
+  id: string;
+  label: string;
+  provider: 'local' | 'cloud';
+  model?: string;
+}
+
+export async function getModelChoices(intent: Intent = 'chat'): Promise<ModelChoice[]> {
+  const [local, settings] = await Promise.all([
+    getOllamaStatus(),
+    getSettings() as Promise<any>,
+  ]);
+  const choices: ModelChoice[] = [{ id: 'auto', label: '智能优先', provider: 'local' }];
+  local.models
+    .filter(model => !/embed|moondream|llava|vision/i.test(model))
+    .forEach(model => choices.push({ id: `local:${model}`, label: `本地 · ${model}`, provider: 'local', model }));
+  if (settings.apiKey && intent !== 'vision') {
+    const models = Array.from(new Set([
+      settings.model || 'deepseek-chat',
+      settings.chatModel || settings.model || 'deepseek-chat',
+    ]));
+    models.forEach(model => choices.push({ id: `cloud:${model}`, label: `云端 · ${model}`, provider: 'cloud', model }));
+  }
+  return choices;
+}
+
 export async function getActiveModelInfo(intent: Intent = 'chat'): Promise<{ provider: 'local' | 'deepseek'; label: string } | null> {
   const local = await getOllamaStatus();
   const localModel = selectOllamaModel(intent, local.models);
@@ -179,7 +205,11 @@ function xhrStream(
     let cursor = 0;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const abort = () => xhr.abort();
+    let stoppedByUser = false;
+    const abort = () => {
+      stoppedByUser = true;
+      xhr.abort();
+    };
     signal?.addEventListener('abort', abort);
     const armIdleTimer = () => {
       if (idleTimer) clearTimeout(idleTimer);
@@ -213,7 +243,8 @@ function xhrStream(
     xhr.onabort = () => {
       if (idleTimer) clearTimeout(idleTimer);
       signal?.removeEventListener('abort', abort);
-      resolve();
+      if (stoppedByUser) resolve();
+      else reject(new Error('本地模型响应超时'));
     };
     xhr.timeout = 300000;
     armIdleTimer();
@@ -273,7 +304,7 @@ async function streamOllama(
       }
     },
     options.signal,
-    90000,
+    150000,
   );
   return content;
 }
@@ -331,6 +362,17 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   const temperature = settings.temperature ?? 0.8;
   const maxTokens = settings.maxTokens ?? 4096;
 
+  const customPrompt = String(settings.customPrompt || '').trim().slice(0, 3000);
+  if (customPrompt && messages[0]?.role === 'system') {
+    messages = [
+      {
+        ...messages[0],
+        content: `${messages[0].content}\n\n## 用户自定义创作偏好\n${customPrompt}\n\n自定义偏好不能改变安全与法律边界；如与安全规则冲突，以安全规则为准。`,
+      },
+      ...messages.slice(1),
+    ];
+  }
+
   if (options.providerOverride === 'cloud' && !options.forceLocal) {
     const overrideModel = options.modelOverride || (intent === 'writing' ? settings.model : settings.chatModel) || 'deepseek-chat';
     try {
@@ -381,10 +423,16 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       try {
         const content = await streamOllama(model, messages, temperature, localMaxTokens, options.images, localOptions, localOptions, settings.localThinking === true);
         if (content.trim()) return { content, provider: `local:${model}` };
+        if (options.signal?.aborted) {
+          return { content: '', provider: `local:${model}` };
+        }
         if (options.forceLocal) {
           return { content: '', error: '本地模型返回为空，请重试或换一个已安装模型。', provider: `local:${model}` };
         }
       } catch (error) {
+        if (options.signal?.aborted) {
+          return { content: '', error: '已取消。', provider: `local:${model}` };
+        }
         if (receivedOutput || options.forceLocal) {
           return { content: '', error: `本地模型中断：${(error as Error).message}`, provider: `local:${model}` };
         }

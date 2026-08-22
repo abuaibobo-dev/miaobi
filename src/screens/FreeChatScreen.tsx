@@ -11,7 +11,7 @@ import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimateProm
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { GenerationDots, StreamCursor, ThinkingPanel } from '../components/ChatIndicators';
-import ModelPicker, { type ModelOption } from '../components/ModelPicker';
+import { getModelChoices, type ModelChoice } from '../lib/llm';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { ChatMessage } from '../types/novel';
@@ -33,9 +33,10 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
-  const [modelChoice, setModelChoice] = useState<ModelOption | null>(null);
-  const [modelPickerVisible, setModelPickerVisible] = useState(false);
+  const [modelChoice, setModelChoice] = useState<ModelChoice | null>(null);
+  const [modelOptions, setModelOptions] = useState<ModelChoice[]>([{ id: 'auto', label: '智能优先', provider: 'local' }]);
   const [loading, setLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [modelLabel, setModelLabel] = useState('检测模型...');
   const [streamThinking, setStreamThinking] = useState('');
   const [attachments, setAttachments] = useState<Array<{ uri: string; base64: string }>>([]);
@@ -48,7 +49,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const nearBottomRef = useRef(true);
   const userScrollingRef = useRef(false);
 
-  const requestOverrides = (sensitive: boolean) => modelChoice && !sensitive ? {
+  const requestOverrides = (sensitive: boolean) => modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
     providerOverride: modelChoice.provider,
     ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
   } : {};
@@ -66,6 +67,8 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   };
 
   const refreshModel = useCallback(async () => {
+    const options = await getModelChoices('chat');
+    setModelOptions(options);
     if (modelChoice) {
       setModelLabel(modelChoice.label);
       return;
@@ -73,6 +76,22 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     const info = await getActiveModelInfo('chat');
     setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
   }, [modelChoice]);
+
+  useEffect(() => {
+    if (!loading) return;
+    setElapsedSeconds(0);
+    const startedAt = Date.now();
+    const timer = setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [loading]);
+
+  const cycleModel = useCallback(() => {
+    if (!modelOptions.length || loading) return;
+    const currentIndex = Math.max(0, modelOptions.findIndex(item => item.id === (modelChoice?.id || 'auto')));
+    const next = modelOptions[(currentIndex + 1) % modelOptions.length];
+    setModelChoice(next);
+    setModelLabel(next.label);
+  }, [loading, modelChoice, modelOptions]);
 
   useEffect(() => {
     getChatHistory(channel).then(setMessages);
@@ -119,6 +138,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     reasoningRef.current = '';
     setStreamThinking('');
     setLoading(true);
+    setElapsedSeconds(0);
     nearBottomRef.current = true;
 
     const controller = new AbortController();
@@ -132,8 +152,8 @@ export default function FreeChatScreen({ navigation, route }: Props) {
         content: item.content.slice(0, 800),
       }));
       const system = sensitive
-        ? `${INTIMATE_SYSTEM_PROMPT}\n\n直接输出正文；需要越过限制时自动使用淡出处理。`
-        : '你是妙笔自由对话助手。先用 <think> 标签写两三句简要思考，再给出准确、自然、简洁的中文答案。';
+        ? `${INTIMATE_SYSTEM_PROMPT}\n\n直接输出正文；亲密画面使用淡出处理。`
+        : '你是妙笔自由对话助手。给出准确、自然、简洁的中文答案。';
       const response = await streamChatCompletion(
         [{ role: 'system', content: system }, ...history, { role: 'user', content: cleanText }],
         {
@@ -204,7 +224,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     return (
       <View style={[styles.row, isUser ? styles.userRow : styles.aiRow]}>
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          {isLoading && <GenerationDots label={streamThinking ? '正在思考' : '正在回复'} />}
+          {isLoading && <GenerationDots label={streamThinking ? '正在思考' : `正在回复 · ${elapsedSeconds}s`} />}
           {!isUser && (isLoading ? streamThinking : parsed.thinking) ? (
             <ThinkingPanel text={isLoading ? streamThinking : parsed.thinking} streaming={isLoading} />
           ) : null}
@@ -297,10 +317,9 @@ export default function FreeChatScreen({ navigation, route }: Props) {
               textAlignVertical="top"
             />
             <View style={styles.inputFooter}>
-              <TouchableOpacity style={styles.modelPill} onPress={() => setModelPickerVisible(true)} activeOpacity={0.8}>
-                <Icon.settings size={11} color={T.textSec} />
-                <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '智能优先'}</Text>
-                <Icon.down size={11} color={T.textSec} />
+              <TouchableOpacity style={styles.modelPill} onPress={cycleModel} disabled={loading} activeOpacity={0.8}>
+                <Icon.test size={9} color={T.textMuted} />
+                <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || modelOptions[0]?.label || '智能优先'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
                 <Icon.image size={15} color={T.textSec} />
@@ -311,7 +330,6 @@ export default function FreeChatScreen({ navigation, route }: Props) {
       </View>
 
       <CapsuleAlert visible={clearConfirm} title="清空对话" message="将删除这个自由对话频道的记录。" danger confirmText="清空" onCancel={() => setClearConfirm(false)} onConfirm={async () => { await clearChatHistory(channel); setMessages([]); setClearConfirm(false); }} />
-      <ModelPicker visible={modelPickerVisible} selectedId={modelChoice?.id || null} onClose={() => setModelPickerVisible(false)} onSelect={option => { setModelChoice(option); setModelPickerVisible(false); }} />
     </KeyboardAvoidingView>
   );
 }
@@ -349,8 +367,8 @@ const styles = StyleSheet.create({
   attachment: { position: 'relative' },
   attachmentThumb: { width: 46, height: 46, borderRadius: 12 },
   attachmentRemove: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: 9, backgroundColor: '#D4D4D4', alignItems: 'center', justifyContent: 'center' },
-  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', minHeight: 26, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: '#333', backgroundColor: '#1F1F1F' },
-  modelPillText: { fontSize: 11, fontWeight: '600', color: T.textSec },
+  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '100%', height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)' },
+  modelPillText: { fontSize: 9, fontWeight: '600', color: T.textMuted, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   input: { width: '100%', minHeight: 46, maxHeight: 150, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 15, lineHeight: 22, color: T.text },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   stopButton: { backgroundColor: '#333', borderColor: '#444', borderWidth: 1 },

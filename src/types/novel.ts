@@ -101,6 +101,7 @@ export interface NovelSettings {
   temperature: number;
   maxTokens: number;
   localThinking?: boolean;
+  customPrompt?: string;
 }
 
 export interface AppState {

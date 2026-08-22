@@ -9,7 +9,7 @@ import { streamChatCompletion, chatCompletion, getActiveModelInfo, detectIntent,
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
-import ModelPicker, { type ModelOption } from '../components/ModelPicker';
+import { getModelChoices, type ModelChoice } from '../lib/llm';
 import { GenerationDots, StreamCursor, ThinkingPanel } from '../components/ChatIndicators';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
@@ -103,9 +103,10 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
-  const [modelChoice, setModelChoice] = useState<ModelOption | null>(null);
-  const [modelPickerVisible, setModelPickerVisible] = useState(false);
+  const [modelChoice, setModelChoice] = useState<ModelChoice | null>(null);
+  const [modelOptions, setModelOptions] = useState<ModelChoice[]>([{ id: 'auto', label: '智能优先', provider: 'local' }]);
   const [loading, setLoading] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [modelLabel, setModelLabel] = useState('检测模型...');
   const [streamThinking, setStreamThinking] = useState('');
   const [outlineModal, setOutlineModal] = useState(false);
@@ -128,6 +129,8 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   } : {};
 
   const refreshModel = useCallback(async () => {
+    const options = await getModelChoices('writing');
+    setModelOptions(options);
     if (modelChoice) {
       setModelLabel(modelChoice.label);
       return;
@@ -135,6 +138,22 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     const info = await getActiveModelInfo(mode);
     setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
   }, [mode, modelChoice]);
+
+  useEffect(() => {
+    if (!loading) return;
+    setElapsedSeconds(0);
+    const startedAt = Date.now();
+    const timer = setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [loading]);
+
+  const cycleModel = useCallback(() => {
+    if (!modelOptions.length || loading) return;
+    const currentIndex = Math.max(0, modelOptions.findIndex(item => item.id === (modelChoice?.id || 'auto')));
+    const next = modelOptions[(currentIndex + 1) % modelOptions.length];
+    setModelChoice(next);
+    setModelLabel(next.label);
+  }, [loading, modelChoice, modelOptions]);
 
   useEffect(() => {
     getChatHistory(novelId).then(history => setMessages(history));
@@ -195,6 +214,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     setStreamThinking('');
     setMessages(previous => [...previous, placeholder]);
     setLoading(true);
+    setElapsedSeconds(0);
     nearBottomRef.current = true;
 
     const controller = new AbortController();
@@ -278,12 +298,12 @@ export default function WritingChatScreen({ navigation, route }: Props) {
 
     if (sensitive) {
       const storyContext = mode === 'writing' ? await buildSystemPrompt(novelId, nextChapter, true) : '';
-      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n直接输出正文；需要越过限制时自动使用淡出处理。`;
+      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n直接输出正文；亲密画面使用淡出处理。`;
     } else if (intent === 'image') {
       systemPrompt = '你是图像创作助手。根据用户描述生成图片。';
     } else if (mode === 'writing') {
       systemPrompt = await buildSystemPrompt(novelId, nextChapter, usingLocal);
-      if (usingLocal) systemPrompt += '\n\n先在 <think> 标签里写两三句剧情推进思考，再按格式输出正文。';
+      if (usingLocal) systemPrompt += '';
     } else {
       systemPrompt = '你是妙笔的中文创作助手。回答准确、自然、简洁；不要输出思考过程，直接给出答案。';
     }
@@ -374,7 +394,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     return (
       <View style={[styles.row, isUser ? styles.userRow : styles.aiRow]}>
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          {isLoadingPlaceholder && <GenerationDots label={streamThinking ? '正在思考' : '正在生成'} />}
+          {isLoadingPlaceholder && <GenerationDots label={streamThinking ? '正在思考' : `正在生成 · ${elapsedSeconds}s`} />}
           {!isUser && (isLoadingPlaceholder ? streamThinking : parsed.thinking) ? (
             <ThinkingPanel text={isLoadingPlaceholder ? streamThinking : parsed.thinking} streaming={isLoadingPlaceholder} />
           ) : null}
@@ -467,10 +487,9 @@ export default function WritingChatScreen({ navigation, route }: Props) {
               textAlignVertical="top"
             />
             <View style={styles.inputFooter}>
-              <TouchableOpacity style={styles.modelPill} onPress={() => setModelPickerVisible(true)} activeOpacity={0.8}>
-                <Icon.settings size={11} color={T.textSec} />
-                <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '智能优先'}</Text>
-                <Icon.down size={11} color={T.textSec} />
+              <TouchableOpacity style={styles.modelPill} onPress={cycleModel} disabled={loading} activeOpacity={0.8}>
+                <Icon.test size={9} color={T.textMuted} />
+                <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || modelOptions[0]?.label || '智能优先'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -488,7 +507,6 @@ export default function WritingChatScreen({ navigation, route }: Props) {
           style={styles.countInput}
         />
       </CapsuleAlert>
-      <ModelPicker visible={modelPickerVisible} selectedId={modelChoice?.id || null} onClose={() => setModelPickerVisible(false)} onSelect={option => { setModelChoice(option); setModelPickerVisible(false); }} />
     </KeyboardAvoidingView>
   );
 }
@@ -526,8 +544,8 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8 },
   inputShell: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', overflow: 'hidden' },
   inputFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36, paddingHorizontal: 8, paddingBottom: 6 },
-  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', minHeight: 26, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: '#333', backgroundColor: '#1F1F1F' },
-  modelPillText: { fontSize: 11, fontWeight: '600', color: T.textSec },
+  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '100%', height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)' },
+  modelPillText: { fontSize: 9, fontWeight: '600', color: T.textMuted, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   input: { width: '100%', minHeight: 46, maxHeight: 150, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 15, lineHeight: 22, color: T.text },
   toolButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2E2E2E', alignItems: 'center', justifyContent: 'center' },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },

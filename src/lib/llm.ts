@@ -27,12 +27,13 @@ export interface StreamOptions {
 type Intent = NonNullable<StreamOptions['intent']>;
 
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
+const LOCAL_TEXT_MODEL = 'qwen2.5:1.5b';
 const PREFERRED_MODELS: Record<Intent, string[]> = {
-  writing: ['dqnwrite', 'qwen2.5:3b', 'qwen2.5:1.5b', 'qwen3:1.7b'],
-  adult: ['dqnwrite', 'qwen2.5:3b', 'qwen2.5:1.5b', 'qwen3:1.7b'],
+  writing: [LOCAL_TEXT_MODEL],
+  adult: [LOCAL_TEXT_MODEL],
   vision: ['moondream', 'llava'],
   image: ['moondream', 'llava'],
-  chat: ['qwen2.5:1.5b', 'qwen3:1.7b', 'deepseek-r1:1.7b'],
+  chat: [LOCAL_TEXT_MODEL],
 };
 
 function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
@@ -76,7 +77,9 @@ async function requestOllamaStatus(): Promise<OllamaStatus> {
     if (!res.ok) return { available: false, models: [] };
     const data = await res.json();
     const models = Array.isArray(data.models)
-      ? data.models.map((item: any) => String(item.name)).filter(Boolean)
+      ? data.models
+          .map((item: any) => String(item.name))
+          .filter((name: string) => name === LOCAL_TEXT_MODEL || name.startsWith(`${LOCAL_TEXT_MODEL}:`))
       : [];
     return { available: true, models };
   } catch {
@@ -169,7 +172,7 @@ export async function getModelChoices(intent: Intent = 'chat'): Promise<ModelCho
   ]);
   const choices: ModelChoice[] = [{ id: 'auto', label: '智能优先', provider: 'local' }];
   local.models
-    .filter(model => !/embed|moondream|llava|vision/i.test(model))
+    .filter(model => model === LOCAL_TEXT_MODEL || model.startsWith(`${LOCAL_TEXT_MODEL}:`))
     .forEach(model => choices.push({ id: `local:${model}`, label: `本地 · ${model}`, provider: 'local', model }));
   if (settings.apiKey && intent !== 'vision') {
     const models = Array.from(new Set([

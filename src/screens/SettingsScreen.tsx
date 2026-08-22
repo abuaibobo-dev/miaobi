@@ -62,7 +62,7 @@ export default function SettingsScreen({ navigation }: Props) {
       setOllamaAvailable(available);
       if (available) {
         const models = await getOllamaModels();
-        setOllamaModels(models.filter(model => !/embed|bge|mxbai|nomic/i.test(model)));
+        setOllamaModels(models);
       }
     } catch {}
     setOllamaChecking(false);
@@ -223,31 +223,6 @@ export default function SettingsScreen({ navigation }: Props) {
             )}
           </View>
         )}
-        <View style={s.thinkingRow}>
-          <View style={s.thinkingTextWrap}>
-            <Text style={s.label}>本地模型深度思考</Text>
-            <Text style={s.thinkingHint}>关闭后回复更快；打开适合短对话和复杂推理。</Text>
-          </View>
-          <TouchableOpacity
-            style={[s.switchTrack, settings.localThinking && s.switchOn]}
-            onPress={() => setSettings(prev => ({ ...prev, localThinking: !prev.localThinking }))}
-            activeOpacity={0.8}
-          >
-            <View style={[s.switchDot, settings.localThinking && s.switchDotOn]} />
-          </TouchableOpacity>
-        </View>
-        <Text style={s.ollamaHint}>{OLLAMA_TIP}</Text>
-      </Section>
-
-      <Section title="DeepSeek 云端" icon="◈" defaultOpen={true}>
-        <Text style={s.label}>API Key *</Text>
-        <TextInput style={s.input} value={settings.apiKey} onChangeText={v => setSettings(prev => ({ ...prev, apiKey: v }))} placeholder="sk-..." placeholderTextColor={T.textMuted} secureTextEntry autoCapitalize="none" />
-        <Text style={s.label}>API 地址</Text>
-        <TextInput style={s.input} value={settings.baseUrl} onChangeText={v => setSettings(prev => ({ ...prev, baseUrl: v }))} placeholder="https://api.deepseek.com" placeholderTextColor={T.textMuted} autoCapitalize="none" />
-        <Text style={s.label}>写作模型</Text>
-        <TextInput style={s.input} value={settings.model} onChangeText={v => setSettings(prev => ({ ...prev, model: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
-        <Text style={s.label}>对话模型</Text>
-        <TextInput style={s.input} value={settings.chatModel || 'deepseek-chat'} onChangeText={v => setSettings(prev => ({ ...prev, chatModel: v }))} placeholder="deepseek-chat" placeholderTextColor={T.textMuted} autoCapitalize="none" />
         <Text style={s.label}>自定义提示词 / 创作偏好</Text>
         <TextInput
           style={[s.input, s.textArea]}
@@ -297,7 +272,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.8</Text>
+        <Text style={s.footerText}>妙笔 v1.9.9</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 

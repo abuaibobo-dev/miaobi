@@ -62,7 +62,7 @@ export default function SettingsScreen({ navigation }: Props) {
       setOllamaAvailable(available);
       if (available) {
         const models = await getOllamaModels();
-        setOllamaModels(models);
+        setOllamaModels(models.filter(model => !/embed|bge|mxbai|nomic/i.test(model)));
       }
     } catch {}
     setOllamaChecking(false);
@@ -297,7 +297,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.6</Text>
+        <Text style={s.footerText}>妙笔 v1.9.7</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 

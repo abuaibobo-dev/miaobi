@@ -117,7 +117,7 @@ function selectOllamaModel(intent: Intent, installed: string[]): string | null {
 export async function testOllamaModel(model: string): Promise<{ ok: boolean; latency: number; response?: string; error?: string }> {
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), 180000);
   try {
     const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
       method: 'POST',
@@ -127,14 +127,18 @@ export async function testOllamaModel(model: string): Promise<{ ok: boolean; lat
         model,
         messages: [{ role: 'user', content: '请只回复：连接正常' }],
         stream: false,
-        options: { temperature: 0, num_predict: 12, num_ctx: 1024 },
+        options: { temperature: 0, num_predict: 64, num_ctx: 512 },
       }),
     });
     const data = await res.json().catch(() => null as any);
     if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-    const response = String(data?.message?.content || '').trim();
-    if (!response) throw new Error('模型返回为空');
-    return { ok: true, latency: Date.now() - startedAt, response };
+    const rawResponse = String(data?.message?.content || '').trim();
+    const response = rawResponse
+      .replace(/<(?:think|thinking)>[\s\S]*?(?:<\/(?:think|thinking)>|$)/gi, '')
+      .trim();
+    const reasoning = String(data?.message?.thinking || data?.message?.reasoning || '').trim();
+    if (!response && !reasoning) throw new Error('模型返回为空');
+    return { ok: true, latency: Date.now() - startedAt, response: response || '模型已响应（思考输出）' };
   } catch (error) {
     return { ok: false, latency: Date.now() - startedAt, error: error instanceof Error ? error.message : String(error) };
   } finally {

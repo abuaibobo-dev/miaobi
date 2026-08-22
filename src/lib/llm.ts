@@ -267,50 +267,47 @@ async function streamOllama(
   callbacks: Pick<StreamOptions, 'onProvider' | 'onContent' | 'onThinking'>,
   allowThinking = false,
 ): Promise<string> {
-  let content = '';
-  let buffer = '';
   callbacks.onProvider?.(`本地 · ${model}`);
-  await xhrStream(
-    `${OLLAMA_BASE}/api/chat`,
-    {},
-    {
-      model,
-      messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
-      stream: true,
-      keep_alive: '10m',
-      ...(/qwen3|deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
-      options: {
-        temperature,
-        num_predict: maxTokens,
-        num_ctx: maxTokens > 1200 ? 2048 : 1024,
-        num_batch: 128,
-      },
-    },
-    chunk => {
-      buffer += chunk;
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const data = JSON.parse(line);
-          if (data.error) throw new Error(data.error);
-          const reasoning = data.message?.thinking || data.message?.reasoning || '';
-          if (reasoning) options.onThinking?.(reasoning);
-          const delta = data.message?.content || '';
-          if (delta) {
-            content += delta;
-            options.onContent?.(delta);
-          }
-        } catch (error) {
-          if ((error as Error).message !== 'Unexpected end of JSON input') throw error;
-        }
-      }
-    },
-    options.signal,
-    150000,
-  );
-  return content;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 600000);
+  const forwardAbort = () => controller.abort();
+  options.signal?.addEventListener('abort', forwardAbort);
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
+        stream: false,
+        keep_alive: '10m',
+        ...(/qwen3|deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
+        options: {
+          temperature,
+          num_predict: maxTokens,
+          num_ctx: maxTokens > 1200 ? 2048 : 1024,
+          num_batch: 128,
+        },
+      }),
+    });
+
+    const data = await res.json().catch(() => null as any);
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    if (data?.error) throw new Error(String(data.error));
+
+    const reasoning = String(data?.message?.thinking || data?.message?.reasoning || '');
+    if (reasoning) callbacks.onThinking?.(reasoning);
+
+    const content = String(data?.message?.content || '').trim();
+    if (!content) throw new Error('本地模型返回为空');
+    callbacks.onContent?.(content);
+    return content;
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', forwardAbort);
+  }
 }
 
 async function streamDeepSeek(

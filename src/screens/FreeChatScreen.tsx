@@ -187,7 +187,10 @@ export default function FreeChatScreen({ navigation, route }: Props) {
       const parsed = parseThinking(rawContentRef.current || response.content || '');
       const body = parsed.body.trim();
       const finalProvider = response.provider || provider;
-      if (!body && !parsed.thinking && !reasoningRef.current) throw new Error(response.error || '模型没有返回内容');
+      if (!body && !parsed.thinking && !reasoningRef.current) {
+        const detail = [response.error || '模型没有返回内容', response.debug].filter(Boolean).join('；');
+        throw new Error(detail);
+      }
 
       const finalMessage: ChatMessage = {
         id: assistantId,

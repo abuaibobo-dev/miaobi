@@ -9,6 +9,7 @@ export interface LLMResponse {
   content: string;
   thinking?: string;
   error?: string;
+  debug?: string;
   provider?: string;
 }
 
@@ -290,8 +291,8 @@ async function streamOllama(
         options: {
           temperature,
           num_predict: maxTokens,
-          num_ctx: maxTokens > 1200 ? 2048 : 1024,
-          num_batch: 128,
+          num_ctx: maxTokens <= 256 ? 512 : maxTokens > 1200 ? 2048 : 1024,
+          num_batch: maxTokens <= 256 ? 32 : 128,
         },
       }),
     });
@@ -409,9 +410,11 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     }
     if (model) {
       let receivedOutput = false;
+      const lastText = String(messages[messages.length - 1]?.content || '');
+      const lightChat = intent === 'chat' && !options.images?.length && lastText.length <= 180;
       const localMaxTokens = Math.min(
         maxTokens,
-        intent === 'writing' ? 2600 : 900,
+        lightChat ? 192 : intent === 'writing' ? 2600 : 900,
       );
       const localOptions: StreamOptions = {
         ...options,
@@ -431,14 +434,37 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
           return { content: '', provider: `local:${model}` };
         }
         if (options.forceLocal) {
-          return { content: '', error: '本地模型返回为空，请重试或换一个已安装模型。', provider: `local:${model}` };
+          return { content: '', error: '本地模型返回为空，请重试或换一个已安装模型。', debug: `模型=${model}；输出=空`, provider: `local:${model}` };
         }
-      } catch (error) {
+      } catch (firstError) {
         if (options.signal?.aborted) {
           return { content: '', error: '已取消。', provider: `local:${model}` };
         }
+        if (!receivedOutput && lightChat && !options.forceLocal) {
+          try {
+            const content = await streamOllama(
+              model,
+              [
+                { role: 'system', content: '你是妙笔。用简体中文直接回答用户，不要解释规则，不要输出思考标签。' },
+                { role: 'user', content: lastText },
+              ],
+              temperature,
+              128,
+              undefined,
+              { ...options, onContent: delta => { receivedOutput = true; options.onContent?.(delta); }, onThinking: delta => { receivedOutput = true; options.onThinking?.(delta); } },
+              { ...options, onContent: delta => { receivedOutput = true; options.onContent?.(delta); }, onThinking: delta => { receivedOutput = true; options.onThinking?.(delta); } },
+              false,
+            );
+            if (content.trim()) return { content, provider: `local:${model}`, debug: '轻量重试成功' };
+          } catch {}
+        }
         if (receivedOutput || options.forceLocal) {
-          return { content: '', error: `本地模型中断：${(error as Error).message}`, provider: `local:${model}` };
+          return {
+            content: '',
+            error: `本地模型中断：${(firstError as Error).message}`,
+            debug: `模型=${model}；轻量=${lightChat ? '是' : '否'}`,
+            provider: `local:${model}`,
+          };
         }
       }
     }

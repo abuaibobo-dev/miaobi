@@ -251,7 +251,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       const provider = response.provider || activeProvider;
 
       if (!body && !thinking) {
-        const errorMessage = response.error || '模型没有返回内容，请重试。';
+        const errorMessage = [response.error || '模型没有返回内容，请重试。', response.debug].filter(Boolean).join('；');
         setMessages(previous => previous.map(item => item.id === assistantId ? {
           ...item,
           content: `⚠️ ${errorMessage}`,

@@ -278,7 +278,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
 
     if (sensitive) {
       const storyContext = mode === 'writing' ? await buildSystemPrompt(novelId, nextChapter, true) : '';
-      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n直接输出正文，不要输出思考过程。`;
+      systemPrompt = `${INTIMATE_SYSTEM_PROMPT}\n\n${storyContext}\n\n直接输出正文；需要越过限制时自动使用淡出处理。`;
     } else if (intent === 'image') {
       systemPrompt = '你是图像创作助手。根据用户描述生成图片。';
     } else if (mode === 'writing') {
@@ -456,23 +456,25 @@ export default function WritingChatScreen({ navigation, route }: Props) {
               <Icon.send size={17} color="#0D0D0D" />
             </TouchableOpacity>
           )}
-          <TextInput
-            style={[styles.input, { height: Math.min(180, Math.max(52, inputHeight)) }]}
-            value={input}
-            onChangeText={setInput}
-            onContentSizeChange={(event) => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
-            placeholder="输入剧情指令..."
-            placeholderTextColor="#666"
-            multiline
-            textAlignVertical="top"
-          />
-        </View>
-        <View style={styles.modelRow}>
-          <TouchableOpacity style={styles.modelPill} onPress={() => setModelPickerVisible(true)} activeOpacity={0.8}>
-            <Icon.settings size={11} color={'#0D0D0D'} />
-            <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '模型：智能优先'}</Text>
-            <Icon.down size={11} color={'#0D0D0D'} />
-          </TouchableOpacity>
+          <View style={styles.inputShell}>
+            <TextInput
+              style={[styles.input, { height: Math.min(150, Math.max(46, inputHeight)) }]}
+              value={input}
+              onChangeText={setInput}
+              onContentSizeChange={(event) => setInputHeight(Math.ceil(event.nativeEvent.contentSize.height))}
+              placeholder="输入剧情指令..."
+              placeholderTextColor="#666"
+              multiline
+              textAlignVertical="top"
+            />
+            <View style={styles.inputFooter}>
+              <TouchableOpacity style={styles.modelPill} onPress={() => setModelPickerVisible(true)} activeOpacity={0.8}>
+                <Icon.settings size={11} color={T.textSec} />
+                <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '智能优先'}</Text>
+                <Icon.down size={11} color={T.textSec} />
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -523,10 +525,11 @@ const styles = StyleSheet.create({
   scrollButton: { position: 'absolute', right: 18, bottom: 96, width: 38, height: 38, borderRadius: 19, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   inputBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
   inputRow: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8 },
-  modelRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 9 },
-  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '92%', minHeight: 30, paddingHorizontal: 12, borderRadius: 999, backgroundColor: T.accent },
-  modelPillText: { fontSize: 11.5, fontWeight: '700', color: '#0D0D0D' },
-  input: { flex: 1, minHeight: 52, maxHeight: 180, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', paddingHorizontal: 18, paddingVertical: 14, fontSize: 15, lineHeight: 22, color: T.text },
+  inputShell: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', overflow: 'hidden' },
+  inputFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36, paddingHorizontal: 8, paddingBottom: 6 },
+  modelPill: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', minHeight: 26, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: '#333', backgroundColor: '#1F1F1F' },
+  modelPillText: { fontSize: 11, fontWeight: '600', color: T.textSec },
+  input: { width: '100%', minHeight: 46, maxHeight: 150, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 15, lineHeight: 22, color: T.text },
   toolButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2E2E2E', alignItems: 'center', justifyContent: 'center' },
   sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   stopButton: { backgroundColor: '#333', borderColor: '#444', borderWidth: 1 },

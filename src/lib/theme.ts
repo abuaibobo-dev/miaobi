@@ -16,7 +16,7 @@ export const T = {
   accentBlue: '#D4D4D4',
   accentPink: '#D4D4D4',
   accentCyan: '#D4D4D4',
-  userBubble: '#E5E5E5',
+  userBubble: '#D4D4D4',
   aiBubble: '#141414',
   gradientStart: '#1A1A1A',
   gradientEnd: '#0D0D0D',

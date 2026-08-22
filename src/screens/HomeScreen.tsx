@@ -31,13 +31,10 @@ export default function HomeScreen({ navigation }: Props) {
   const [chapterCounts, setChapterCounts] = useState<Record<string, number>>({});
 
   useFocusEffect(useCallback(() => {
-    getNovels().then(list => {
+    getNovels().then(async list => {
       setNovels(list);
-      list.forEach(n => {
-        getChapters(n.id).then(chs => {
-          setChapterCounts(prev => ({ ...prev, [n.id]: chs.length }));
-        });
-      });
+      const counts = await Promise.all(list.map(async item => [item.id, (await getChapters(item.id)).length] as const));
+      setChapterCounts(Object.fromEntries(counts));
     });
   }, []));
 

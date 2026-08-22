@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { getChapters } from '../lib/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { Chapter } from '../types/novel';
@@ -12,7 +13,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
   const startChapter = route.params?.startChapter;
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [fontSize, setFontSize] = useState(18);
+  const [fontSize, setFontSize] = useState<number | null>(null);
   const [showToolbar, setShowToolbar] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -31,8 +32,26 @@ export default function ReaderScreen({ navigation, route }: Props) {
   }, [novelId, startChapter]);
 
   useEffect(() => {
+    AsyncStorage.getItem('miaobi.reader.fontSize')
+      .then(value => {
+        const size = Number(value);
+        if (Number.isFinite(size) && size >= 14 && size <= 26) setFontSize(size);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [currentIndex]);
+
+  const changeFontSize = () => {
+    setFontSize(previous => {
+      const sizes = [16, 18, 20, 22];
+      const next = sizes[(sizes.indexOf(previous || 18) + 1) % sizes.length];
+      AsyncStorage.setItem('miaobi.reader.fontSize', String(next)).catch(() => {});
+      return next;
+    });
+  };
 
   const currentChapter = chapters[currentIndex];
   const changeChapter = useCallback((direction: number) => {
@@ -70,7 +89,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
             <Text style={styles.topTitle} numberOfLines={1}>{currentChapter.title}</Text>
             <Text style={styles.chapterCount}>{currentIndex + 1} / {chapters.length}</Text>
           </View>
-          <TouchableOpacity style={styles.iconButton} onPress={() => setFontSize(value => value === 18 ? 20 : 18)}>
+          <TouchableOpacity style={styles.iconButton} onPress={changeFontSize}>
             <Text style={styles.sizeButtonText}>Aa</Text>
           </TouchableOpacity>
         </View>
@@ -83,7 +102,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
       >
         <TouchableOpacity activeOpacity={1} onPress={() => setShowToolbar(value => !value)}>
           <Text style={styles.chapterTitle}>{currentChapter.title}</Text>
-          <Text style={[styles.content, { fontSize }]}>{currentChapter.body || currentChapter.summary}</Text>
+          <Text style={[styles.content, { fontSize: fontSize ?? 18 }]}>{currentChapter.body || currentChapter.summary}</Text>
         </TouchableOpacity>
       </ScrollView>
 

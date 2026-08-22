@@ -61,28 +61,50 @@ export function isAdultIntent(intent: Intent): boolean {
   return intent === 'adult';
 }
 
-export async function checkOllamaAvailable(): Promise<boolean> {
-  try {
-    const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: withTimeout(undefined, 2500).signal });
-    return res.ok;
-  } catch {
-    return false;
-  }
+interface OllamaStatus {
+  available: boolean;
+  models: string[];
 }
 
-export async function getOllamaModels(): Promise<string[]> {
+let ollamaStatusCache: { at: number; value: OllamaStatus } | null = null;
+
+async function requestOllamaStatus(): Promise<OllamaStatus> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
   try {
-    const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: withTimeout(undefined, 4000).signal });
-    if (!res.ok) return [];
+    const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: controller.signal });
+    if (!res.ok) return { available: false, models: [] };
     const data = await res.json();
-    return Array.isArray(data.models) ? data.models.map((item: any) => String(item.name)) : [];
+    const models = Array.isArray(data.models)
+      ? data.models.map((item: any) => String(item.name)).filter(Boolean)
+      : [];
+    return { available: true, models };
   } catch {
-    return [];
+    return { available: false, models: [] };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-async function selectOllamaModel(intent: Intent): Promise<string | null> {
-  const installed = await getOllamaModels();
+export async function getOllamaStatus(force = false): Promise<OllamaStatus> {
+  const now = Date.now();
+  if (!force && ollamaStatusCache && now - ollamaStatusCache.at < 3000) {
+    return ollamaStatusCache.value;
+  }
+  const value = await requestOllamaStatus();
+  ollamaStatusCache = { at: Date.now(), value };
+  return value;
+}
+
+export async function checkOllamaAvailable(force = false): Promise<boolean> {
+  return (await getOllamaStatus(force)).available;
+}
+
+export async function getOllamaModels(force = false): Promise<string[]> {
+  return (await getOllamaStatus(force)).models;
+}
+
+function selectOllamaModel(intent: Intent, installed: string[]): string | null {
   if (!installed.length) return null;
   for (const preferred of PREFERRED_MODELS[intent]) {
     const match = installed.find(item => item === preferred || item.startsWith(`${preferred}:`));
@@ -90,6 +112,34 @@ async function selectOllamaModel(intent: Intent): Promise<string | null> {
   }
   if (intent === 'vision') return null;
   return installed.find(item => !/embed|moondream|llava/i.test(item)) || installed[0];
+}
+
+export async function testOllamaModel(model: string): Promise<{ ok: boolean; latency: number; response?: string; error?: string }> {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: '请只回复：连接正常' }],
+        stream: false,
+        options: { temperature: 0, num_predict: 12, num_ctx: 1024 },
+      }),
+    });
+    const data = await res.json().catch(() => null as any);
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+    const response = String(data?.message?.content || '').trim();
+    if (!response) throw new Error('模型返回为空');
+    return { ok: true, latency: Date.now() - startedAt, response };
+  } catch (error) {
+    return { ok: false, latency: Date.now() - startedAt, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function generateLocalImage(prompt: string, signal?: AbortSignal): Promise<string> {
@@ -102,8 +152,9 @@ export async function generateLocalImage(prompt: string, signal?: AbortSignal): 
 }
 
 export async function getActiveModelInfo(intent: Intent = 'chat'): Promise<{ provider: 'local' | 'deepseek'; label: string } | null> {
-  const localModel = await selectOllamaModel(intent);
-  if (localModel && await checkOllamaAvailable()) return { provider: 'local', label: localModel };
+  const local = await getOllamaStatus();
+  const localModel = selectOllamaModel(intent, local.models);
+  if (local.available && localModel) return { provider: 'local', label: localModel };
   const settings = await getSettings() as any;
   if (settings.apiKey && intent !== 'vision') {
     const model = intent === 'writing' ? settings.model || 'deepseek-chat' : settings.chatModel || settings.model || 'deepseek-chat';
@@ -283,7 +334,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   if (options.providerOverride === 'cloud' && !options.forceLocal) {
     const overrideModel = options.modelOverride || (intent === 'writing' ? settings.model : settings.chatModel) || 'deepseek-chat';
     try {
-      const content = await streamDeepSeek(messages, temperature, Math.min(maxTokens, 4096), { ...options, modelOverride: overrideModel }, options);
+      const content = await streamDeepSeek(messages, temperature, Math.min(maxTokens, 8192), { ...options, modelOverride: overrideModel }, options);
       return { content, provider: `cloud:${overrideModel}` };
     } catch (error) {
       return { content: '', error: `DeepSeek 调用失败：${(error as Error).message}` };
@@ -303,11 +354,11 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     }
   }
 
-  if (await checkOllamaAvailable()) {
-    let model = await selectOllamaModel(intent);
+  const local = await getOllamaStatus();
+  if (local.available) {
+    let model = selectOllamaModel(intent, local.models);
     if (options.providerOverride === 'local' && options.modelOverride) {
-      const installed = await getOllamaModels();
-      model = installed.includes(options.modelOverride) ? options.modelOverride : null;
+      model = local.models.includes(options.modelOverride) ? options.modelOverride : null;
       if (!model) return { content: '', error: `本地模型 ${options.modelOverride} 未安装或不可用。`, provider: `local:${options.modelOverride}` };
     }
     if (model) {

@@ -313,8 +313,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       if (jsonMatch) {
         const normalized = jsonMatch[0].replace(/^```json\s*|```$/g, '').replace(/，/g, ',').replace(/：/g, ':');
         const update = JSON.parse(normalized);
-        const novels = await getNovels();
-        const chapterNumber = (novels.find(item => item.id === novelId)?.totalChapters || 0) + 1;
+        const chapterNumber = nextChapter;
         if (update.summary || update.characterChanges) {
           await processPostWrite(
             novelId,

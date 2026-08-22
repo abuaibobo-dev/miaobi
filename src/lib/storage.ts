@@ -62,6 +62,7 @@ export async function deleteNovel(id: string): Promise<void> {
     save(`mem.${id}`, []),
     save(`snap.${id}`, []),
     AsyncStorage.removeItem(`${PREFIX}chat.${id}`),
+    AsyncStorage.removeItem(`${PREFIX}chat.free:${id}`),
     AsyncStorage.removeItem(`miaobi.ideas.${id}`),
   ]);
 }

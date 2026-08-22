@@ -38,6 +38,7 @@ export const Icon = {
   modify: (props: any) => <Feather name="edit" {...props} />,
   tts: (props: any) => <Ionicons name="volume-high-outline" {...props} />,
   copy: (props: any) => <Feather name="copy" {...props} />,
+  image: (props: any) => <Feather name="image" {...props} />,
   menu: (props: any) => <Feather name="menu" {...props} />,
   more: (props: any) => <Feather name="more-horizontal" {...props} />,
   down: (props: any) => <Ionicons name="chevron-down" {...props} />,

@@ -48,7 +48,8 @@ export async function addChapter(
   summary: string = ''
 ): Promise<Chapter> {
   const novel = await getStoryBible(novelId);
-  const chNum = (novel?.totalChapters || 0) + 1;
+  const chapters = await Store.getChapters(novelId);
+  const chNum = Math.max(chapters.length, ...chapters.map(item => item.chapterNumber), novel?.totalChapters || 0) + 1;
   const volNum = novel?.currentVolume || 1;
   const chapter: Chapter = {
     id: uid(),
@@ -65,7 +66,7 @@ export async function addChapter(
   await Store.saveChapter(chapter);
   // 更新小说进度
   if (novel) {
-    await updateNovelBible(novelId, { totalChapters: chNum, currentVolume: volNum });
+    await updateNovelBible(novelId, { totalChapters: Math.max(chNum, novel.totalChapters || 0), currentVolume: volNum });
   }
   return chapter;
 }
@@ -137,6 +138,9 @@ export async function addForeshadowing(
   chapterNumber: number,
   relatedCharacters: string[] = []
 ): Promise<Foreshadowing> {
+  const cleanTitle = title.trim();
+  const existing = (await Store.getForeshadowing(novelId)).find(item => item.title.trim() === cleanTitle);
+  if (existing) return existing;
   const fs: Foreshadowing = {
     id: uid(),
     novelId,

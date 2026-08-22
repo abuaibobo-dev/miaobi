@@ -3,6 +3,8 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform, Image, StatusBar,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getChatHistory, appendChatMessage, clearChatHistory } from '../lib/storage';
 import { streamChatCompletion, getActiveModelInfo, detectIntent, type LLMMessage } from '../lib/llm';
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
@@ -36,6 +38,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [modelLabel, setModelLabel] = useState('检测模型...');
   const [streamThinking, setStreamThinking] = useState('');
+  const [attachments, setAttachments] = useState<Array<{ uri: string; base64: string }>>([]);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const flatListRef = useRef<FlatList>(null);
@@ -49,6 +52,18 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     providerOverride: modelChoice.provider,
     ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
   } : {};
+
+  const pickImage = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'image/*', multiple: false, copyToCacheDirectory: true });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      setAttachments([{ uri: asset.uri, base64 }]);
+    } catch {
+      setModelLabel('图片读取失败');
+    }
+  };
 
   const refreshModel = useCallback(async () => {
     if (modelChoice) {
@@ -97,6 +112,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
       provider: '等待模型...',
     }]);
     setInput('');
+    setAttachments([]);
     await appendChatMessage(channel, userMessage);
 
     rawContentRef.current = '';
@@ -109,7 +125,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     abortRef.current = controller;
     let provider = '';
     try {
-      const intent = detectIntent(cleanText);
+      const intent = detectIntent(cleanText, attachments.length > 0);
       const sensitive = intent === 'adult' || shouldUseLocalModel(cleanText);
       const history: LLMMessage[] = messages.slice(-8).map(item => ({
         role: item.role === 'assistant' ? 'assistant' : 'user',
@@ -123,7 +139,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
         {
           intent,
           forceLocal: sensitive,
-          ...(modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
+          images: attachments.map(item => item.base64),          ...(modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
             providerOverride: modelChoice.provider,
             ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
           } : {}),
@@ -246,6 +262,18 @@ export default function FreeChatScreen({ navigation, route }: Props) {
       )}
 
       <View style={styles.inputBar}>
+        {attachments.length > 0 && (
+          <View style={styles.attachmentRow}>
+            {attachments.map((item, index) => (
+              <View key={`${item.uri}-${index}`} style={styles.attachment}>
+                <Image source={{ uri: item.uri }} style={styles.attachmentThumb} />
+                <TouchableOpacity style={styles.attachmentRemove} onPress={() => setAttachments([])}>
+                  <Icon.close size={10} color="#0D0D0D" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={styles.inputRow}>
 
           {loading ? (
@@ -273,6 +301,9 @@ export default function FreeChatScreen({ navigation, route }: Props) {
                 <Icon.settings size={11} color={T.textSec} />
                 <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || '智能优先'}</Text>
                 <Icon.down size={11} color={T.textSec} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
+                <Icon.image size={15} color={T.textSec} />
               </TouchableOpacity>
             </View>
           </View>
@@ -312,7 +343,12 @@ const styles = StyleSheet.create({
   inputBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
   inputRow: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8 },
   inputShell: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', overflow: 'hidden' },
-  inputFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36, paddingHorizontal: 8, paddingBottom: 6 },
+  inputFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 36, paddingHorizontal: 8, paddingBottom: 6 },
+  imageButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333' },
+  attachmentRow: { flexDirection: 'row', gap: 8, paddingBottom: 8 },
+  attachment: { position: 'relative' },
+  attachmentThumb: { width: 46, height: 46, borderRadius: 12 },
+  attachmentRemove: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: 9, backgroundColor: '#D4D4D4', alignItems: 'center', justifyContent: 'center' },
   modelPill: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%', minHeight: 26, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: '#333', backgroundColor: '#1F1F1F' },
   modelPillText: { fontSize: 11, fontWeight: '600', color: T.textSec },
   input: { width: '100%', minHeight: 46, maxHeight: 150, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 15, lineHeight: 22, color: T.text },

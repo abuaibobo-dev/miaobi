@@ -6,7 +6,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { getSettings, saveSettings } from '../lib/storage';
-import { checkApiKey, checkBalance, checkOllamaAvailable, getOllamaModels } from '../lib/llm';
+import { checkApiKey, checkBalance, checkOllamaAvailable, getOllamaModels, testOllamaModel } from '../lib/llm';
 import { exportBackup, restoreFromBackup } from '../lib/backup';
 import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
@@ -47,6 +47,8 @@ export default function SettingsScreen({ navigation }: Props) {
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [ollamaChecking, setOllamaChecking] = useState(false);
+  const [localTestModel, setLocalTestModel] = useState<string | null>(null);
+  const [localTestResult, setLocalTestResult] = useState<Record<string, string>>({});
 
   useEffect(() => {
     getSettings().then(setSettings);
@@ -56,7 +58,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const checkOllamaStatus = async () => {
     setOllamaChecking(true);
     try {
-      const available = await checkOllamaAvailable();
+      const available = await checkOllamaAvailable(true);
       setOllamaAvailable(available);
       if (available) {
         const models = await getOllamaModels();
@@ -64,6 +66,17 @@ export default function SettingsScreen({ navigation }: Props) {
       }
     } catch {}
     setOllamaChecking(false);
+  };
+
+  const handleTestLocalModel = async (model: string) => {
+    setLocalTestModel(model);
+    setLocalTestResult(prev => ({ ...prev, [model]: '测试中...' }));
+    const result = await testOllamaModel(model);
+    setLocalTestResult(prev => ({
+      ...prev,
+      [model]: result.ok ? `正常 · ${result.latency}ms` : `失败 · ${result.error}`,
+    }));
+    setLocalTestModel(null);
   };
 
   const handleSave = async () => {
@@ -198,11 +211,14 @@ export default function SettingsScreen({ navigation }: Props) {
             {ollamaModels.length === 0 ? (
               <Text style={s.noModel}>暂无模型</Text>
             ) : (
-              ollamaModels.map((model, i) => (
-                <View key={i} style={s.modelItem}>
+              ollamaModels.map((model) => (
+                <TouchableOpacity key={model} style={s.modelItem} onPress={() => handleTestLocalModel(model)} disabled={localTestModel === model}>
                   <Icon.check size={12} color={T.accentGreen} />
                   <Text style={s.modelName}>{model}</Text>
-                </View>
+                  <Text style={s.localTestText} numberOfLines={1}>
+                    {localTestResult[model] || '点击测试'}
+                  </Text>
+                </TouchableOpacity>
               ))
             )}
           </View>
@@ -270,7 +286,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.3</Text>
+        <Text style={s.footerText}>妙笔 v1.9.5</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 
@@ -325,7 +341,8 @@ const s = StyleSheet.create({
   refreshBtn: { padding: 6 },
   modelList: { marginBottom: 12 },
   modelItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  modelName: { fontSize: 13, color: T.text, fontFamily: 'monospace' },
+  modelName: { flexShrink: 1, fontSize: 13, color: T.text, fontFamily: 'monospace' },
+  localTestText: { marginLeft: 'auto', fontSize: 11, color: T.textMuted },
   noModel: { fontSize: 13, color: T.textMuted, fontStyle: 'italic' },
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, marginBottom: 10 },
   thinkingTextWrap: { flex: 1 },

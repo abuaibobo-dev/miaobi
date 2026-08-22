@@ -21,6 +21,19 @@ export async function exportBackup(): Promise<boolean> {
     backup.novels.push({ ...novel, chapters, characters, foreshadowing, memoryChunks: chunks, snapshots, chatHistory: chat });
   }
 
+  const allKeys = await AsyncStorage.getAllKeys();
+  const chatKeys = allKeys.filter(key => key.startsWith('miaobi.chat.'));
+  const chatChannels: Array<{ channel: string; messages: any[] }> = [];
+  for (const key of chatKeys) {
+    try {
+      const messages = JSON.parse(await AsyncStorage.getItem(key) || '[]');
+      if (Array.isArray(messages) && messages.length) {
+        chatChannels.push({ channel: key.replace('miaobi.chat.', ''), messages });
+      }
+    } catch {}
+  }
+  backup.chatChannels = chatChannels;
+
   const json = JSON.stringify(backup, null, 2);
   const file = new File(Paths.document, `妙笔备份_${new Date().toISOString().slice(0, 10)}.json`);
   await file.write(json, { encoding: EncodingType.UTF8 });
@@ -31,7 +44,7 @@ export async function exportBackup(): Promise<boolean> {
 export async function restoreFromBackup(jsonString: string): Promise<{ success: boolean; message: string }> {
   try {
     const backup = JSON.parse(jsonString);
-    if (!backup.version || !backup.novels) return { success: false, message: '备份文件格式无效' };
+    if (!backup.version || (!backup.novels && !backup.chatChannels)) return { success: false, message: '备份文件格式无效' };
 
     let novelCount = 0, chapterCount = 0;
     if (backup.settings) {
@@ -48,6 +61,11 @@ export async function restoreFromBackup(jsonString: string): Promise<{ success: 
       for (const m of (memoryChunks || [])) await Store.saveMemoryChunk(m);
       for (const s of (snapshots || [])) await Store.saveSnapshot(s);
       if (chatHistory?.length > 0) await AsyncStorage.setItem(`miaobi.chat.${novel.id}`, JSON.stringify(chatHistory));
+    }
+
+    for (const item of backup.chatChannels || []) {
+      if (!item?.channel || !Array.isArray(item.messages)) continue;
+      await AsyncStorage.setItem(`miaobi.chat.${item.channel}`, JSON.stringify(item.messages));
     }
 
     return { success: true, message: `恢复完成：${novelCount} 部小说，${chapterCount} 个章节` };

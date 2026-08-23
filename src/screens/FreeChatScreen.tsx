@@ -298,16 +298,6 @@ export default function FreeChatScreen({ navigation, route }: Props) {
           </View>
         )}
         <View style={styles.inputRow}>
-
-          {loading ? (
-            <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()}>
-              <Icon.close size={17} color="#F5F5F5" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={send} disabled={!input.trim()}>
-              <Icon.send size={17} color="#0D0D0D" />
-            </TouchableOpacity>
-          )}
           <View style={styles.inputShell}>
             <TextInput
               style={[styles.input, { height: Math.min(150, Math.max(46, inputHeight)) }]}
@@ -320,13 +310,24 @@ export default function FreeChatScreen({ navigation, route }: Props) {
               textAlignVertical="top"
             />
             <View style={styles.inputFooter}>
-              <TouchableOpacity style={styles.modelPill} onPress={cycleModel} disabled={loading} activeOpacity={0.8}>
-                <Icon.test size={9} color={T.textMuted} />
-                <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || modelOptions[0]?.label || '智能优先'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-                <Icon.image size={15} color={T.textSec} />
-              </TouchableOpacity>
+              <View style={styles.actionGroup}>
+                <TouchableOpacity style={styles.modelPill} onPress={cycleModel} disabled={loading} activeOpacity={0.8}>
+                  <Icon.test size={9} color={T.textMuted} />
+                  <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || modelOptions[0]?.label || '智能优先'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.imageButton} onPress={pickImage} activeOpacity={0.8}>
+                  <Icon.image size={13} color={T.textSec} />
+                </TouchableOpacity>
+              </View>
+              {loading ? (
+                <TouchableOpacity style={[styles.sendButton, styles.stopButton]} onPress={() => abortRef.current?.abort()} activeOpacity={0.8}>
+                  <Icon.close size={15} color="#F5F5F5" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={[styles.sendButton, !input.trim() && styles.disabledButton]} onPress={send} disabled={!input.trim()} activeOpacity={0.8}>
+                  <Icon.send size={15} color="#0D0D0D" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -362,10 +363,11 @@ const styles = StyleSheet.create({
   emptySubtitle: { textAlign: 'center', fontSize: 13, lineHeight: 20, color: T.textMuted },
   scrollButton: { position: 'absolute', right: 18, bottom: 96, width: 38, height: 38, borderRadius: 19, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   inputBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
-  inputRow: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 8 },
-  inputShell: { flex: 1, borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', overflow: 'hidden' },
-  inputFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 36, paddingHorizontal: 8, paddingBottom: 6 },
-  imageButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333' },
+  inputRow: { flexDirection: 'column' },
+  inputShell: { borderRadius: 24, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#151515', overflow: 'hidden' },
+  inputFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 38, paddingHorizontal: 10, paddingBottom: 8 },
+  actionGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 },
+  imageButton: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#333' },
   attachmentRow: { flexDirection: 'row', gap: 8, paddingBottom: 8 },
   attachment: { position: 'relative' },
   attachmentThumb: { width: 46, height: 46, borderRadius: 12 },
@@ -373,7 +375,7 @@ const styles = StyleSheet.create({
   modelPill: { flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '100%', height: 22, paddingHorizontal: 7, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.06)' },
   modelPillText: { fontSize: 9, fontWeight: '600', color: T.textMuted, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   input: { width: '100%', minHeight: 46, maxHeight: 150, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 15, lineHeight: 22, color: T.text },
-  sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
+  sendButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center' },
   stopButton: { backgroundColor: '#333', borderColor: '#444', borderWidth: 1 },
   disabledButton: { backgroundColor: '#2A2A2A' },
   modelTag: { marginTop: 8, fontSize: 10, color: '#666' },

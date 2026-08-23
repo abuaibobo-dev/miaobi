@@ -317,6 +317,7 @@ async function streamOllama(
           temperature,
           num_predict: maxTokens,
           num_ctx: maxTokens <= 256 ? 512 : maxTokens > 1200 ? 2048 : 1024,
+          num_thread: 2,
           num_batch: maxTokens <= 256 ? 32 : 128,
         },
       },
@@ -343,8 +344,8 @@ async function streamOllama(
         }
       },
       controller.signal,
-      options.forceLocal ? 180000 : 45000,
-      900000,
+      options.forceLocal ? 420000 : 180000,
+      1500000,
     );
     if (!content.trim()) throw new Error('本地模型返回为空');
     return content.trim();

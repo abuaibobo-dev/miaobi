@@ -204,6 +204,7 @@ function xhrStream(
   onChunk: (text: string, xhr: XMLHttpRequest) => void,
   signal?: AbortSignal,
   idleTimeoutMs = 90000,
+  totalTimeoutMs = 300000,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -228,14 +229,29 @@ function xhrStream(
       const text = xhr.responseText.slice(cursor);
       cursor = xhr.responseText.length;
       armIdleTimer();
-      if (text) onChunk(text, xhr);
+      if (text) safeOnChunk(text, xhr);
     };
-    xhr.onload = () => {
+    const finish = () => {
       if (idleTimer) clearTimeout(idleTimer);
       signal?.removeEventListener('abort', abort);
+    };
+
+    const safeOnChunk = (text: string, eventTarget: XMLHttpRequest) => {
+      try {
+        onChunk(text, eventTarget);
+      } catch (error) {
+        finish();
+        eventTarget.abort();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+
+    xhr.onload = () => {
+      finish();
       if (xhr.status >= 200 && xhr.status < 300) {
         const tail = xhr.responseText.slice(cursor);
-        if (tail) onChunk(tail, xhr);
+        if (tail && !signal?.aborted) safeOnChunk(tail, xhr);
+        if (signal?.aborted) return resolve();
         resolve();
       } else {
         let message = xhr.responseText || `HTTP ${xhr.status}`;
@@ -244,19 +260,20 @@ function xhrStream(
       }
     };
     xhr.onerror = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      signal?.removeEventListener('abort', abort);
+      finish();
       reject(new Error('网络连接失败'));
     };
     xhr.onabort = () => {
-      if (idleTimer) clearTimeout(idleTimer);
-      signal?.removeEventListener('abort', abort);
+      finish();
       if (stoppedByUser) resolve();
       else reject(new Error('本地模型响应超时'));
     };
-    xhr.timeout = 300000;
+    xhr.timeout = totalTimeoutMs;
     armIdleTimer();
-    xhr.ontimeout = () => reject(new Error('请求超时'));
+    xhr.ontimeout = () => {
+      finish();
+      reject(new Error('请求超时'));
+    };
     xhr.send(JSON.stringify(body));
   });
 }
@@ -278,14 +295,15 @@ async function streamOllama(
   options.signal?.addEventListener('abort', forwardAbort);
 
   try {
-    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
+    let content = '';
+    let buffer = '';
+    await xhrStream(
+      `${OLLAMA_BASE}/api/chat`,
+      { 'Content-Type': 'application/json' },
+      {
         model,
         messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
-        stream: false,
+        stream: true,
         keep_alive: '10m',
         ...(/qwen3|deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
         options: {
@@ -294,20 +312,35 @@ async function streamOllama(
           num_ctx: maxTokens <= 256 ? 512 : maxTokens > 1200 ? 2048 : 1024,
           num_batch: maxTokens <= 256 ? 32 : 128,
         },
-      }),
-    });
-
-    const data = await res.json().catch(() => null as any);
-    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-    if (data?.error) throw new Error(String(data.error));
-
-    const reasoning = String(data?.message?.thinking || data?.message?.reasoning || '');
-    if (reasoning) callbacks.onThinking?.(reasoning);
-
-    const content = String(data?.message?.content || '').trim();
-    if (!content) throw new Error('本地模型返回为空');
-    callbacks.onContent?.(content);
-    return content;
+      },
+      chunk => {
+        buffer += chunk.replace(/\r/g, '');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let data: any;
+          try {
+            data = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (data.error) throw new Error(String(data.error));
+          const reasoning = String(data.message?.thinking || data.message?.reasoning || '');
+          if (reasoning) callbacks.onThinking?.(reasoning);
+          const delta = String(data.message?.content || '');
+          if (delta) {
+            content += delta;
+            callbacks.onContent?.(delta);
+          }
+        }
+      },
+      controller.signal,
+      options.forceLocal ? 180000 : 45000,
+      900000,
+    );
+    if (!content.trim()) throw new Error('本地模型返回为空');
+    return content.trim();
   } finally {
     clearTimeout(timer);
     options.signal?.removeEventListener('abort', forwardAbort);

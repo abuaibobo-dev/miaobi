@@ -50,6 +50,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const [localTestModel, setLocalTestModel] = useState<string | null>(null);
   const [localTestResult, setLocalTestResult] = useState<Record<string, string>>({});
   const [fastModelDownloading, setFastModelDownloading] = useState(false);
+  const [fastDownloadModel, setFastDownloadModel] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then(setSettings);
@@ -181,14 +182,14 @@ export default function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const handleDownloadFastModel = async () => {
+  const handleDownloadFastModel = async (targetModel: string) => {
     if (Platform.OS !== 'android' || fastModelDownloading) return;
     try {
       const permission = await PermissionsAndroid.request(
         'com.termux.permission.RUN_COMMAND' as any,
         {
           title: '允许妙笔下载模型',
-          message: '需要通过 Termux 后台下载 gemma3:1b。',
+          message: `需要通过 Termux 后台下载 ${targetModel}。`,
           buttonPositive: '允许',
         },
       );
@@ -197,15 +198,16 @@ export default function SettingsScreen({ navigation }: Props) {
         return;
       }
       setFastModelDownloading(true);
+      setFastDownloadModel(targetModel);
       setToast('已发送下载指令');
       await runTermuxCommand('/data/data/com.termux/files/usr/bin/bash', [
         '-lc',
-        'ollama pull gemma3:1b',
+        `ollama pull ${targetModel}`,
       ]);
       for (let i = 0; i < 150; i++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         const models = await getOllamaModels(true);
-        if (models.some(model => model === 'gemma3:1b' || model.startsWith('gemma3:1b:'))) {
+        if (models.some(model => model === targetModel || model.startsWith(`${targetModel}:`))) {
           setToast('快速模型已就绪');
           break;
         }
@@ -214,6 +216,7 @@ export default function SettingsScreen({ navigation }: Props) {
       setToast('下载失败：' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setFastModelDownloading(false);
+      setFastDownloadModel(null);
     }
   };
 
@@ -260,15 +263,27 @@ export default function SettingsScreen({ navigation }: Props) {
             )}
           </View>
         )}
-        {ollamaAvailable && !ollamaModels.some(model => model === 'gemma3:1b' || model.startsWith('gemma3:1b:')) && (
+        {ollamaAvailable && !ollamaModels.some(model => model === 'qwen3:0.6b' || model.startsWith('qwen3:0.6b:')) && (
           <TouchableOpacity
             style={[s.launchBtn, fastModelDownloading && { opacity: 0.6 }]}
-            onPress={handleDownloadFastModel}
+            onPress={() => handleDownloadFastModel('qwen3:0.6b')}
             disabled={fastModelDownloading}
             activeOpacity={0.7}
           >
             <Text style={s.launchBtnText}>
-              {fastModelDownloading ? '正在下载 gemma3:1b...' : '⚡ 一键下载更快模型'}
+              {fastModelDownloading && fastDownloadModel === 'qwen3:0.6b' ? '正在下载极速模型...' : '⚡ 一键下载极速模型'}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {ollamaAvailable && !ollamaModels.some(model => model === 'gemma3:1b' || model.startsWith('gemma3:1b:')) && (
+          <TouchableOpacity
+            style={[s.launchBtn, fastModelDownloading && { opacity: 0.6 }]}
+            onPress={() => handleDownloadFastModel('gemma3:1b')}
+            disabled={fastModelDownloading}
+            activeOpacity={0.7}
+          >
+            <Text style={s.launchBtnText}>
+              {fastModelDownloading && fastDownloadModel === 'gemma3:1b' ? '正在下载写作模型...' : '📚 一键下载写作模型'}
             </Text>
           </TouchableOpacity>
         )}

@@ -30,13 +30,14 @@ type Intent = NonNullable<StreamOptions['intent']>;
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
 const LOCAL_TEXT_MODEL = 'gemma3:1b';
 const FALLBACK_TEXT_MODEL = 'qwen2.5:1.5b';
-const SUPPORTED_TEXT_MODELS = [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL];
+const FAST_TEXT_MODEL = 'qwen3:0.6b';
+const SUPPORTED_TEXT_MODELS = [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL, FAST_TEXT_MODEL];
 const PREFERRED_MODELS: Record<Intent, string[]> = {
   writing: [LOCAL_TEXT_MODEL],
   adult: [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
   vision: ['moondream', 'llava'],
   image: ['moondream', 'llava'],
-  chat: [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
+  chat: [FAST_TEXT_MODEL, LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
 };
 
 function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {

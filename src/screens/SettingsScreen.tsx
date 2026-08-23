@@ -49,6 +49,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const [ollamaChecking, setOllamaChecking] = useState(false);
   const [localTestModel, setLocalTestModel] = useState<string | null>(null);
   const [localTestResult, setLocalTestResult] = useState<Record<string, string>>({});
+  const [fastModelDownloading, setFastModelDownloading] = useState(false);
 
   useEffect(() => {
     getSettings().then(setSettings);
@@ -180,6 +181,42 @@ export default function SettingsScreen({ navigation }: Props) {
     }
   };
 
+  const handleDownloadFastModel = async () => {
+    if (Platform.OS !== 'android' || fastModelDownloading) return;
+    try {
+      const permission = await PermissionsAndroid.request(
+        'com.termux.permission.RUN_COMMAND' as any,
+        {
+          title: '允许妙笔下载模型',
+          message: '需要通过 Termux 后台下载 gemma3:1b。',
+          buttonPositive: '允许',
+        },
+      );
+      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
+        setToast('未授予 Termux 命令权限');
+        return;
+      }
+      setFastModelDownloading(true);
+      setToast('已发送下载指令');
+      await runTermuxCommand('/data/data/com.termux/files/usr/bin/bash', [
+        '-lc',
+        'ollama pull gemma3:1b',
+      ]);
+      for (let i = 0; i < 150; i++) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const models = await getOllamaModels(true);
+        if (models.some(model => model === 'gemma3:1b' || model.startsWith('gemma3:1b:'))) {
+          setToast('快速模型已就绪');
+          break;
+        }
+      }
+    } catch (error) {
+      setToast('下载失败：' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setFastModelDownloading(false);
+    }
+  };
+
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       <View style={s.header}>
@@ -222,6 +259,18 @@ export default function SettingsScreen({ navigation }: Props) {
               ))
             )}
           </View>
+        )}
+        {ollamaAvailable && !ollamaModels.some(model => model === 'gemma3:1b' || model.startsWith('gemma3:1b:')) && (
+          <TouchableOpacity
+            style={[s.launchBtn, fastModelDownloading && { opacity: 0.6 }]}
+            onPress={handleDownloadFastModel}
+            disabled={fastModelDownloading}
+            activeOpacity={0.7}
+          >
+            <Text style={s.launchBtnText}>
+              {fastModelDownloading ? '正在下载 gemma3:1b...' : '⚡ 一键下载更快模型'}
+            </Text>
+          </TouchableOpacity>
         )}
         <Text style={s.label}>自定义提示词 / 创作偏好</Text>
         <TextInput

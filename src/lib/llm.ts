@@ -38,7 +38,7 @@ const PREFERRED_MODELS: Record<Intent, string[]> = {
   adult: [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
   vision: ['moondream', 'llava'],
   image: ['moondream', 'llava'],
-  chat: [FALLBACK_TEXT_MODEL, FAST_TEXT_MODEL],
+  chat: [FAST_TEXT_MODEL, FALLBACK_TEXT_MODEL],
 };
 
 function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
@@ -206,6 +206,37 @@ export async function getModelChoices(intent: Intent = 'chat'): Promise<ModelCho
   return choices;
 }
 
+export async function warmUpLocalModel(intent: Intent = 'chat', modelOverride?: string): Promise<boolean> {
+  const local = await getOllamaStatus();
+  if (!local.available) return false;
+  const selected = modelOverride && local.models.some(item => item.name === modelOverride && isSelectableTextModel(item))
+    ? modelOverride
+    : selectOllamaModel(intent, local.models);
+  if (!selected) return false;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  try {
+    const response = await fetch(`${OLLAMA_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: selected,
+        prompt: '',
+        stream: false,
+        keep_alive: '30m',
+        options: { num_predict: 1, num_ctx: 512, num_thread: 2 },
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function getActiveModelInfo(intent: Intent = 'chat'): Promise<{ provider: 'local' | 'deepseek'; label: string } | null> {
   const local = await getOllamaStatus();
   const localModel = selectOllamaModel(intent, local.models);
@@ -324,7 +355,7 @@ async function streamOllama(
         model,
         messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
         stream: false,
-        keep_alive: '10m',
+        keep_alive: '30m',
         ...(/deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
         options: {
           temperature,

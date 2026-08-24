@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { getChatHistory, appendChatMessage, clearChatHistory, getNovels } from '../lib/storage';
 import { buildSystemPrompt, processPostWrite, addChapter } from '../lib/novelMemory';
-import { streamChatCompletion, chatCompletion, getActiveModelInfo, detectIntent, type LLMMessage } from '../lib/llm';
+import { streamChatCompletion, chatCompletion, getActiveModelInfo, detectIntent, warmUpLocalModel, type LLMMessage } from '../lib/llm';
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
@@ -131,14 +131,21 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   } : {};
 
   const refreshModel = useCallback(async () => {
+    const selectedChoice = modelChoice;
     const options = await getModelChoices('writing');
     setModelOptions(options);
-    if (modelChoice) {
-      setModelLabel(modelChoice.label);
+    if (selectedChoice) {
+      setModelLabel(selectedChoice.label);
       return;
     }
     const info = await getActiveModelInfo(mode);
     setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
+    if (info?.provider === 'local') {
+      const target = info.label;
+      setModelLabel(`本地 · ${target} · 预热中`);
+      const warmed = await warmUpLocalModel(mode, target);
+      setModelLabel(`本地 · ${target}${warmed ? ' · 已就绪' : ''}`);
+    }
   }, [mode, modelChoice]);
 
   useEffect(() => {
@@ -499,6 +506,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
           setModelChoice(option);
           setModelLabel(option.label);
           setShowModelPicker(false);
+          if (option.model) void warmUpLocalModel('writing', option.model);
         }}
       />
 

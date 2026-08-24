@@ -6,7 +6,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getChatHistory, appendChatMessage, clearChatHistory } from '../lib/storage';
-import { streamChatCompletion, getActiveModelInfo, detectIntent, type LLMMessage } from '../lib/llm';
+import { streamChatCompletion, getActiveModelInfo, detectIntent, warmUpLocalModel, type LLMMessage } from '../lib/llm';
 import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimatePrompt';
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
@@ -69,14 +69,21 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   };
 
   const refreshModel = useCallback(async () => {
+    const selectedChoice = modelChoice;
     const options = await getModelChoices('chat');
     setModelOptions(options);
-    if (modelChoice) {
-      setModelLabel(modelChoice.label);
+    if (selectedChoice) {
+      setModelLabel(selectedChoice.label);
       return;
     }
     const info = await getActiveModelInfo('chat');
     setModelLabel(info ? (info.provider === 'local' ? `本地 · ${info.label}` : `云端 · ${info.label}`) : '未连接');
+    if (info?.provider === 'local') {
+      const target = info.label;
+      setModelLabel(`本地 · ${target} · 预热中`);
+      const warmed = await warmUpLocalModel('chat', target);
+      setModelLabel(`本地 · ${target}${warmed ? ' · 已就绪' : ''}`);
+    }
   }, [modelChoice]);
 
   useEffect(() => {
@@ -142,9 +149,9 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     try {
       const intent = detectIntent(cleanText, attachments.length > 0);
       const sensitive = intent === 'adult' || shouldUseLocalModel(cleanText);
-      const history: LLMMessage[] = messages.slice(-8).map(item => ({
+      const history: LLMMessage[] = messages.slice(-4).map(item => ({
         role: item.role === 'assistant' ? 'assistant' : 'user',
-        content: item.content.slice(0, 800),
+        content: item.content.slice(0, 360),
       }));
       const system = sensitive
         ? `${INTIMATE_SYSTEM_PROMPT}\n\n直接输出正文；亲密画面使用淡出处理。`
@@ -333,6 +340,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
           setModelChoice(option);
           setModelLabel(option.label);
           setShowModelPicker(false);
+          if (option.model) void warmUpLocalModel('chat', option.model);
         }}
       />
 

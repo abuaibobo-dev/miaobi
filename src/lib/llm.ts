@@ -311,20 +311,19 @@ async function streamOllama(
 ): Promise<string> {
   callbacks.onProvider?.(`本地 · ${model}`);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 600000);
+  const timer = setTimeout(() => controller.abort(), options.forceLocal ? 420000 : 300000);
   const forwardAbort = () => controller.abort();
   options.signal?.addEventListener('abort', forwardAbort);
 
   try {
-    let content = '';
-    let buffer = '';
-    await xhrStream(
-      `${OLLAMA_BASE}/api/chat`,
-      { 'Content-Type': 'application/json' },
-      {
+    const response = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
         model,
         messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
-        stream: true,
+        stream: false,
         keep_alive: '10m',
         ...(/deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
         options: {
@@ -334,33 +333,19 @@ async function streamOllama(
           num_thread: 2,
           num_batch: maxTokens <= 256 ? 32 : 128,
         },
-      },
-      chunk => {
-        buffer += chunk.replace(/\r/g, '');
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let data: any;
-          try {
-            data = JSON.parse(line);
-          } catch {
-            continue;
-          }
-          if (data.error) throw new Error(String(data.error));
-          const reasoning = String(data.message?.thinking || data.message?.reasoning || '');
-          if (reasoning) callbacks.onThinking?.(reasoning);
-          const delta = String(data.message?.content || '');
-          if (delta) {
-            content += delta;
-            callbacks.onContent?.(delta);
-          }
-        }
-      },
-      controller.signal,
-      options.forceLocal ? 420000 : 180000,
-      1500000,
-    );
+      }),
+    });
+
+    const data = await response.json().catch(() => null as any);
+    if (!response.ok) {
+      throw new Error(String(data?.error || `HTTP ${response.status}`));
+    }
+
+    const reasoning = String(data?.message?.thinking || data?.message?.reasoning || '');
+    if (reasoning) callbacks.onThinking?.(reasoning);
+
+    const content = String(data?.message?.content || '');
+    if (content) callbacks.onContent?.(content);
     if (!content.trim()) throw new Error('本地模型返回为空');
     return content.trim();
   } finally {

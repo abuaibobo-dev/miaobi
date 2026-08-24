@@ -11,6 +11,7 @@ import { shouldUseLocalModel, INTIMATE_SYSTEM_PROMPT } from '../lib/intimateProm
 import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { GenerationDots, StreamCursor, ThinkingPanel } from '../components/ChatIndicators';
+import ModelPicker from '../components/ModelPicker';
 import { getModelChoices, type ModelChoice } from '../lib/llm';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
@@ -41,6 +42,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const [streamThinking, setStreamThinking] = useState('');
   const [attachments, setAttachments] = useState<Array<{ uri: string; base64: string }>>([]);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -49,7 +51,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
   const nearBottomRef = useRef(true);
   const userScrollingRef = useRef(false);
 
-  const requestOverrides = (sensitive: boolean) => modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
+  const requestOverrides = () => modelChoice && modelChoice.id !== 'auto' ? {
     providerOverride: modelChoice.provider,
     ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
   } : {};
@@ -85,13 +87,6 @@ export default function FreeChatScreen({ navigation, route }: Props) {
     return () => clearInterval(timer);
   }, [loading]);
 
-  const cycleModel = useCallback(() => {
-    if (!modelOptions.length || loading) return;
-    const currentIndex = Math.max(0, modelOptions.findIndex(item => item.id === (modelChoice?.id || 'auto')));
-    const next = modelOptions[(currentIndex + 1) % modelOptions.length];
-    setModelChoice(next);
-    setModelLabel(next.label);
-  }, [loading, modelChoice, modelOptions]);
 
   useEffect(() => {
     getChatHistory(channel).then(setMessages);
@@ -158,11 +153,8 @@ export default function FreeChatScreen({ navigation, route }: Props) {
         [{ role: 'system', content: system }, ...history, { role: 'user', content: cleanText }],
         {
           intent,
-          forceLocal: sensitive,
-          images: attachments.map(item => item.base64),          ...(modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
-            providerOverride: modelChoice.provider,
-            ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
-          } : {}),
+          forceLocal: false,
+          images: attachments.map(item => item.base64),          ...requestOverrides(),
           signal: controller.signal,
           onProvider: value => {
             provider = value;
@@ -311,7 +303,7 @@ export default function FreeChatScreen({ navigation, route }: Props) {
             />
             <View style={styles.inputFooter}>
               <View style={styles.actionGroup}>
-                <TouchableOpacity style={styles.modelPill} onPress={cycleModel} disabled={loading} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.modelPill} onPress={() => setShowModelPicker(true)} disabled={loading} activeOpacity={0.8}>
                   <Icon.test size={9} color={T.textMuted} />
                   <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || modelOptions[0]?.label || '智能优先'}</Text>
                 </TouchableOpacity>
@@ -332,6 +324,17 @@ export default function FreeChatScreen({ navigation, route }: Props) {
           </View>
         </View>
       </View>
+
+      <ModelPicker
+        visible={showModelPicker}
+        selectedId={modelChoice?.id ?? 'auto'}
+        onClose={() => setShowModelPicker(false)}
+        onSelect={(option) => {
+          setModelChoice(option);
+          setModelLabel(option.label);
+          setShowModelPicker(false);
+        }}
+      />
 
       <CapsuleAlert visible={clearConfirm} title="清空对话" message="将删除这个自由对话频道的记录。" danger confirmText="清空" onCancel={() => setClearConfirm(false)} onConfirm={async () => { await clearChatHistory(channel); setMessages([]); setClearConfirm(false); }} />
     </KeyboardAvoidingView>

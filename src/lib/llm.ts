@@ -29,15 +29,16 @@ type Intent = NonNullable<StreamOptions['intent']>;
 
 const OLLAMA_BASE = 'http://127.0.0.1:11434';
 const LOCAL_TEXT_MODEL = 'gemma3:1b';
-const FALLBACK_TEXT_MODEL = 'qwen2.5:1.5b';
-const FAST_TEXT_MODEL = 'qwen3:0.6b';
-const SUPPORTED_TEXT_MODELS = [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL, FAST_TEXT_MODEL];
+const FALLBACK_TEXT_MODEL = 'llama3.2:1b-instruct-q3_K_M';
+const FAST_TEXT_MODEL = 'gemma3:1b';
+const MAX_LOCAL_TEXT_MODEL_BYTES = 1024 ** 3;
+const EXCLUDED_LOCAL_TEXT_MODEL = /(qwen|embed|embedding|nomic|moondream|llava|vision)/i;
 const PREFERRED_MODELS: Record<Intent, string[]> = {
   writing: [LOCAL_TEXT_MODEL],
   adult: [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
   vision: ['moondream', 'llava'],
   image: ['moondream', 'llava'],
-  chat: [FAST_TEXT_MODEL, LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
+  chat: [FALLBACK_TEXT_MODEL, FAST_TEXT_MODEL],
 };
 
 function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
@@ -66,9 +67,18 @@ export function isAdultIntent(intent: Intent): boolean {
   return intent === 'adult';
 }
 
+interface OllamaModel {
+  name: string;
+  size: number;
+}
+
 interface OllamaStatus {
   available: boolean;
-  models: string[];
+  models: OllamaModel[];
+}
+
+function isSelectableTextModel(item: OllamaModel): boolean {
+  return item.size <= MAX_LOCAL_TEXT_MODEL_BYTES && !EXCLUDED_LOCAL_TEXT_MODEL.test(item.name);
 }
 
 let ollamaStatusCache: { at: number; value: OllamaStatus } | null = null;
@@ -81,11 +91,10 @@ async function requestOllamaStatus(): Promise<OllamaStatus> {
     if (!res.ok) return { available: false, models: [] };
     const data = await res.json();
     const models = Array.isArray(data.models)
-      ? data.models
-          .map((item: any) => String(item.name))
-          .filter((name: string) => SUPPORTED_TEXT_MODELS.some(model =>
-            name === model || name.startsWith(`${model}:`)
-          ))
+      ? data.models.map((item: any) => ({
+          name: String(item.name),
+          size: Number(item.size) || 0,
+        }))
       : [];
     return { available: true, models };
   } catch {
@@ -110,17 +119,24 @@ export async function checkOllamaAvailable(force = false): Promise<boolean> {
 }
 
 export async function getOllamaModels(force = false): Promise<string[]> {
-  return (await getOllamaStatus(force)).models;
+  return (await getOllamaStatus(force)).models
+    .filter(isSelectableTextModel)
+    .map(item => item.name);
 }
 
-function selectOllamaModel(intent: Intent, installed: string[]): string | null {
+function selectOllamaModel(intent: Intent, installedModels: OllamaModel[]): string | null {
+  const installed = installedModels.filter(isSelectableTextModel);
   if (!installed.length) return null;
   for (const preferred of PREFERRED_MODELS[intent]) {
-    const match = installed.find(item => item === preferred || item.startsWith(`${preferred}:`));
-    if (match) return match;
+    const match = installed.find(item => (
+      item.name === preferred ||
+      item.name.startsWith(`${preferred}:`) ||
+      item.name.startsWith(`${preferred}-`)
+    ));
+    if (match) return match.name;
   }
   if (intent === 'vision') return null;
-  return installed.find(item => !/embed|moondream|llava/i.test(item)) || installed[0];
+  return installed[0].name;
 }
 
 export async function testOllamaModel(model: string): Promise<{ ok: boolean; latency: number; response?: string; error?: string }> {
@@ -178,10 +194,8 @@ export async function getModelChoices(intent: Intent = 'chat'): Promise<ModelCho
   ]);
   const choices: ModelChoice[] = [{ id: 'auto', label: '智能优先', provider: 'local' }];
   local.models
-    .filter(model => SUPPORTED_TEXT_MODELS.some(candidate =>
-      model === candidate || model.startsWith(`${candidate}:`)
-    ))
-    .forEach(model => choices.push({ id: `local:${model}`, label: `本地 · ${model}`, provider: 'local', model }));
+    .filter(isSelectableTextModel)
+    .forEach(item => choices.push({ id: `local:${item.name}`, label: `本地 · ${item.name}`, provider: 'local', model: item.name }));
   if (settings.apiKey && intent !== 'vision') {
     const models = Array.from(new Set([
       settings.model || 'deepseek-chat',
@@ -312,7 +326,7 @@ async function streamOllama(
         messages: images?.length ? [{ ...messages[0], images }, ...messages.slice(1)] : messages,
         stream: true,
         keep_alive: '10m',
-        ...(/qwen3|deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
+        ...(/deepseek-r1/i.test(model) ? { think: allowThinking } : {}),
         options: {
           temperature,
           num_predict: maxTokens,
@@ -446,7 +460,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   if (local.available) {
     let model = selectOllamaModel(intent, local.models);
     if (options.providerOverride === 'local' && options.modelOverride) {
-      model = local.models.includes(options.modelOverride) ? options.modelOverride : null;
+      model = local.models.some(item => item.name === options.modelOverride && isSelectableTextModel(item)) ? options.modelOverride : null;
       if (!model) return { content: '', error: `本地模型 ${options.modelOverride} 未安装或不可用。`, provider: `local:${options.modelOverride}` };
     }
     if (model) {

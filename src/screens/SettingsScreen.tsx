@@ -263,15 +263,15 @@ export default function SettingsScreen({ navigation }: Props) {
             )}
           </View>
         )}
-        {ollamaAvailable && !ollamaModels.some(model => model === 'qwen3:0.6b' || model.startsWith('qwen3:0.6b:')) && (
+        {ollamaAvailable && !ollamaModels.some(model => model === 'llama3.2:1b-instruct-q3_K_M' || model.startsWith('llama3.2:1b-instruct-q3_K_M:')) && (
           <TouchableOpacity
             style={[s.launchBtn, fastModelDownloading && { opacity: 0.6 }]}
-            onPress={() => handleDownloadFastModel('qwen3:0.6b')}
+            onPress={() => handleDownloadFastModel('llama3.2:1b-instruct-q3_K_M')}
             disabled={fastModelDownloading}
             activeOpacity={0.7}
           >
             <Text style={s.launchBtnText}>
-              {fastModelDownloading && fastDownloadModel === 'qwen3:0.6b' ? '正在下载极速模型...' : '⚡ 一键下载极速模型'}
+              {fastModelDownloading && fastDownloadModel === 'llama3.2:1b-instruct-q3_K_M' ? '正在下载极速模型...' : '⚡ 一键下载本地模型'}
             </Text>
           </TouchableOpacity>
         )}
@@ -336,7 +336,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </Section>
 
       <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.14</Text>
+        <Text style={s.footerText}>妙笔 v1.9.15</Text>
         <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
       </View>
 

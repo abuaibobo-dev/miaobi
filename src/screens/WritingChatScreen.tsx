@@ -11,6 +11,7 @@ import { parseThinking } from '../lib/thinkingParser';
 import CapsuleAlert from '../components/CapsuleAlert';
 import { getModelChoices, type ModelChoice } from '../lib/llm';
 import { GenerationDots, StreamCursor, ThinkingPanel } from '../components/ChatIndicators';
+import ModelPicker from '../components/ModelPicker';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import type { ChatMessage } from '../types/novel';
@@ -114,6 +115,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   const [showCountModal, setShowCountModal] = useState(false);
   const [chapterCountInput, setChapterCountInput] = useState('1');
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
@@ -123,7 +125,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
   const nearBottomRef = useRef(true);
   const userScrollingRef = useRef(false);
 
-  const requestOverrides = (sensitive: boolean) => modelChoice && modelChoice.id !== 'auto' && !sensitive ? {
+  const requestOverrides = () => modelChoice && modelChoice.id !== 'auto' ? {
     providerOverride: modelChoice.provider,
     ...(modelChoice.model ? { modelOverride: modelChoice.model } : {}),
   } : {};
@@ -147,13 +149,6 @@ export default function WritingChatScreen({ navigation, route }: Props) {
     return () => clearInterval(timer);
   }, [loading]);
 
-  const cycleModel = useCallback(() => {
-    if (!modelOptions.length || loading) return;
-    const currentIndex = Math.max(0, modelOptions.findIndex(item => item.id === (modelChoice?.id || 'auto')));
-    const next = modelOptions[(currentIndex + 1) % modelOptions.length];
-    setModelChoice(next);
-    setModelLabel(next.label);
-  }, [loading, modelChoice, modelOptions]);
 
   useEffect(() => {
     getChatHistory(novelId).then(history => setMessages(history));
@@ -225,7 +220,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       const response = await streamChatCompletion(apiMessages, {
         intent,
         forceLocal: false,
-        ...requestOverrides(sensitive),
+        ...requestOverrides(),
         signal: controller.signal,
         onProvider: provider => {
           activeProvider = provider;
@@ -365,7 +360,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       const count = Math.min(Math.max(parseInt(chapterCountInput, 10) || 1, 1), 50);
       const prompt = `从第 ${totalChapters + 1} 章开始，连续生成 ${count} 个章节大纲。每章包含：标题、核心事件、角色变化、冲突转折、下一章钩子。不要重复旧剧情，不要输出正文。`;
       const apiMessages = await buildApiMessages(prompt);
-      const response = await chatCompletion(apiMessages, { intent: 'writing', ...requestOverrides(false) });
+      const response = await chatCompletion(apiMessages, { intent: 'writing', ...requestOverrides() });
       if (response.error) throw new Error(response.error);
       setPendingOutline(response.content.trim() || '大纲为空，请重试。');
       setOutlineModal(true);
@@ -476,7 +471,7 @@ export default function WritingChatScreen({ navigation, route }: Props) {
             />
             <View style={styles.inputFooter}>
               <View style={styles.actionGroup}>
-                <TouchableOpacity style={styles.modelPill} onPress={cycleModel} disabled={loading} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.modelPill} onPress={() => setShowModelPicker(true)} disabled={loading} activeOpacity={0.8}>
                   <Icon.test size={9} color={T.textMuted} />
                   <Text style={styles.modelPillText} numberOfLines={1}>{modelChoice?.label || modelOptions[0]?.label || '智能优先'}</Text>
                 </TouchableOpacity>
@@ -496,6 +491,17 @@ export default function WritingChatScreen({ navigation, route }: Props) {
       </View>
 
       <CapsuleAlert visible={outlineModal} title="章节大纲" message={pendingOutline} confirmText="开始写作" onCancel={() => setOutlineModal(false)} onConfirm={confirmOutline} />
+      <ModelPicker
+        visible={showModelPicker}
+        selectedId={modelChoice?.id ?? 'auto'}
+        onClose={() => setShowModelPicker(false)}
+        onSelect={(option) => {
+          setModelChoice(option);
+          setModelLabel(option.label);
+          setShowModelPicker(false);
+        }}
+      />
+
       <CapsuleAlert visible={clearConfirm} title="清空对话" message="将删除本书的全部聊天记录。" danger confirmText="清空" onCancel={() => setClearConfirm(false)} onConfirm={async () => { await clearChatHistory(novelId); setMessages([]); setClearConfirm(false); }} />
 
       <CapsuleAlert visible={showCountModal} title="连续大纲章数" message="建议一次生成 5–10 章，小模型更稳定。" cancelText="取消" confirmText="生成" onCancel={() => setShowCountModal(false)} onConfirm={generateOutline}>

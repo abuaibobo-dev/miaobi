@@ -2,7 +2,7 @@
   "expo": {
     "name": "妙笔",
     "slug": "miaobi",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -19,7 +19,28 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.miaobi.app",
-      "softwareKeyboardLayoutMode": "resize"
+      "softwareKeyboardLayoutMode": "resize",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            { "scheme": "content", "host": "*", "mimeType": "text/plain" },
+            { "scheme": "content", "host": "*", "mimeType": "application/json" },
+            { "scheme": "content", "host": "*", "mimeType": "text/csv" },
+            { "scheme": "content", "host": "*", "mimeType": "application/epub+zip" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            { "scheme": "file", "host": "*", "mimeType": "*/*", "pathPattern": ".*\\.(txt|csv|json|epub)" }
+          ],
+          "category": ["DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

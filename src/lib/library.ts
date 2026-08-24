@@ -203,6 +203,71 @@ export async function importLocalBook(): Promise<{ ok: boolean; message: string 
   return { ok: true, message: '导入成功，已加入书架' };
 }
 
+export async function importExternalFile(uri: string, fileName?: string): Promise<{ ok: boolean; bookId?: string; message: string }> {
+  const file = new File(uri);
+  if (!file.exists) return { ok: false, message: '无法读取外部文件' };
+  const lower = (fileName || uri).toLowerCase();
+
+  if (lower.endsWith('.epub')) {
+    const result = await importEpubFile(file, fileName || '导入作品.epub');
+    if (!result.ok) return result;
+    const list = await getLibrary();
+    return { ok: true, bookId: list[0]?.id, message: result.message };
+  }
+
+  if (lower.endsWith('.json')) {
+    const content = await file.text();
+    const data = JSON.parse(content);
+    const books = data.books || data;
+    if (!Array.isArray(books)) return { ok: false, message: 'JSON 书单格式无效' };
+    const list = await getLibrary();
+    let count = 0;
+    for (const entry of books.slice(0, 100)) {
+      if (!entry?.title) continue;
+      list.unshift({
+        ...entry,
+        id: `local:${Date.now()}_${count}`,
+        source: 'local',
+        sourceLabel: '外部导入书单',
+        category: entry.category || 'book',
+        authors: entry.authors || [],
+        savedAt: new Date().toISOString(),
+        status: 'want',
+        progress: 0,
+        locallyReadable: Boolean(entry.content),
+      });
+      if (entry.content) list[0].localUri = await writeLocalText(`external_${Date.now()}_${count}`, entry.title, String(entry.content));
+      count++;
+    }
+    await saveLibrary(list);
+    return { ok: true, message: `已导入 ${count} 条书单` };
+  }
+
+  const id = `local:${Date.now()}`;
+  const title = decodeURIComponent(fileName || '外部导入.txt').replace(/^file:\/\/\//, '').split('/').pop() || '外部导入';
+  const cleanTitle = title.replace(/\.(txt|csv)$/i, '');
+  const content = await file.text();
+  const localUri = await writeLocalText(id, cleanTitle, content);
+  const list = await getLibrary();
+  list.unshift({
+    id,
+    source: 'local',
+    sourceLabel: lower.endsWith('.csv') ? 'CSV 书单' : '外部文本',
+    category: lower.includes('报纸') ? 'newspaper' : lower.includes('杂志') ? 'magazine' : 'book',
+    title: cleanTitle,
+    authors: [],
+    description: content.slice(0, 180),
+    savedAt: new Date().toISOString(),
+    status: 'reading',
+    progress: 0,
+    locallyReadable: true,
+    localUri,
+    importedAt: new Date().toISOString(),
+  });
+  await saveLibrary(list);
+  return { ok: true, bookId: id, message: '导入成功' };
+}
+
 async function importEpubFile(file: File, filename: string): Promise<{ ok: boolean; message: string }> {
   try {
     const bytes = await file.bytes();

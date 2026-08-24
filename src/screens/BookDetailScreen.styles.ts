@@ -1,0 +1,37 @@
+import { StyleSheet, StatusBar } from 'react-native';
+import { T } from '../lib/theme';
+
+export default StyleSheet.create({
+  screen: { flex: 1, backgroundColor: T.bg },
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingTop: (StatusBar.currentHeight || 44) + 4, paddingBottom: 10,
+    paddingHorizontal: 16, backgroundColor: T.bg, borderBottomWidth: 1, borderBottomColor: '#1F1F1F',
+  },
+  backButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.card, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
+  topLabel: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '700', color: T.text },
+  content: { padding: 18, paddingBottom: 40 },
+  hero: { flexDirection: 'row', gap: 16 },
+  cover: { width: 118, height: 164, borderRadius: 14, backgroundColor: '#222', borderWidth: 1, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  coverImage: { width: '100%', height: '100%' },
+  meta: { flex: 1, minWidth: 0 },
+  title: { color: T.text, fontSize: 21, lineHeight: 28, fontWeight: '900' },
+  authors: { marginTop: 7, color: T.textSec, fontSize: 13 },
+  badge: { alignSelf: 'flex-start', marginTop: 10, borderRadius: 10, backgroundColor: '#E7E7E7', paddingHorizontal: 9, height: 22, lineHeight: 22, fontSize: 11, fontWeight: '800', color: '#111', overflow: 'hidden' },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 },
+  tag: { borderRadius: 9, backgroundColor: T.surface, paddingHorizontal: 8, height: 20, lineHeight: 20, fontSize: 10, color: T.textMuted, overflow: 'hidden' },
+  sectionCard: { marginTop: 17, borderRadius: 17, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, padding: 15 },
+  subjectCard: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  sectionTitle: { color: T.text, fontSize: 14, fontWeight: '800' },
+  description: { marginTop: 8, color: '#BFBFBF', fontSize: 13, lineHeight: 21 },
+  subject: { borderRadius: 11, backgroundColor: '#222', paddingHorizontal: 10, height: 23, lineHeight: 23, fontSize: 11, color: T.textSec, overflow: 'hidden' },
+  primaryButton: { height: 48, marginTop: 24, borderRadius: 24, backgroundColor: '#EDEDED', alignItems: 'center', justifyContent: 'center' },
+  primaryText: { color: '#111', fontSize: 15, fontWeight: '900' },
+  secondaryButton: { height: 43, marginTop: 10, borderRadius: 22, backgroundColor: T.surface, borderWidth: 1, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center' },
+  secondaryText: { color: T.text, fontSize: 13, fontWeight: '700' },
+  buttonDisabled: { opacity: 0.55 },
+  notice: { marginTop: 12, textAlign: 'center', color: '#D6D6D6', fontSize: 12, lineHeight: 18 },
+  linksWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20 },
+  linkButton: { borderRadius: 17, backgroundColor: T.card, borderWidth: 1, borderColor: T.border, paddingHorizontal: 13, height: 34, justifyContent: 'center' },
+  linkText: { color: T.textSec, fontSize: 12 },
+});

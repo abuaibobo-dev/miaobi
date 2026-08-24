@@ -1,150 +1,117 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
-import { getChapters } from '../lib/storage';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator, ScrollView, StatusBar,
+  Text, TouchableOpacity, View,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
-import type { Chapter } from '../types/novel';
+import { findLibraryBook, readBookContent, splitChapters, updateLibraryBook } from '../lib/library';
 
 type Props = any;
 
 export default function ReaderScreen({ navigation, route }: Props) {
-  const novelId: string = route.params?.novelId;
-  const startChapter = route.params?.startChapter;
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [fontSize, setFontSize] = useState<number | null>(null);
-  const [showToolbar, setShowToolbar] = useState(true);
+  const bookId: string = route.params?.bookId;
+  const [chapters, setChapters] = useState<Array<{ title: string; body: string; index: number }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [current, setCurrent] = useState(0);
+  const [fontSize, setFontSize] = useState(18);
+  const [showChrome, setShowChrome] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     let mounted = true;
-    getChapters(novelId).then(list => {
-      if (!mounted) return;
-      const sorted = [...list].sort((a, b) => a.chapterNumber - b.chapterNumber);
-      setChapters(sorted);
-      if (startChapter) {
-        const index = sorted.findIndex(item => item.id === startChapter);
-        if (index >= 0) setCurrentIndex(index);
+    (async () => {
+      try {
+        const content = await readBookContent(bookId);
+        const parsed = splitChapters(content);
+        if (!mounted) return;
+        setChapters(parsed);
+        const saved = await findLibraryBook(bookId);
+        if (saved?.progress) setCurrent(Math.min(Math.round(saved.progress * parsed.length), parsed.length - 1));
+      } catch (e: any) {
+        if (mounted) setError(e.message || '无法加载内容');
+      } finally {
+        if (mounted) setLoading(false);
       }
-    });
+    })();
     return () => { mounted = false; };
-  }, [novelId, startChapter]);
+  }, [bookId]);
 
   useEffect(() => {
-    AsyncStorage.getItem('miaobi.reader.fontSize')
-      .then(value => {
-        const size = Number(value);
-        if (Number.isFinite(size) && size >= 14 && size <= 26) setFontSize(size);
-      })
-      .catch(() => {});
+    AsyncStorage.getItem('miaobi.reader.fontSize').then(value => {
+      const size = Number(value);
+      if (size >= 14 && size <= 28) setFontSize(size);
+    });
   }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [currentIndex]);
+    if (chapters.length) updateLibraryBook(bookId, { progress: (current + 1) / chapters.length });
+  }, [current, chapters.length]);
 
-  const changeFontSize = () => {
-    setFontSize(previous => {
-      const sizes = [16, 18, 20, 22];
-      const next = sizes[(sizes.indexOf(previous || 18) + 1) % sizes.length];
-      AsyncStorage.setItem('miaobi.reader.fontSize', String(next)).catch(() => {});
-      return next;
-    });
+  const cycleFont = () => {
+    const sizes = [15, 17, 19, 22, 25];
+    const next = sizes[(sizes.indexOf(fontSize) + 1) % sizes.length];
+    setFontSize(next);
+    AsyncStorage.setItem('miaobi.reader.fontSize', String(next));
   };
 
-  const currentChapter = chapters[currentIndex];
-  const changeChapter = useCallback((direction: number) => {
-    setCurrentIndex(previous => Math.min(Math.max(previous + direction, 0), chapters.length - 1));
+  const jump = useCallback((direction: number) => {
+    setCurrent(prev => Math.max(0, Math.min(chapters.length - 1, prev + direction)));
   }, [chapters.length]);
 
-  if (!currentChapter) {
-    return (
-      <View style={styles.screen}>
-        <StatusBar barStyle="light-content" backgroundColor={T.bg} />
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
-            <Icon.back size={19} color={T.text} />
-          </TouchableOpacity>
-          <Text style={styles.topTitle}>阅读</Text>
-          <View style={{ width: 38 }} />
-        </View>
-        <View style={styles.empty}>
-          <Icon.book size={44} color="#333" />
-          <Text style={styles.emptyText}>还没有章节</Text>
-        </View>
-      </View>
-    );
-  }
+  if (loading) return (
+    <View style={s.center}><StatusBar barStyle="light-content" backgroundColor={T.bg} /><ActivityIndicator color="#E5E5E5" /></View>
+  );
 
-  return (
-    <View style={styles.screen}>
+  if (error || !chapters.length) return (
+    <View style={s.screen}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
-      {showToolbar && (
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconButton}>
-            <Icon.back size={19} color={T.text} />
-          </TouchableOpacity>
-          <View style={styles.titleWrap}>
-            <Text style={styles.topTitle} numberOfLines={1}>{currentChapter.title}</Text>
-            <Text style={styles.chapterCount}>{currentIndex + 1} / {chapters.length}</Text>
+      <View style={s.topBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconButton}><Icon.back size={19} color={T.text} /></TouchableOpacity>
+        <Text style={s.topTitle}>阅读</Text><View style={{ width: 37 }} />
+      </View>
+      <View style={s.center}><Icon.book size={40} color="#444" /><Text style={s.error}>{error || '没有内容'}</Text></View>
+    </View>
+  );
+
+  const chapter = chapters[current];
+  return (
+    <View style={s.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      {showChrome && (
+        <View style={s.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.iconButton}><Icon.back size={19} color={T.text} /></TouchableOpacity>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={s.topTitle} numberOfLines={1}>{chapter.title}</Text>
+            <Text style={s.pageInfo}>{current + 1} / {chapters.length}</Text>
           </View>
-          <TouchableOpacity style={styles.iconButton} onPress={changeFontSize}>
-            <Text style={styles.sizeButtonText}>Aa</Text>
-          </TouchableOpacity>
+          <TouchableOpacity onPress={cycleFont} style={s.iconButton}><Text style={s.fontLabel}>Aa</Text></TouchableOpacity>
         </View>
       )}
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.reader}
-        contentContainerStyle={styles.readerContent}
-      >
-        <TouchableOpacity activeOpacity={1} onPress={() => setShowToolbar(value => !value)}>
-          <Text style={styles.chapterTitle}>{currentChapter.title}</Text>
-          <Text style={[styles.content, { fontSize: fontSize ?? 18 }]}>{currentChapter.body || currentChapter.summary}</Text>
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={s.readerBody}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setShowChrome(v => !v)}>
+          <Text style={[s.chapterTitle, { fontSize: fontSize + 4 }]}>{chapter.title}</Text>
+          <Text style={[s.body, { fontSize }]}>{chapter.body}</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {showToolbar && (
-        <>
-          <View style={styles.bottomBar}>
-            <TouchableOpacity style={styles.chapterButton} disabled={currentIndex === 0} onPress={() => changeChapter(-1)}>
-              <Icon.back size={15} color={currentIndex === 0 ? '#555' : T.text} />
-              <Text style={[styles.chapterButtonText, currentIndex === 0 && styles.disabledText]}>上一章</Text>
-            </TouchableOpacity>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${((currentIndex + 1) / chapters.length) * 100}%` }]} />
-            </View>
-            <TouchableOpacity style={styles.chapterButton} disabled={currentIndex >= chapters.length - 1} onPress={() => changeChapter(1)}>
-              <Text style={[styles.chapterButtonText, currentIndex >= chapters.length - 1 && styles.disabledText]}>下一章</Text>
-              <Icon.forward size={15} color={currentIndex >= chapters.length - 1 ? '#555' : T.text} />
-            </TouchableOpacity>
-          </View>
-        </>
+      {showChrome && (
+        <View style={s.bottomBar}>
+          <TouchableOpacity disabled={!current} onPress={() => jump(-1)} style={[s.navButton, !current && s.disabled]}>
+            <Icon.back size={14} color={current ? T.text : '#555'} /><Text style={s.navText}>上一章</Text>
+          </TouchableOpacity>
+          <View style={s.progressTrack}><View style={[s.progressFill, { width: `${((current + 1) / chapters.length) * 100}%` }]} /></View>
+          <TouchableOpacity disabled={current >= chapters.length - 1} onPress={() => jump(1)} style={[s.navButton, current >= chapters.length - 1 && s.disabled]}>
+            <Text style={s.navText}>下一章</Text><Icon.forward size={14} color={current < chapters.length - 1 ? T.text : '#555'} />
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: T.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: (StatusBar.currentHeight || 44), paddingBottom: 10, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: '#242424' },
-  iconButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', justifyContent: 'center' },
-  titleWrap: { flex: 1, minWidth: 0 },
-  topTitle: { fontSize: 15, fontWeight: '700', color: T.text },
-  chapterCount: { marginTop: 1, fontSize: 11, color: T.textMuted },
-  sizeButtonText: { fontSize: 11, fontWeight: '800', color: T.text },
-  reader: { flex: 1 },
-  readerContent: { padding: 24, paddingBottom: 48 },
-  chapterTitle: { marginBottom: 18, fontSize: 21, lineHeight: 29, fontWeight: '800', color: T.text },
-  content: { lineHeight: 32, letterSpacing: 0.2, color: '#D9D9D9' },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 22, backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: '#242424' },
-  chapterButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 36, borderRadius: 18, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2E2E2E' },
-  chapterButtonText: { fontSize: 12, fontWeight: '600', color: T.text },
-  disabledText: { color: '#555' },
-  progressTrack: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#242424' },
-  progressFill: { height: 3, borderRadius: 2, backgroundColor: '#E5E5E5' },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyText: { fontSize: 14, color: T.textMuted },
-});
+const s = require('./ReaderScreen.styles').default;

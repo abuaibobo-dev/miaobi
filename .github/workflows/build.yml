@@ -75,5 +75,5 @@ jobs:
           gh release create "$TAG" "dist/MiaoBi-$TAG.apk" \
             --repo "${{ github.repository }}" \
             --title "妙笔 $TAG" \
-            --notes "AI 小说写作助手" || \
+            --notes "公开书源 · 本地阅读" || \
           gh release upload "$TAG" "dist/MiaoBi-$TAG.apk" --repo "${{ github.repository }}" --clobber

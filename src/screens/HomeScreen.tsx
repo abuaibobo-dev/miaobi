@@ -1,177 +1,212 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, StatusBar, Dimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform,
+  StatusBar, Text, TextInput, TouchableOpacity, View,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getNovels, deleteNovel } from '../lib/storage';
-import { getChapters } from '../lib/storage';
-import { truncate } from '../lib/utils';
-import CapsuleAlert from '../components/CapsuleAlert';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
-import type { NovelProject } from '../types/novel';
+import { searchAllSources } from '../lib/bookSources';
+import { parseBookQuery, rankBooks } from '../lib/deepseekBooks';
+import { getLibrary } from '../lib/library';
+import type { BookRecord, ContentCategory } from '../types/book';
 
 type Props = any;
-const { width: SCREEN_W } = Dimensions.get('window');
-const BOOK_W = (SCREEN_W - 48) / 3;
-const BOOK_H = BOOK_W * 1.4;
 
-const COVER_COLORS = [
-  ['#242424', '#111'],
-  ['#2E2E2E', '#161616'],
-  ['#383838', '#1A1A1A'],
-  ['#424242', '#1F1F1F'],
-  ['#4A4A4A', '#242424'],
-  ['#333', '#141414'],
-  ['#3B3B3B', '#181818'],
-  ['#454545', '#202020'],
+const CATEGORIES: Array<{ id: ContentCategory; label: string }> = [
+  { id: 'all', label: '全部' },
+  { id: 'book', label: '小说' },
+  { id: 'story', label: '故事' },
+  { id: 'magazine', label: '杂志' },
+  { id: 'newspaper', label: '报纸' },
+  { id: 'art', label: '写真艺术' },
 ];
 
+const QUICK_TAGS = ['鲁迅', '张爱玲', 'Grimm fairy tales', 'Sherlock Holmes', '民国杂志', '老照片'];
+
 export default function HomeScreen({ navigation }: Props) {
-  const [novels, setNovels] = useState<NovelProject[]>([]);
-  const [deleteTarget, setDeleteTarget] = useState<NovelProject | null>(null);
-  const [chapterCounts, setChapterCounts] = useState<Record<string, number>>({});
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<ContentCategory>('all');
+  const [books, setBooks] = useState<BookRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [shelfCount, setShelfCount] = useState(0);
+  const [recent, setRecent] = useState<string[]>([]);
+  const listRef = useRef<FlatList<BookRecord>>(null);
 
   useFocusEffect(useCallback(() => {
-    getNovels().then(async list => {
-      setNovels(list);
-      const counts = await Promise.all(list.map(async item => [item.id, (await getChapters(item.id)).length] as const));
-      setChapterCounts(Object.fromEntries(counts));
+    getLibrary().then(list => setShelfCount(list.length));
+    AsyncStorage.getItem('miaobi.recentSearches').then(raw => {
+      const value = raw ? JSON.parse(raw) : [];
+      setRecent(Array.isArray(value) ? value.slice(0, 8) : []);
     });
   }, []));
 
-  const renderBook = ({ item, index }: { item: NovelProject; index: number }) => {
-    const colors = COVER_COLORS[index % COVER_COLORS.length];
-    const count = chapterCounts[item.id] || 0;
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 2600);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
-    return (
-      <TouchableOpacity
-        style={s.bookWrap}
-        activeOpacity={0.7}
-        onPress={() => navigation.navigate(count > 0 ? 'Reader' : 'NovelDetail', { novelId: item.id })}
-        onLongPress={() => setDeleteTarget(item)}
-      >
-        <View style={[s.bookCover, { backgroundColor: colors[0] }]}>
-          <View style={s.bookSpine} />
-          <View style={s.bookContent}>
-            <Text style={s.bookTitle} numberOfLines={4}>{item.title}</Text>
-            <View style={s.bookDivider} />
-            <Text style={s.bookGenre}>{item.genre}</Text>
-          </View>
-          <View style={[s.bookBottom, { backgroundColor: colors[1] }]}>
-            <Text style={s.bookChapters}>{count} 章</Text>
-          </View>
-        </View>
-        
-        <View style={s.bookActions}>
-          <TouchableOpacity style={s.actionBtn} onPress={() => {
-            if (count > 0) navigation.navigate('Reader', { novelId: item.id });
-          }}>
-            <Icon.book size={12} color={count > 0 ? T.accent : T.textMuted} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('WritingChat', { novelId: item.id })}>
-            <Icon.write size={12} color={T.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.actionBtn} onPress={() => navigation.navigate('FreeChat', { novelId: item.id })}>
-            <Icon.chat size={12} color={T.textSec} />
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
+  const rememberQuery = async (value: string) => {
+    const next = [value, ...recent.filter(item => item !== value)].slice(0, 10);
+    setRecent(next);
+    await AsyncStorage.setItem('miaobi.recentSearches', JSON.stringify(next));
   };
 
-  return (
-    <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+  const search = async (rawQuery?: string, forcedCategory?: ContentCategory) => {
+    const input = (rawQuery ?? query).trim();
+    if (!input || loading) return;
+    const activeCategory = forcedCategory ?? category;
+    setLoading(true);
+    setSearched(true);
+    setNotice('');
+    await rememberQuery(input);
 
+    try {
+      let queries = [input];
+      let parsedCategory = activeCategory;
+      try {
+        const parsed = await parseBookQuery(input);
+        if (parsed.queries?.length) queries = parsed.queries;
+        if (activeCategory === 'all' && parsed.category) parsedCategory = parsed.category;
+      } catch {}
+
+      const result = await searchAllSources(queries, parsedCategory);
+      let ranked = result.books;
+      try {
+        const scores = await rankBooks(input, result.books);
+        ranked = [...result.books].sort((a, b) => (scores[b.id]?.score || 0) - (scores[a.id]?.score || 0));
+      } catch {}
+
+      setBooks(ranked);
+      if (!ranked.length) setNotice('没有找到结果，试试换关键词或分类');
+      else if (result.errors.length) setNotice(`部分源未响应：${result.errors.join('、')}`);
+    } catch (error: any) {
+      setBooks([]);
+      setNotice(error?.message || '搜索失败，请检查网络');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderItem = ({ item }: { item: BookRecord }) => (
+    <TouchableOpacity
+      style={s.resultCard}
+      activeOpacity={0.75}
+      onPress={() => navigation.navigate('BookDetail', { book: item })}
+    >
+      <View style={s.coverBox}>
+        {item.coverUrl ? <Image source={{ uri: item.coverUrl }} style={s.coverImage} />
+          : <Icon.book size={24} color="#666" />}
+      </View>
+      <View style={s.resultBody}>
+        <Text style={s.title} numberOfLines={2}>{item.title}</Text>
+        {!!item.authors.length && <Text style={s.author} numberOfLines={1}>{item.authors.join(' / ')}</Text>}
+        <Text style={s.source}>{item.sourceLabel}{item.year ? ` · ${item.year}` : ''}</Text>
+        {!!item.description && <Text style={s.description} numberOfLines={2}>{item.description}</Text>}
+        {item.locallyReadable && <Text style={s.readable}>可本地阅读</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <View style={s.header}>
-        <View style={s.headerLeft}>
-          <View style={s.logoWrap}>
-            <Icon.logo size={20} color={T.accent} />
-          </View>
-          <Text style={s.logoText}>妙笔</Text>
+        <View style={s.headerTitle}>
+          <Text style={s.brand}>书海</Text>
+          <Text style={s.subline}>公开来源 · 本地阅读</Text>
         </View>
-        <View style={s.headerRight}>
-          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={s.headerBtn}>
-            <Icon.settings size={18} color={T.textSec} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={s.headerButton} onPress={() => navigation.navigate('Shelf')}>
+          <Icon.book size={17} color={T.text} />
+          <Text style={s.headerButtonText}>书架{shelfCount ? ` ${shelfCount}` : ''}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.iconButton} onPress={() => navigation.navigate('Settings')}>
+          <Icon.settings size={18} color={T.textSec} />
+        </TouchableOpacity>
       </View>
 
-      {novels.length > 0 && (
-        <View style={s.shelfHeader}>
-          <Text style={s.shelfTitle}>我的书架</Text>
-          <Text style={s.shelfCount}>{novels.length} 部</Text>
+      <View style={s.searchBar}>
+        <Icon.search size={17} color={T.textMuted} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="搜小说、杂志、报纸、老照片…"
+          placeholderTextColor="#666"
+          style={s.input}
+          returnKeyType="search"
+          onSubmitEditing={() => search()}
+          multiline
+        />
+        <TouchableOpacity onPress={() => search()} style={s.searchButton}>
+          <Text style={s.searchButtonText}>找书</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={s.categories}>
+        {CATEGORIES.map(item => (
+          <TouchableOpacity
+            key={item.id}
+            style={[s.categoryChip, category === item.id && s.categoryActive]}
+            onPress={() => { setCategory(item.id); if (searched && query.trim()) search(query, item.id); }}
+          >
+            <Text style={[s.categoryText, category === item.id && s.categoryActiveText]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {!searched && (
+        <View style={s.startBlock}>
+          <Text style={s.sectionLabel}>最近搜索</Text>
+          {recent.length ? (
+            <View style={s.tagWrap}>
+              {recent.map(tag => (
+                <TouchableOpacity key={tag} style={s.tag} onPress={() => { setQuery(tag); search(tag); }}>
+                  <Text style={s.tagText} numberOfLines={1}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : <Text style={s.emptySmall}>暂无记录</Text>}
+          <Text style={s.sectionLabel}>热门起点</Text>
+          <View style={s.tagWrap}>
+            {QUICK_TAGS.map(tag => (
+              <TouchableOpacity key={tag} style={s.tag} onPress={() => { setQuery(tag); search(tag); }}>
+                <Text style={s.tagText}>{tag}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={s.infoCard}>
+            <Text style={s.infoTitle}>内容来自公开库</Text>
+            <Text style={s.infoText}>古登堡、Open Library、Google Books、Internet Archive、中文维基文库、美国国会图书馆、大都会博物馆、Wikimedia Commons。</Text>
+          </View>
         </View>
       )}
 
-      {novels.length === 0 ? (
-        <View style={s.empty}>
-          <View style={s.emptyIconWrap}>
-            <Icon.book size={48} color={T.accent} />
-          </View>
-          <Text style={s.emptyTitle}>书架空空如也</Text>
-          <Text style={s.emptySub}>点击右下角开始你的第一部作品</Text>
+      {loading ? (
+        <View style={s.loading}>
+          <ActivityIndicator color="#E5E5E5" />
+          <Text style={s.loadingText}>正在检索公开来源…</Text>
         </View>
-      ) : (
+      ) : searched && (
         <FlatList
-          data={novels}
+          ref={listRef}
+          data={books}
           keyExtractor={item => item.id}
-          numColumns={3}
-          contentContainerStyle={s.shelfList}
-          columnWrapperStyle={s.shelfRow}
-          renderItem={renderBook}
+          renderItem={renderItem}
+          contentContainerStyle={s.results}
+          ListEmptyComponent={<Text style={s.noResult}>没有匹配内容</Text>}
+          onScrollBeginDrag={() => setNotice('')}
         />
       )}
 
-      <TouchableOpacity style={s.fab} onPress={() => navigation.navigate('CreateNovel')} activeOpacity={0.8}>
-        <Icon.add size={19} color="#0D0D0D" />
-      </TouchableOpacity>
-
-      <CapsuleAlert
-        visible={!!deleteTarget}
-        title="删除作品"
-        message={deleteTarget ? `确定删除「${deleteTarget.title}」？\n所有章节和记忆将被清除。` : ''}
-        danger
-        confirmText="删除"
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={async () => {
-          if (deleteTarget) {
-            await deleteNovel(deleteTarget.id);
-            setNovels(prev => prev.filter(n => n.id !== deleteTarget.id));
-            setDeleteTarget(null);
-          }
-        }}
-      />
-    </View>
+      {!!notice && (
+        <View style={s.notice}><Text style={s.noticeText}>{notice}</Text></View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, paddingTop: (StatusBar.currentHeight || 44) + 8, paddingBottom: T.sp.md },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoWrap: { width: 32, height: 32, borderRadius: 10, backgroundColor: T.accent + '15', justifyContent: 'center', alignItems: 'center' },
-  logoText: { fontSize: 22, fontWeight: '800', color: T.text, letterSpacing: 0.5 },
-  headerRight: { flexDirection: 'row', gap: 8 },
-  headerBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: T.card, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: T.border },
-  shelfHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: T.sp.xl, marginBottom: T.sp.md },
-  shelfTitle: { fontSize: 16, fontWeight: '700', color: T.text },
-  shelfCount: { fontSize: 13, color: T.textMuted },
-  shelfList: { paddingHorizontal: T.sp.lg, paddingBottom: 100 },
-  shelfRow: { justifyContent: 'flex-start', gap: 12, marginBottom: T.sp.md },
-  bookWrap: { width: BOOK_W, alignItems: 'center' },
-  bookCover: { width: BOOK_W, height: BOOK_H, borderRadius: 6, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4 },
-  bookSpine: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: 'rgba(0,0,0,0.2)' },
-  bookContent: { flex: 1, padding: 8, paddingTop: 12, justifyContent: 'center' },
-  bookTitle: { fontSize: 11, fontWeight: '700', color: '#FFF', lineHeight: 14, textAlign: 'center' },
-  bookDivider: { width: 20, height: 1, backgroundColor: 'rgba(255,255,255,0.3)', marginVertical: 6, alignSelf: 'center' },
-  bookGenre: { fontSize: 9, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
-  bookBottom: { paddingVertical: 4, alignItems: 'center' },
-  bookChapters: { fontSize: 9, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-  bookActions: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  actionBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 80 },
-  emptyIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: T.accent + '10', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 8 },
-  emptySub: { fontSize: 14, color: T.textMuted },
-  fab: { position: 'absolute', bottom: 32, right: 24, width: 44, height: 44, borderRadius: 14, backgroundColor: T.accent, justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: T.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
-});
+const s = require('./HomeScreen.styles').default;

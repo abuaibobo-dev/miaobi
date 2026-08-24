@@ -3,10 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import HomeScreen from './src/screens/HomeScreen';
-import CreateNovelScreen from './src/screens/CreateNovelScreen';
-import NovelDetailScreen from './src/screens/NovelDetailScreen';
-import WritingChatScreen from './src/screens/WritingChatScreen';
-import FreeChatScreen from './src/screens/FreeChatScreen';
+import BookDetailScreen from './src/screens/BookDetailScreen';
+import ShelfScreen from './src/screens/ShelfScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
 
@@ -24,10 +22,8 @@ export default function App() {
         }}
       >
         <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="CreateNovel" component={CreateNovelScreen} />
-        <Stack.Screen name="NovelDetail" component={NovelDetailScreen} />
-        <Stack.Screen name="WritingChat" component={WritingChatScreen} />
-        <Stack.Screen name="FreeChat" component={FreeChatScreen} />
+        <Stack.Screen name="BookDetail" component={BookDetailScreen} />
+        <Stack.Screen name="Shelf" component={ShelfScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Reader" component={ReaderScreen} />
       </Stack.Navigator>

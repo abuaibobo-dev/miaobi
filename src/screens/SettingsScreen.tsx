@@ -1,419 +1,115 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  StatusBar, Linking, PermissionsAndroid, Platform,
+  ActivityIndicator, ScrollView, StatusBar,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
-import * as IntentLauncher from 'expo-intent-launcher';
-import { getSettings, saveSettings } from '../lib/storage';
-import { checkApiKey, checkBalance, checkOllamaAvailable, getOllamaModels, testOllamaModel } from '../lib/llm';
-import { exportBackup, restoreFromBackup } from '../lib/backup';
-import CapsuleAlert, { CapsuleToast } from '../components/CapsuleAlert';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
-import type { NovelSettings } from '../types/novel';
-import { runTermuxCommand } from '../../modules/termux-command/src';
+import { getSettings, saveSettings } from '../lib/storage';
 
 type Props = any;
 
-function Section({ title, icon, defaultOpen = true, children }: { title: string; icon: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <View style={s.sectionWrap}>
-      <TouchableOpacity style={s.sectionHeader} onPress={() => setOpen(!open)} activeOpacity={0.7}>
-        <View style={s.sectionLeft}>
-          <Text style={s.sectionIcon}>{icon}</Text>
-          <Text style={s.sectionTitle}>{title}</Text>
-        </View>
-        <Text style={s.sectionArrow}>{open ? '▾' : '▸'}</Text>
-      </TouchableOpacity>
-      {open && <View style={s.sectionBody}>{children}</View>}
-    </View>
-  );
-}
-
-const OLLAMA_TIP = '首次授权（只需一次）：在 Termux 执行下面两行，允许外部命令。\nmkdir -p ~/.termux && echo \'allow-external-apps=true\' >> ~/.termux/termux.properties\ntermux-reload-settings\n\n之后点「一键启动」即可在后台拉起 Ollama。如果系统弹出权限请求，请选择允许。';
-
 export default function SettingsScreen({ navigation }: Props) {
-  const [settings, setSettings] = useState<NovelSettings>({
-    apiKey: '', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat',
-    temperature: 0.7, maxTokens: 12000, localThinking: false, customPrompt: '',
-  });
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('deepseek-chat');
+  const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com');
+  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
-  const [toast, setToast] = useState('');
-  const [balance, setBalance] = useState<number | null>(null);
-  const [balanceLoading, setBalanceLoading] = useState(false);
-  const [ollamaAvailable, setOllamaAvailable] = useState(false);
-  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
-  const [ollamaChecking, setOllamaChecking] = useState(false);
-  const [localTestModel, setLocalTestModel] = useState<string | null>(null);
-  const [localTestResult, setLocalTestResult] = useState<Record<string, string>>({});
-  const [fastModelDownloading, setFastModelDownloading] = useState(false);
-  const [fastDownloadModel, setFastDownloadModel] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
-    getSettings().then(setSettings);
-    checkOllamaStatus();
+    getSettings().then(settings => {
+      setApiKey(settings.apiKey || '');
+      setModel(settings.model || 'deepseek-chat');
+      setBaseUrl(settings.baseUrl || 'https://api.deepseek.com');
+    });
   }, []);
 
-  const checkOllamaStatus = async () => {
-    setOllamaChecking(true);
-    try {
-      const available = await checkOllamaAvailable(true);
-      setOllamaAvailable(available);
-      if (available) {
-        const models = await getOllamaModels();
-        setOllamaModels(models);
-      }
-    } catch {}
-    setOllamaChecking(false);
-  };
-
-  const handleTestLocalModel = async (model: string) => {
-    setLocalTestModel(model);
-    setLocalTestResult(prev => ({ ...prev, [model]: '测试中...' }));
-    const result = await testOllamaModel(model);
-    setLocalTestResult(prev => ({
-      ...prev,
-      [model]: result.ok ? `正常 · ${result.latency}ms` : `失败 · ${result.error}`,
-    }));
-    setLocalTestModel(null);
-  };
-
   const handleSave = async () => {
-    await saveSettings(settings);
-    setToast('保存成功');
+    setSaving(true);
+    await saveSettings({
+      apiKey: apiKey.trim(),
+      baseUrl: baseUrl.trim() || 'https://api.deepseek.com',
+      model: model.trim() || 'deepseek-chat',
+      temperature: 0.7,
+      maxTokens: 12000,
+    });
+    setSaving(false);
+    setNotice('已保存');
+    setTimeout(() => setNotice(''), 2000);
   };
 
   const handleTest = async () => {
     setTesting(true);
-    setTestResult(null);
-    await saveSettings(settings);
+    setNotice('');
     try {
-      // Short timeout for quick feedback
-      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('连接超时（10秒）')), 10000));
-      const result = await Promise.race([checkApiKey(), timeout]);
-      setTestResult((result as any).valid ? '连接成功（' + ((result as any).provider || 'unknown') + '）' : (result as any).error || '连接失败');
-    } catch (e: any) {
-      setTestResult(e.message || '测试超时');
-    }
-    setTesting(false);
-  };
-
-  const handleCheckBalance = async () => {
-    setBalanceLoading(true);
-    setBalance(null);
-    try {
-      const result = await checkBalance();
-      if (result && typeof result.balance === 'number' && !isNaN(result.balance)) {
-        setBalance(result.balance);
-      } else {
-        setToast(result?.error || '查询失败');
-      }
-    } catch {
-      setToast('查询出错');
-    }
-    setBalanceLoading(false);
-  };
-
-  const handleExportBackup = async () => {
-    const ok = await exportBackup();
-    if (ok) setToast('导出成功');
-  };
-
-  const handleImportBackup = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
-      if (result.canceled || !result.assets?.[0]) return;
-      const content = await (await import('expo-file-system')).default.readAsStringAsync(result.assets[0].uri);
-      const res = await restoreFromBackup(content);
-      setToast(res.success ? '恢复成功' : res.message);
-    } catch (e: any) {
-      setToast('恢复失败：' + e.message);
-    }
-  };
-
-  const openTermux = async () => {
-    try {
-      await IntentLauncher.startActivityAsync('android.intent.action.MAIN' as any, {
-        packageName: 'com.termux',
-        className: 'com.termux.app.TermuxActivity',
+      await handleSave();
+      const response = await fetch(`${baseUrl.trim()}/models`, {
+        headers: { Authorization: `Bearer ${apiKey.trim()}` },
       });
-    } catch {
-      setToast('无法打开 Termux，请确认已安装');
-    }
-  };
-
-  const handleLaunchTermux = async () => {
-    if (Platform.OS !== 'android') return;
-    try {
-      const permission = await PermissionsAndroid.request(
-        'com.termux.permission.RUN_COMMAND' as any,
-        {
-          title: '允许妙笔启动 Ollama',
-          message: '需要通过 Termux 后台服务启动本地模型。',
-          buttonPositive: '允许',
-        },
-      );
-      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
-        setToast('未授予 Termux 命令权限');
-        return;
+      if (response.ok) setNotice('连接正常');
+      else {
+        const data = await response.json().catch(() => null);
+        setNotice(data?.error?.message || `测试失败（${response.status}）`);
       }
-
-      await runTermuxCommand('/data/data/com.termux/files/usr/bin/bash', [
-        '-lc',
-        'export OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_KEEP_ALIVE=5m; termux-wake-lock; exec ollama serve',
-      ]);
-      setToast('已发送');
-      for (let i = 0; i < 8; i++) {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        if (await checkOllamaAvailable()) {
-          setToast('Ollama 已启动');
-          return;
-        }
-      }
-      setToast('未检测到 Ollama，请确认已在 Termux 完成首次授权');
-      openTermux();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setToast('启动失败：' + message);
-      openTermux();
-    }
-  };
-
-  const handleDownloadFastModel = async (targetModel: string) => {
-    if (Platform.OS !== 'android' || fastModelDownloading) return;
-    try {
-      const permission = await PermissionsAndroid.request(
-        'com.termux.permission.RUN_COMMAND' as any,
-        {
-          title: '允许妙笔下载模型',
-          message: `需要通过 Termux 后台下载 ${targetModel}。`,
-          buttonPositive: '允许',
-        },
-      );
-      if (permission !== PermissionsAndroid.RESULTS.GRANTED) {
-        setToast('未授予 Termux 命令权限');
-        return;
-      }
-      setFastModelDownloading(true);
-      setFastDownloadModel(targetModel);
-      setToast('已发送下载指令');
-      await runTermuxCommand('/data/data/com.termux/files/usr/bin/bash', [
-        '-lc',
-        `ollama pull ${targetModel}`,
-      ]);
-      for (let i = 0; i < 150; i++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const models = await getOllamaModels(true);
-        if (models.some(model => model === targetModel || model.startsWith(`${targetModel}:`))) {
-          setToast('快速模型已就绪');
-          break;
-        }
-      }
-    } catch (error) {
-      setToast('下载失败：' + (error instanceof Error ? error.message : String(error)));
+    } catch (e: any) {
+      setNotice(e.message || '网络错误');
     } finally {
-      setFastModelDownloading(false);
-      setFastDownloadModel(null);
+      setTesting(false);
     }
   };
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Icon.back size={18} color={T.accent} />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>设置</Text>
-        <View style={{ width: 36 }} />
+    <View style={s.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      <View style={s.topBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}><Icon.back size={19} color={T.text} /></TouchableOpacity>
+        <Text style={s.topTitle}>设置</Text>
+        <View style={{ width: 37 }} />
       </View>
 
-      <Section title="Ollama 本地模型" icon="⚡" defaultOpen={true}>
-        <View style={s.ollamaStatus}>
-          <View style={[s.statusDot, ollamaAvailable ? s.statusOk : s.statusFail]} />
-          <Text style={s.statusText}>
-            {ollamaChecking ? '检测中...' : ollamaAvailable ? 'Ollama 运行中' : 'Ollama 未运行'}
-          </Text>
-          <TouchableOpacity style={s.refreshBtn} onPress={checkOllamaStatus}>
-            <Icon.loading size={14} color={T.textMuted} />
-          </TouchableOpacity>
-        </View>
-        {!ollamaAvailable && (
-          <TouchableOpacity style={s.launchBtn} onPress={handleLaunchTermux} activeOpacity={0.7}>
-            <Text style={s.launchBtnText}>⚡ 一键启动本地模型</Text>
-          </TouchableOpacity>
-        )}
-        {ollamaAvailable && (
-          <View style={s.modelList}>
-            <Text style={s.label}>已安装模型：</Text>
-            {ollamaModels.length === 0 ? (
-              <Text style={s.noModel}>暂无模型</Text>
-            ) : (
-              ollamaModels.map((model) => (
-                <TouchableOpacity key={model} style={s.modelItem} onPress={() => handleTestLocalModel(model)} disabled={localTestModel === model}>
-                  <Icon.check size={12} color={T.accentGreen} />
-                  <Text style={s.modelName}>{model}</Text>
-                  <Text style={s.localTestText} numberOfLines={1}>
-                    {localTestResult[model] || '点击测试'}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-        )}
-        {ollamaAvailable && !ollamaModels.some(model => model === 'llama3.2:1b-instruct-q3_K_M' || model.startsWith('llama3.2:1b-instruct-q3_K_M:')) && (
-          <TouchableOpacity
-            style={[s.launchBtn, fastModelDownloading && { opacity: 0.6 }]}
-            onPress={() => handleDownloadFastModel('llama3.2:1b-instruct-q3_K_M')}
-            disabled={fastModelDownloading}
-            activeOpacity={0.7}
-          >
-            <Text style={s.launchBtnText}>
-              {fastModelDownloading && fastDownloadModel === 'llama3.2:1b-instruct-q3_K_M' ? '正在下载极速模型...' : '⚡ 一键下载本地模型'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {ollamaAvailable && !ollamaModels.some(model => model === 'gemma3:1b' || model.startsWith('gemma3:1b:')) && (
-          <TouchableOpacity
-            style={[s.launchBtn, fastModelDownloading && { opacity: 0.6 }]}
-            onPress={() => handleDownloadFastModel('gemma3:1b')}
-            disabled={fastModelDownloading}
-            activeOpacity={0.7}
-          >
-            <Text style={s.launchBtnText}>
-              {fastModelDownloading && fastDownloadModel === 'gemma3:1b' ? '正在下载写作模型...' : '📚 一键下载写作模型'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        <Text style={s.label}>自定义提示词 / 创作偏好</Text>
-        <TextInput
-          style={[s.input, s.textArea]}
-          value={settings.customPrompt || ''}
-          onChangeText={v => setSettings(prev => ({ ...prev, customPrompt: v }))}
-          placeholder="例：第一人称、冷峻克制、短句节奏、重视心理描写"
-          placeholderTextColor={T.textMuted}
-          multiline
-          textAlignVertical="top"
-        />
-        <Text style={s.thinkingHint}>用于写作风格、叙事视角、用词偏好；不能用于绕过安全边界。</Text>
-        <Text style={s.label}>创作自由度：{settings.temperature.toFixed(1)}</Text>
-        <View style={s.tempRow}>
-          {[0.1, 0.3, 0.5, 0.7, 0.9, 1.0].map(t => (
-            <TouchableOpacity key={t} style={[s.tempChip, settings.temperature === t && s.tempChipActive]} onPress={() => setSettings(prev => ({ ...prev, temperature: t }))}>
-              <Text style={[s.tempText, settings.temperature === t && s.tempTextActive]}>{t.toFixed(1)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={s.balanceRow}>
-          <TouchableOpacity style={[s.balanceBtn, s.balanceBtnHalf]} onPress={handleCheckBalance} disabled={balanceLoading}>
-            <Text style={s.balanceBtnText}>{balanceLoading ? '查询中...' : balance !== null ? '余额：¥' + balance.toFixed(2) : '查询余额'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.balanceBtn, s.rechargeBtn, s.balanceBtnHalf]}
-            onPress={() => Linking.openURL('https://platform.deepseek.com/top_up').catch(() => setToast('无法打开充值页'))}
-          >
-            <Text style={[s.balanceBtnText, s.rechargeText]}>充值</Text>
-          </TouchableOpacity>
-        </View>
-        {testResult && <Text style={[s.testResult, testResult.includes('成功') ? s.testOk : s.testFail]}>{testResult}</Text>}
-        <TouchableOpacity style={s.testBtn} onPress={handleTest} disabled={testing}>
-          <Text style={s.testBtnText}>{testing ? '测试中...' : '测试连接'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.saveBtn} onPress={handleSave}>
-          <Text style={s.saveBtnText}>保存设置</Text>
-        </TouchableOpacity>
-      </Section>
+      <ScrollView contentContainerStyle={s.content}>
+        <View style={s.sectionCard}>
+          <Text style={s.sectionTitle}>DeepSeek API</Text>
+          <Text style={s.hint}>用于找书意图解析和结果排序，不配置也能搜索但排序较基础。</Text>
 
-      <Section title="数据备份" icon="⬡" defaultOpen={false}>
-        <TouchableOpacity style={s.backupBtn} onPress={handleExportBackup}>
-          <Text style={s.backupBtnText}>导出备份</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.backupBtn, { marginTop: 8 }]} onPress={handleImportBackup}>
-          <Text style={s.backupBtnText}>导入备份</Text>
-        </TouchableOpacity>
-      </Section>
+          <Text style={s.fieldLabel}>API Key</Text>
+          <TextInput
+            value={apiKey}
+            onChangeText={setApiKey}
+            placeholder="sk-..."
+            placeholderTextColor="#555"
+            secureTextEntry
+            style={s.input}
+            autoCapitalize="none"
+          />
 
-      <View style={s.footer}>
-        <Text style={s.footerText}>妙笔 v1.9.17</Text>
-        <Text style={s.footerSub}>AI 驱动的小说写作助手</Text>
-      </View>
+          <Text style={s.fieldLabel}>模型</Text>
+          <TextInput value={model} onChangeText={setModel} placeholder="deepseek-chat" placeholderTextColor="#555" style={s.input} autoCapitalize="none" />
 
-      <CapsuleToast visible={!!toast} text={toast} onHide={() => setToast('')} />
-    </ScrollView>
+          <Text style={s.fieldLabel}>Base URL</Text>
+          <TextInput value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.deepseek.com" placeholderTextColor="#555" style={s.input} autoCapitalize="none" keyboardType="url" />
+        </View>
+
+        <TouchableOpacity style={[s.primaryButton, saving && s.disabled]} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color="#111" /> : <Text style={s.primaryText}>保存设置</Text>}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[s.secondaryButton, testing && s.disabled]} onPress={handleTest} disabled={testing}>
+          {testing ? <ActivityIndicator color="#E5E5E5" /> : <Text style={s.secondaryText}>测试连接</Text>}
+        </TouchableOpacity>
+
+        {!!notice && (
+          <View style={s.toast}><Text style={s.toastText}>{notice}</Text></View>
+        )}
+
+        <View style={s.aboutCard}>
+          <Text style={s.aboutTitle}>关于书海</Text>
+          <Text style={s.aboutText}>内容来自古登堡、Open Library、Google Books、Internet Archive、中文维基文库、美国国会图书馆、大都会博物馆和 Wikimedia Commons 等公开来源。仅提供元数据检索和公版正文阅读。</Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.bg },
-  content: { padding: 20, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: (StatusBar.currentHeight || 44), marginBottom: 24 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: T.text },
-  sectionWrap: { marginBottom: 16, borderRadius: T.r.md, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, overflow: 'hidden' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
-  sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionIcon: { fontSize: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: T.text },
-  sectionArrow: { fontSize: 14, color: T.textMuted },
-  sectionBody: { paddingHorizontal: 14, paddingBottom: 14 },
-  label: { fontSize: 13, fontWeight: '600', color: T.textSec, marginBottom: 6, marginTop: 10 },
-  textArea: { height: 108, paddingTop: 10, paddingBottom: 10, lineHeight: 20 },
-  input: { height: 44, borderRadius: T.r.sm, borderWidth: 1, borderColor: T.border, backgroundColor: T.bg, paddingHorizontal: 12, fontSize: 14, color: T.text },
-  tempRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  tempChip: { minWidth: 58, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, backgroundColor: T.bg, borderWidth: 1, borderColor: T.border },
-  tempChipActive: { backgroundColor: T.accent, borderWidth: 0 },
-  tempText: { fontSize: 13, color: T.textSec },
-  tempTextActive: { color: '#0D0D0D', fontWeight: '700' },
-  balanceRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  balanceBtn: { flex: 1, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accentGreen + '15', alignItems: 'center' },
-  balanceBtnHalf: { flex: 1 },
-  rechargeBtn: { backgroundColor: T.accent + '18' },
-  rechargeText: { color: T.accent },
-  balanceBtnText: { fontSize: 14, fontWeight: '600', color: T.accentGreen },
-  testResult: { marginTop: 8, fontSize: 13, fontWeight: '600' },
-  testOk: { color: T.accentGreen },
-  testFail: { color: T.accentRed },
-  testBtn: { marginTop: 10, paddingVertical: 10, borderRadius: T.r.sm, backgroundColor: T.accent + '15', alignItems: 'center' },
-  testBtnText: { fontSize: 14, fontWeight: '600', color: T.accent },
-  saveBtn: { marginTop: 12, paddingVertical: 12, borderRadius: T.r.sm, backgroundColor: T.accent, alignItems: 'center' },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#0D0D0D' },
-  backupBtn: { paddingVertical: 12, borderRadius: T.r.sm, backgroundColor: T.accentBlue + '15', alignItems: 'center' },
-  backupBtnText: { fontSize: 14, fontWeight: '600', color: T.accentBlue },
-  footer: { marginTop: 32, alignItems: 'center' },
-  footerText: { fontSize: 14, fontWeight: '700', color: T.textSec },
-  footerSub: { fontSize: 12, color: T.textMuted, marginTop: 4 },
-  ollamaStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusOk: { backgroundColor: T.accentGreen },
-  statusFail: { backgroundColor: T.accentRed },
-  statusText: { fontSize: 13, fontWeight: '600', color: T.textSec, flex: 1 },
-  refreshBtn: { padding: 6 },
-  modelList: { marginBottom: 12 },
-  modelItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  modelName: { flexShrink: 1, fontSize: 13, color: T.text, fontFamily: 'monospace' },
-  localTestText: { marginLeft: 'auto', fontSize: 11, color: T.textMuted },
-  noModel: { fontSize: 13, color: T.textMuted, fontStyle: 'italic' },
-  thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, marginBottom: 10 },
-  thinkingTextWrap: { flex: 1 },
-  thinkingHint: { fontSize: 11, color: T.textMuted, lineHeight: 16 },
-  switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: '#333', padding: 3 },
-  switchOn: { backgroundColor: T.accent },
-  switchDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#CCC' },
-  switchDotOn: { marginLeft: 18, backgroundColor: '#0D0D0D' },
-  ollamaHint: { fontSize: 12, color: T.textMuted, lineHeight: 18, backgroundColor: T.bg, padding: 10, borderRadius: T.r.sm },
-  launchBtn: {
-    backgroundColor: T.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: T.r.md,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  launchBtnText: {
-    color: '#0D0D0D',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+const s = require('./SettingsScreen.styles').default;

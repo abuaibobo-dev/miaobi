@@ -91,6 +91,15 @@ export default function SettingsScreen({ navigation }: Props) {
           <TextInput value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.deepseek.com" placeholderTextColor="#555" style={s.input} autoCapitalize="none" keyboardType="url" />
         </View>
 
+        <View style={s.menuGrid}>
+          <TouchableOpacity style={s.menuButton} onPress={() => navigation.navigate('AIAssistant')}>
+            <Text style={s.menuTitle}>AI 助手</Text><Text style={s.menuDesc}>找书 / 执行任务</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.menuButton} onPress={() => navigation.navigate('Sources')}>
+            <Text style={s.menuTitle}>书源管理</Text><Text style={s.menuDesc}>内置 / 自定义</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={[s.primaryButton, saving && s.disabled]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#111" /> : <Text style={s.primaryText}>保存设置</Text>}
         </TouchableOpacity>

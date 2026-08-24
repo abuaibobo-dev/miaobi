@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform,
-  StatusBar, Text, TextInput, TouchableOpacity, View,
+  ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
-import { searchAllSources } from '../lib/bookSources';
-import { parseBookQuery, rankBooks } from '../lib/deepseekBooks';
-import { getLibrary } from '../lib/library';
+import { searchAllSourcesWithCustom, fetchSourceRecommendations } from '../lib/bookSources';
+import { parseBookQuery, rankBooks, suggestDiscoveries } from '../lib/deepseekBooks';
+import { getLibrary, getCustomSources } from '../lib/library';
 import type { BookRecord, ContentCategory } from '../types/book';
 
 type Props = any;
@@ -23,7 +23,7 @@ const CATEGORIES: Array<{ id: ContentCategory; label: string }> = [
   { id: 'art', label: '写真艺术' },
 ];
 
-const QUICK_TAGS = ['鲁迅', '张爱玲', 'Grimm fairy tales', 'Sherlock Holmes', '民国杂志', '老照片'];
+type DiscoverItem = { title: string; query: string; category: ContentCategory };
 
 export default function HomeScreen({ navigation }: Props) {
   const [query, setQuery] = useState('');
@@ -34,10 +34,24 @@ export default function HomeScreen({ navigation }: Props) {
   const [notice, setNotice] = useState('');
   const [shelfCount, setShelfCount] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<Array<{ key: string; title: string; books: BookRecord[] }>>([]);
+  const [discover, setDiscover] = useState<DiscoverItem[]>([]);
   const listRef = useRef<FlatList<BookRecord>>(null);
 
   useFocusEffect(useCallback(() => {
     getLibrary().then(list => setShelfCount(list.length));
+    fetchSourceRecommendations().then(groups => {
+      setRecommendations(groups);
+      const derived: DiscoverItem[] = groups[0]?.books.slice(0, 4).map(book => ({
+        title: book.authors[0] ? `${book.authors[0]} 作品` : book.title,
+        query: book.authors[0] || book.title,
+        category: 'book',
+      }));
+      setDiscover(derived);
+      suggestDiscoveries().then(items => {
+        if (items.length) setDiscover(items.map(item => ({ ...item, category: (item.category as ContentCategory) || 'all' })));
+      }).catch(() => {});
+    }).catch(() => {});
     AsyncStorage.getItem('miaobi.recentSearches').then(raw => {
       const value = raw ? JSON.parse(raw) : [];
       setRecent(Array.isArray(value) ? value.slice(0, 8) : []);
@@ -68,13 +82,16 @@ export default function HomeScreen({ navigation }: Props) {
     try {
       let queries = [input];
       let parsedCategory = activeCategory;
+      const custom = await getCustomSources();
+      const enabledRaw = await AsyncStorage.getItem('miaobi.enabledSources.v1');
+      const enabledBuiltins = enabledRaw ? JSON.parse(enabledRaw) : undefined;
       try {
         const parsed = await parseBookQuery(input);
         if (parsed.queries?.length) queries = parsed.queries;
         if (activeCategory === 'all' && parsed.category) parsedCategory = parsed.category;
       } catch {}
 
-      const result = await searchAllSources(queries, parsedCategory);
+      const result = await searchAllSourcesWithCustom(queries, parsedCategory, custom, enabledBuiltins);
       let ranked = result.books;
       try {
         const scores = await rankBooks(input, result.books);
@@ -90,6 +107,13 @@ export default function HomeScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearSearch = () => {
+    setQuery('');
+    setBooks([]);
+    setSearched(false);
+    setNotice('');
   };
 
   const renderItem = ({ item }: { item: BookRecord }) => (
@@ -141,6 +165,11 @@ export default function HomeScreen({ navigation }: Props) {
           onSubmitEditing={() => search()}
           multiline
         />
+        {(!!query || searched) && (
+          <TouchableOpacity onPress={clearSearch} style={s.clearButton}>
+            <Text style={s.clearText}>清除</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={() => search()} style={s.searchButton}>
           <Text style={s.searchButtonText}>找书</Text>
         </TouchableOpacity>
@@ -159,7 +188,16 @@ export default function HomeScreen({ navigation }: Props) {
       </View>
 
       {!searched && (
-        <View style={s.startBlock}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={s.startBlock}>
+          <View style={s.aiCard}>
+            <Text style={s.aiTitle}>不知道搜什么？</Text>
+            <Text style={s.aiText}>告诉 AI 你的口味，比如“想看节奏快的民国悬疑”或“找类似三体的硬科幻”。</Text>
+            <TouchableOpacity style={s.aiButton} onPress={() => navigation.navigate('AIAssistant', { mode: 'recommend' })}>
+              <Text style={s.aiButtonText}>问 AI 帮我找</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={s.sectionLabel}>最近搜索</Text>
           <Text style={s.sectionLabel}>最近搜索</Text>
           {recent.length ? (
             <View style={s.tagWrap}>
@@ -172,17 +210,60 @@ export default function HomeScreen({ navigation }: Props) {
           ) : <Text style={s.emptySmall}>暂无记录</Text>}
           <Text style={s.sectionLabel}>热门起点</Text>
           <View style={s.tagWrap}>
-            {QUICK_TAGS.map(tag => (
+            {recent.map(tag => (
               <TouchableOpacity key={tag} style={s.tag} onPress={() => { setQuery(tag); search(tag); }}>
                 <Text style={s.tagText}>{tag}</Text>
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={s.sectionLabel}>AI 探索主题</Text>
+          <View style={s.discoverGrid}>
+            {discover.map((item, index) => (
+              <TouchableOpacity
+                key={`${item.query}-${index}`}
+                style={s.discoverCard}
+                onPress={() => { setQuery(item.query); setCategory(item.category); search(item.query, item.category); }}
+              >
+                <Text style={s.discoverTitle}>{item.title}</Text>
+                <Text style={s.discoverSub} numberOfLines={1}>{item.query}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={s.popularHeader}>
+            <Text style={s.sectionLabel}>热点书榜</Text>
+            <Text style={s.popularSource}>古登堡热门</Text>
+          </View>
+          {recommendations.map(group => (
+            <View key={group.key} style={s.recommendGroup}>
+              <View style={s.groupHeader}>
+                <Text style={s.groupTitle}>{group.title}</Text>
+                <Text style={s.groupSource}>来自书源</Text>
+              </View>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={group.books}
+                keyExtractor={item => item.id}
+                contentContainerStyle={{ gap: 9, paddingRight: 16 }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={s.recCard} onPress={() => navigation.navigate('BookDetail', { book: item })}>
+                    <View style={[s.recCover, !item.coverUrl && { alignItems: 'center', justifyContent: 'center' }]}>
+                      {item.coverUrl ? <Image source={{ uri: item.coverUrl }} style={{ width: '100%', height: '100%' }} /> : <Icon.book size={18} color="#666" />}
+                    </View>
+                    <Text style={s.recTitle} numberOfLines={2}>{item.title}</Text>
+                    <Text style={s.recMeta} numberOfLines={1}>{item.authors[0] || item.sourceLabel}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          ))}
+
           <View style={s.infoCard}>
             <Text style={s.infoTitle}>内容来自公开库</Text>
             <Text style={s.infoText}>古登堡、Open Library、Google Books、Internet Archive、中文维基文库、美国国会图书馆、大都会博物馆、Wikimedia Commons。</Text>
           </View>
-        </View>
+        </ScrollView>
       )}
 
       {loading ? (

@@ -1,10 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Paths, File } from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
+import { unzipSync, strFromU8 } from 'fflate';
 import { resolveArchiveText, resolveWikisourceText } from './bookSources';
-import type { BookRecord, LibraryBook, ShelfStatus } from '../types/book';
+import type { BookRecord, CustomBookSource, LibraryBook, ShelfStatus } from '../types/book';
 
 const LIBRARY_KEY = 'miaobi.library.v1';
+const SOURCES_KEY = 'miaobi.customSources.v1';
+
+export async function getCustomSources(): Promise<CustomBookSource[]> {
+  const raw = await AsyncStorage.getItem(SOURCES_KEY);
+  const parsed = raw ? JSON.parse(raw) : [];
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+export async function saveCustomSources(list: CustomBookSource[]): Promise<void> {
+  await AsyncStorage.setItem(SOURCES_KEY, JSON.stringify(list));
+}
+
+export async function removeCustomSource(id: string): Promise<void> {
+  await saveCustomSources((await getCustomSources()).filter(item => item.id !== id));
+}
 
 function safeName(value: string) {
   return value.replace(/[^\w\u4e00-\u9fa5.-]+/g, '_').slice(0, 70) || 'book';
@@ -123,13 +139,14 @@ function cleanTitle(value: string) {
 
 export async function importLocalBook(): Promise<{ ok: boolean; message: string }> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ['text/plain', 'application/json', 'text/csv'],
+    type: ['text/plain', 'application/json', 'text/csv', 'application/epub+zip'],
     copyToCacheDirectory: true,
   });
   if (result.canceled || !result.assets?.[0]) return { ok: false, message: '' };
   const asset = result.assets[0];
   const file = new File(asset.uri);
   if (!file.exists) return { ok: false, message: '无法读取所选文件' };
+  if (asset.name?.toLowerCase().endsWith('.epub')) return importEpubFile(file, asset.name);
   const content = await file.text();
   const name = asset.name || '导入作品.txt';
   const lower = name.toLowerCase();
@@ -184,6 +201,97 @@ export async function importLocalBook(): Promise<{ ok: boolean; message: string 
   });
   await saveLibrary(list);
   return { ok: true, message: '导入成功，已加入书架' };
+}
+
+async function importEpubFile(file: File, filename: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const bytes = await file.bytes();
+    const extracted = extractEpubText(bytes);
+    const id = `local:${Date.now()}`;
+    const uri = await writeLocalText(id, extracted.title, extracted.content);
+    const list = await getLibrary();
+    list.unshift({
+      id,
+      source: 'local',
+      sourceLabel: 'EPUB 导入',
+      category: 'book',
+      title: extracted.title,
+      authors: extracted.authors,
+      description: extracted.content.slice(0, 180),
+      savedAt: new Date().toISOString(),
+      status: 'reading',
+      progress: 0,
+      locallyReadable: true,
+      localUri: uri,
+      importedAt: new Date().toISOString(),
+    });
+    await saveLibrary(list);
+    return { ok: true, message: `EPUB导入成功：${extracted.chapters}章` };
+  } catch (error: any) {
+    return { ok: false, message: error?.message || 'EPUB解析失败' };
+  }
+}
+
+function decodeHtml(value: string) {
+  return value
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function xmlTag(xml: string, tag: string) {
+  return xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim() || '';
+}
+
+export function extractEpubText(bytes: Uint8Array) {
+  const files = unzipSync(bytes);
+  const containerName = Object.keys(files).find(name => name.endsWith('META-INF/container.xml'));
+  if (!containerName) throw new Error('无效 EPUB：缺少 container.xml');
+  const containerXml = strFromU8(files[containerName]);
+  let opfPath = containerXml.match(/full-path=["']([^"']+)["']/i)?.[1];
+  if (!opfPath) throw new Error('无效 EPUB：缺少 OPF');
+  const root = opfPath.split('/').slice(0, -1);
+  const opfKey = Object.keys(files).find(name => name === opfPath || name.endsWith(`/${opfPath}`)) || opfPath;
+  const opf = strFromU8(files[opfKey]);
+  const resolve = (href: string) => [...root, href].filter(Boolean).join('/');
+
+  const title = decodeHtml(xmlTag(opf, 'dc:title') || xmlTag(opf, 'title')) || '导入作品';
+  const authors = [decodeHtml(xmlTag(opf, 'dc:creator') || xmlTag(opf, 'creator'))].filter(Boolean);
+  const manifest = opf.match(/<manifest[\s\S]*?<\/manifest>/i)?.[0] || '';
+  const items = new Map<string, string>();
+  for (const match of manifest.matchAll(/<item\b[^>]*>/gi)) {
+    const id = match[0].match(/id=["']([^"']+)["']/i)?.[1];
+    const href = match[0].match(/href=["']([^"']+)["']/i)?.[1];
+    if (id && href) items.set(id, decodeURIComponent(href.split('?')[0]));
+  }
+  const spine = opf.match(/<spine[\s\S]*?<\/spine>/i)?.[0] || '';
+  const order = [...spine.matchAll(/itemref\s+[^>]*idref=["']([^"']+)["']/gi)].map(match => match[1]).filter(id => items.has(id));
+  const paths = (order.length ? order.map(id => items.get(id)!) : [...items.values()])
+    .filter(path => /\.(xhtml|html|htm)$/i.test(path));
+
+  const parts: string[] = [];
+  for (const path of paths) {
+    const key = Object.keys(files).find(name => name === resolve(path) || name.endsWith(`/${path}`));
+    if (!key) continue;
+    const html = strFromU8(files[key]);
+    const heading = decodeHtml(html.match(/<(?:h[1-3]|title)[^>]*>([\s\S]*?)<\/(?:h[1-3]|title)>/i)?.[1] || '');
+    const body = decodeHtml(html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html);
+    parts.push(heading ? `${heading}\n\n${body}` : body);
+  }
+  if (!parts.length) throw new Error('EPUB中没有可读正文');
+  return { title, authors, content: parts.join('\n\n\n'), chapters: parts.length };
 }
 
 export async function readBookContent(bookId: string): Promise<string> {

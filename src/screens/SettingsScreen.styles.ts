@@ -28,6 +28,10 @@ export default StyleSheet.create({
   toast: { marginTop: 12, borderRadius: 15, backgroundColor: '#222', borderWidth: 1, borderColor: T.borderLight, paddingVertical: 10, paddingHorizontal: 14 },
   toastText: { color: T.text, textAlign: 'center', fontSize: 12 },
   aboutCard: { marginTop: 22, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, padding: 15 },
+  menuGrid: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  menuButton: { flex: 1, borderRadius: 17, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, padding: 14 },
+  menuTitle: { color: T.text, fontSize: 14, fontWeight: '800' },
+  menuDesc: { marginTop: 5, color: T.textMuted, fontSize: 11 },
   aboutTitle: { color: T.text, fontSize: 14, fontWeight: '800' },
   aboutText: { marginTop: 7, color: T.textMuted, fontSize: 12, lineHeight: 19 },
 });

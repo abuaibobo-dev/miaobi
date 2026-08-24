@@ -32,7 +32,7 @@ export async function parseBookQuery(query: string): Promise<ParsedBookQuery> {
   const fallback: ParsedBookQuery = { queries: [query], intent: [query], language: /[\u4e00-\u9fa5]/.test(query) ? 'zh' : 'en' };
   if (!query.trim()) return fallback;
   const content = await callDeepSeek([
-    { role: 'system', content: '你是找书检索规划器。把用户自然语言转换成用于公开书目API的JSON。只输出JSON：{"queries":["..."],"language":"zh|en","category":"all|book|magazine|newspaper|story|art","intent":["..."]}。queries包含1-4个精炼搜索词；category根据小说/杂志/报纸/故事/图片艺术分类。' },
+    { role: 'system', content: '你是找书检索规划器。把用户自然语言转换成用于公开书目API的JSON。只输出JSON：{"queries":["..."],"language":"zh|en","category":"all|book|magazine|newspaper|story|art","intent":["..."]}。如果用户输入作者名，queries必须包含作者原名和常见英文/中文译名；如果是作品描述，补充可能的书名、作者、题材关键词。queries包含1-4个精炼搜索词。' },
     { role: 'user', content: query },
   ], 500);
   const parsed = safeJson<ParsedBookQuery & { category?: string }>(content, fallback);
@@ -59,4 +59,13 @@ export async function rankBooks(query: string, books: BookRecord[]): Promise<Rec
   return Object.fromEntries(parsed.scores
     .filter(item => item.id && Number.isFinite(item.score))
     .map(item => [item.id, { score: Math.max(0, Math.min(100, Number(item.score))), reason: String(item.reason).slice(0, 100) }]));
+}
+
+export async function suggestDiscoveries(): Promise<Array<{ title: string; query: string; category: string }>> {
+  const content = await callDeepSeek([
+    { role: 'system', content: '你是书源发现编辑。返回JSON：{"items":[{"title":"短标题","query":"适合公开书源的搜索词","category":"book|story|magazine|newspaper|art"}]}，共8项。不要重复；覆盖小说、故事、杂志、报纸、艺术图片。' },
+    { role: 'user', content: '生成一组当前值得探索的公开书源主题' },
+  ], 900);
+  const parsed = safeJson<{ items: any[] }>(content, { items: [] });
+  return parsed.items.filter(item => item?.title && item?.query).slice(0, 8);
 }

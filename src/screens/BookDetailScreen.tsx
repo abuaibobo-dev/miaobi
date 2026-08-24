@@ -104,6 +104,10 @@ export default function BookDetailScreen({ navigation, route }: Props) {
           <Text style={s.secondaryText}>加入书架</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity style={s.aiButton} onPress={() => navigation.navigate('AIAssistant', { mode: 'interpret', context: { book } })}>
+          <Text style={s.aiButtonText}>AI 解读这本书</Text>
+        </TouchableOpacity>
+
         {!!notice && <Text style={s.notice}>{notice}</Text>}
 
         <View style={s.linksWrap}>

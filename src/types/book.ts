@@ -54,3 +54,23 @@ export interface BookSearchResult {
   books: BookRecord[];
   errors: string[];
 }
+
+export type CustomSourceKind = 'json' | 'opds';
+
+export interface CustomBookSource {
+  id: string;
+  name: string;
+  kind: CustomSourceKind;
+  searchUrl: string;
+  resultsPath?: string;
+  fields?: {
+    id?: string;
+    title?: string;
+    authors?: string;
+    description?: string;
+    coverUrl?: string;
+    detailUrl?: string;
+    downloadUrl?: string;
+  };
+  createdAt: string;
+}

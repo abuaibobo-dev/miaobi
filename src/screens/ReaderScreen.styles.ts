@@ -7,7 +7,7 @@ export default StyleSheet.create({
   topBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 15, paddingTop: (StatusBar.currentHeight || 44) + 4, paddingBottom: 9,
-    backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: '#242424',
+    borderBottomWidth: 1,
   },
   iconButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#2A2A2A', alignItems: 'center', justifyContent: 'center' },
   topTitle: { fontSize: 14, fontWeight: '800', color: T.text },
@@ -27,4 +27,10 @@ export default StyleSheet.create({
   progressTrack: { flex: 1, height: 3, borderRadius: 2, backgroundColor: '#242424' },
   progressFill: { height: 3, borderRadius: 2, backgroundColor: '#E5E5E5' },
   error: { color: T.textMuted, fontSize: 13, textAlign: 'center' },
+  settingsPanel: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, borderTopWidth: 1 },
+  settingLabel: { fontSize: 11, marginBottom: 8 },
+  themeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  themeButton: { flex: 1, height: 34, borderRadius: 17, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  fontRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
+  fontButton: { width: 38, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });

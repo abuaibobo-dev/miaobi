@@ -7,6 +7,8 @@ import BookDetailScreen from './src/screens/BookDetailScreen';
 import ShelfScreen from './src/screens/ShelfScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
+import AIAssistantScreen from './src/screens/AIAssistantScreen';
+import SourceManagerScreen from './src/screens/SourceManagerScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -26,6 +28,8 @@ export default function App() {
         <Stack.Screen name="Shelf" component={ShelfScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Reader" component={ReaderScreen} />
+        <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
+        <Stack.Screen name="Sources" component={SourceManagerScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

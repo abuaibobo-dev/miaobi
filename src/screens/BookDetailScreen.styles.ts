@@ -29,6 +29,8 @@ export default StyleSheet.create({
   primaryText: { color: '#111', fontSize: 15, fontWeight: '900' },
   secondaryButton: { height: 43, marginTop: 10, borderRadius: 22, backgroundColor: T.surface, borderWidth: 1, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { color: T.text, fontSize: 13, fontWeight: '700' },
+  aiButton: { height: 41, marginTop: 9, borderRadius: 21, backgroundColor: '#222', borderWidth: 1, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center' },
+  aiButtonText: { color: T.text, fontSize: 13, fontWeight: '700' },
   buttonDisabled: { opacity: 0.55 },
   notice: { marginTop: 12, textAlign: 'center', color: '#D6D6D6', fontSize: 12, lineHeight: 18 },
   linksWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20 },

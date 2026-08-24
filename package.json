@@ -1,6 +1,6 @@
 {
   "name": "miaobi",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -16,8 +16,10 @@
     "expo-sharing": "~57.0.13",
     "expo-speech": "~57.0.1",
     "expo-status-bar": "~57.0.1",
+    "fflate": "^0.8.3",
     "fuse.js": "^7.5.0",
     "keyword-extractor": "^0.3.0",
+    "miaobi-termux-command": "file:./modules/termux-command",
     "minisearch": "^7.2.0",
     "react": "19.2.3",
     "react-native": "0.86.2",
@@ -25,8 +27,7 @@
     "react-native-screens": "^4.27.0",
     "sentiment": "^5.0.2",
     "string-similarity": "^4.0.4",
-    "uuid": "^14.0.2",
-    "miaobi-termux-command": "file:./modules/termux-command"
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

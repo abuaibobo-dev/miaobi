@@ -1,4 +1,4 @@
-import type { BookRecord, BookSearchResult, ContentCategory } from '../types/book';
+import type { BookRecord, BookSearchResult, ContentCategory, CustomBookSource } from '../types/book';
 
 const TIMEOUT = 14000;
 
@@ -197,13 +197,49 @@ async function searchGoogle(term: string): Promise<BookRecord[]> {
 
 async function searchOpenLibrary(term: string, category: ContentCategory): Promise<BookRecord[]> {
   const fields = 'key,title,author_name,first_publish_year,language,subject,cover_i,cover_edition_key,first_sentence';
-  const data = await getJson(`https://openlibrary.org/search.json?q=${encodeURIComponent(term)}&limit=20&fields=${fields}`);
-  return (data.docs || []).map((doc: any) => normalizeOpenLibrary(doc, category)).filter(Boolean);
+  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(term)}&limit=20&fields=${fields}`;
+  const [data, authorData] = await Promise.all([
+    getJson(url),
+    getJson(`https://openlibrary.org/search/authors.json?q=${encodeURIComponent(term)}&limit=3`).catch(() => null),
+  ]).then(([bookResponse, authorResponse]) => [bookResponse, authorResponse]);
+  const docs = [...(data.docs || [])];
+  for (const author of authorData?.docs || []) {
+    if (!author.name || !author.key) continue;
+    const works = await getJson(`https://openlibrary.org/search.json?author=${encodeURIComponent(author.name)}&limit=12&fields=${fields}`).catch(() => null);
+    (works?.docs || []).forEach((doc: any) => { if (!doc.author_name?.includes(author.name)) doc.author_name = [author.name]; });
+    docs.push(...(works?.docs || []));
+  }
+  return docs.map((doc: any) => normalizeOpenLibrary(doc, category)).filter((item): item is BookRecord => Boolean(item));
 }
 
 async function searchGutenberg(term: string): Promise<BookRecord[]> {
-  const data = await getJson(`https://gutendex.com/books?search=${encodeURIComponent(term)}`);
-  return (data.results || []).slice(0, 20).map(normalizeGutenberg).filter(Boolean);
+  const [byTitle, byAuthor] = await Promise.all([
+    getJson(`https://gutendex.com/books?search=${encodeURIComponent(term)}`),
+    getJson(`https://gutendex.com/books?authors=${encodeURIComponent(term)}`).catch(() => null),
+  ]);
+  return [...(byTitle.results || []), ...(byAuthor?.results || [])]
+    .slice(0, 30).map(normalizeGutenberg).filter((item): item is BookRecord => Boolean(item));
+}
+
+export async function fetchPopularBooks(): Promise<BookRecord[]> {
+  const data = await getJson('https://gutendex.com/books?sort=popular');
+  return (data.results || []).slice(0, 18).map(normalizeGutenberg).filter((item: any): item is BookRecord => Boolean(item));
+}
+
+export async function fetchSourceRecommendations(): Promise<Array<{ key: string; title: string; books: BookRecord[] }>> {
+  const tasks = [
+    { key: 'gutenberg', title: '古登堡热门', promise: fetchPopularBooks() },
+    { key: 'google', title: 'Google 经典推荐', promise: getJson('https://www.googleapis.com/books/v1/volumes?q=subject:fiction+classic&maxResults=12').then(data => (data.items || []).map(normalizeGoogle).filter((item: any): item is BookRecord => Boolean(item))) },
+    { key: 'openlibrary', title: 'Open Library 书单', promise: getJson('https://openlibrary.org/search.json?q=subject%3Aclassics&limit=12&fields=key,title,author_name,first_publish_year,language,cover_i').then(data => (data.docs || []).map((doc: any) => normalizeOpenLibrary(doc, 'book')).filter((item: any): item is BookRecord => Boolean(item))) },
+    { key: 'internetarchive', title: 'Internet Archive 文献', promise: getJson(`https://archive.org/advancedsearch.php?q=${encodeURIComponent('classic literature AND mediatype:(texts)')}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator&fl%5B%5D=year&fl%5B%5D=description&rows=12&page=1&output=json`).then(data => (data.response?.docs || []).map((item: any) => normalizeArchive(item, 'book')).filter((item: any): item is BookRecord => Boolean(item))) },
+    { key: 'wolne', title: 'Wolne Lektury 推荐', promise: getJson('https://wolnelektury.pl/api/books/?sort=popularity&limit=12').then(data => (Array.isArray(data) ? data : []).map((item: any) => ({ id: `wolne:${item.slug}`, source: 'openlibrary', sourceLabel: 'Wolne Lektury', category: 'book', title: String(item.title), authors: [].concat(item.authors || []).map((a: any) => a?.name || a).filter(Boolean), coverUrl: item.cover, detailUrl: item.url, locallyReadable: false } as BookRecord)).filter((book: BookRecord) => book.title)) },
+  ];
+  const settled = await Promise.allSettled(tasks.map(task => task.promise));
+  return settled.map((result, index) => ({
+    key: tasks[index].key,
+    title: tasks[index].title,
+    books: result.status === 'fulfilled' ? result.value.slice(0, 8) : [],
+  })).filter(group => group.books.length);
 }
 
 async function searchArchive(term: string, category: ContentCategory): Promise<BookRecord[]> {
@@ -245,21 +281,67 @@ async function searchCommons(term: string): Promise<BookRecord[]> {
   return pages.map(normalizeCommons).filter((item): item is BookRecord => Boolean(item));
 }
 
+async function searchWolne(term: string): Promise<BookRecord[]> {
+  const data = await getJson(`https://wolnelektury.pl/api/books/?search=${encodeURIComponent(term)}`);
+  return (Array.isArray(data) ? data : []).slice(0, 20).map((item: any) => ({
+    id: `wolne:${item.slug || item.url}`,
+    source: 'openlibrary',
+    sourceLabel: 'Wolne Lektury',
+    category: 'book',
+    title: String(item.title || ''),
+    authors: [].concat(item.authors || []).map((author: any) => typeof author === 'string' ? author : author?.name).filter(Boolean),
+    description: text(item.description || item.annotation),
+    coverUrl: item.cover || item.simple_cover,
+    detailUrl: item.url,
+    downloadUrl: item.txt || item.xml,
+    locallyReadable: Boolean(item.txt),
+  } as BookRecord)).filter(book => book.title);
+}
+
+async function searchPoetry(term: string): Promise<BookRecord[]> {
+  const data = await getJson(`https://poetrydb.org/title/${encodeURIComponent(term)}`);
+  if (!Array.isArray(data)) return [];
+  return data.slice(0, 20).map((item: any, index: number) => ({
+    id: `poetrydb:${encodeURIComponent(item.title)}_${index}`,
+    source: 'gutenberg',
+    sourceLabel: 'PoetryDB',
+    category: 'story',
+    title: String(item.title),
+    authors: [item.author].filter(Boolean),
+    description: (item.lines || []).slice(0, 8).join('\n'),
+    locallyReadable: true,
+    downloadUrl: `https://poetrydb.org/title/${encodeURIComponent(item.title)}`,
+  }));
+}
+
 function sourcesForCategory(category: ContentCategory): string[] {
   switch (category) {
     case 'magazine': return ['google', 'openlibrary', 'internetarchive'];
     case 'newspaper': return ['chroniclingamerica', 'internetarchive'];
-    case 'story': return ['gutenberg', 'wikisource', 'internetarchive'];
+    case 'story': return ['gutenberg', 'wikisource', 'internetarchive', 'poetrydb'];
     case 'art': return ['metmuseum', 'wikimediacommons'];
-    case 'book': return ['gutenberg', 'openlibrary', 'google', 'internetarchive'];
-    default: return ['gutenberg', 'openlibrary', 'google', 'wikisource', 'internetarchive'];
+    case 'book': return ['gutenberg', 'openlibrary', 'google', 'internetarchive', 'wolne'];
+    default: return ['gutenberg', 'openlibrary', 'google', 'wikisource', 'internetarchive', 'wolne', 'poetrydb'];
   }
 }
 
-export async function searchAllSources(queries: string[], category: ContentCategory = 'all'): Promise<BookSearchResult> {
+export const BUILTIN_SOURCE_NAMES: Record<string, string> = {
+  google: 'Google Books',
+  openlibrary: 'Open Library',
+  gutenberg: '古登堡 / PoetryDB',
+  internetarchive: 'Internet Archive',
+  wikisource: '中文维基文库',
+  chroniclingamerica: '历史报纸库',
+  metmuseum: '大都会博物馆',
+  wikimediacommons: 'Wikimedia Commons',
+  wolne: 'Wolne Lektury',
+};
+
+export async function searchAllSources(queries: string[], category: ContentCategory = 'all', enabledBuiltins?: string[]): Promise<BookSearchResult> {
   const terms = queries.filter(Boolean).slice(0, 3);
   if (!terms.length) return { books: [], errors: [] };
-  const enabled = sourcesForCategory(category);
+  const available = sourcesForCategory(category);
+  const enabled = enabledBuiltins ? available.filter(source => enabledBuiltins.includes(source)) : available;
   const tasks: Array<{ name: string; promise: Promise<BookRecord[]> }> = [];
 
   terms.forEach(term => {
@@ -273,6 +355,8 @@ export async function searchAllSources(queries: string[], category: ContentCateg
         case 'chroniclingamerica': tasks.push({ name: '历史报纸', promise: searchNewspapers(term) }); break;
         case 'metmuseum': tasks.push({ name: '大都会博物馆', promise: searchMet(term) }); break;
         case 'wikimediacommons': tasks.push({ name: 'Wikimedia Commons', promise: searchCommons(term) }); break;
+        case 'wolne': tasks.push({ name: 'Wolne Lektury', promise: searchWolne(term) }); break;
+        case 'poetrydb': tasks.push({ name: 'PoetryDB', promise: searchPoetry(term) }); break;
       }
     });
   });
@@ -312,6 +396,99 @@ export async function resolveWikisourceText(title: string): Promise<string> {
   const data = await getJson(url);
   const pages = Object.values(data.query?.pages || {}) as any[];
   return pages[0]?.extract || '';
+}
+
+function readPath(value: any, path?: string) {
+  if (!path) return value;
+  return path.split('.').reduce((current, key) => current?.[key], value);
+}
+
+function absoluteUrl(value: string, base: string) {
+  try { return new URL(value, new URL(base).origin).toString(); }
+  catch { return value; }
+}
+
+async function searchCustomSource(source: CustomBookSource, term: string): Promise<BookRecord[]> {
+  const url = source.searchUrl.replace(/\{query\}/g, encodeURIComponent(term));
+  if (source.kind === 'json') {
+    const data = await getJson(url);
+    const rows = readPath(data, source.resultsPath) || data.results || data.books || data.items || data.docs || [];
+    if (!Array.isArray(rows)) return [];
+    return rows.map((row: any, index: number) => {
+      const fields = source.fields as Record<string, string> | undefined;
+      const field = (key: string) => fields?.[key] ? readPath(row, fields[key]) : row[key];
+      const title = String(field('title') || '').trim();
+      if (!title) return null;
+      const downloadUrl = field('downloadUrl');
+      return {
+        id: `custom:${source.id}:${field('id') || `${Date.now()}_${index}`}`,
+        source: 'local',
+        sourceLabel: source.name,
+        category: 'book',
+        title,
+        authors: [].concat(field('authors') || []).filter(Boolean),
+        description: typeof field('description') === 'string' ? cleanHtml(field('description')) : undefined,
+        coverUrl: field('coverUrl'),
+        detailUrl: field('detailUrl'),
+        downloadUrl,
+        locallyReadable: Boolean(downloadUrl && /\.(txt|html?)($|\?)/i.test(String(downloadUrl))),
+      };
+    }).filter(Boolean) as BookRecord[];
+  }
+
+  const response = await fetch(url);
+  const xml = await response.text();
+  const entries = [...xml.matchAll(/<entry\b[\s\S]*?<\/entry>/gi)].map(match => match[0]);
+  return entries.map((entry, index) => {
+    const title = cleanHtml(entry.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
+    if (!title) return null;
+    const links = [...entry.matchAll(/<link\b[^>]*>/gi)].map(linkXml => ({
+      rel: linkXml[0].match(/rel=["']([^"']+)["']/i)?.[1] || '',
+      type: linkXml[0].match(/type=["']([^"']+)["']/i)?.[1] || '',
+      href: linkXml[0].match(/href=["']([^"']+)["']/i)?.[1] || '',
+    }));
+    const acquisition = links.find(link => /acquisition/i.test(link.rel) || /epub\+zip|text\/html|text\/plain/.test(link.type));
+    const detail = links.find(link => /alternate|related/i.test(link.rel))?.href;
+    const author = cleanHtml(entry.match(/<author[^>]*>[\s\S]*?<name[^>]*>([\s\S]*?)<\/name>[\s\S]*?<\/author>/i)?.[1] || '');
+    const description = cleanHtml(entry.match(/<(?:summary|content)[^>]*>([\s\S]*?)<\/(?:summary|content)>/i)?.[1] || '');
+    return {
+      id: `custom:${source.id}:${encodeURIComponent(title)}_${index}`,
+      source: 'local',
+      sourceLabel: source.name,
+      category: 'book',
+      title,
+      authors: author ? [author] : [],
+      description,
+      detailUrl: detail ? absoluteUrl(detail, url) : undefined,
+      downloadUrl: acquisition?.href ? absoluteUrl(acquisition.href, url) : undefined,
+      locallyReadable: Boolean(acquisition && /text\/plain|text\/html/i.test(acquisition.type)),
+    };
+  }).filter(Boolean) as BookRecord[];
+}
+
+export async function searchAllSourcesWithCustom(
+  queries: string[],
+  category: ContentCategory,
+  customSources: CustomBookSource[] = [],
+  enabledBuiltins?: string[],
+): Promise<BookSearchResult> {
+  const base = await searchAllSources(queries, category, enabledBuiltins);
+  if (!customSources.length || category === 'art' || category === 'newspaper') return base;
+  const tasks = queries.slice(0, 2).flatMap(term =>
+    customSources.map(source => ({ source, promise: searchCustomSource(source, term) }))
+  );
+  const settled = await Promise.allSettled(tasks.map(task => task.promise));
+  settled.forEach((result, index) => {
+    if (result.status === 'fulfilled') base.books.unshift(...result.value);
+    else base.errors.push(tasks[index].source.name);
+  });
+  const seen = new Set<string>();
+  base.books = base.books.filter(book => {
+    const key = `${book.title.toLowerCase()}|${book.authors.join('|').toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).slice(0, 100);
+  return base;
 }
 
 export function officialSearchLinks(title: string, author?: string) {

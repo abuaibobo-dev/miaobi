@@ -33,4 +33,9 @@ export default StyleSheet.create({
   themeButton: { flex: 1, height: 34, borderRadius: 17, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   fontRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
   fontButton: { width: 38, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  toolbarActions: { flexDirection: 'row', gap: 6 },
+  toolButton: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  searchBarWrap: { paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1 },
+  searchInput: { height: 34, borderRadius: 17, borderWidth: 1, paddingHorizontal: 12, fontSize: 13 },
+  searchChip: { maxWidth: 220, borderRadius: 10, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
 });

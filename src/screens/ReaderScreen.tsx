@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StatusBar,
+  ActivityIndicator, ScrollView, StatusBar, TextInput,
   Text, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Speech from 'expo-speech';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { findLibraryBook, readBookContent, splitChapters, updateLibraryBook } from '../lib/library';
@@ -27,6 +28,10 @@ export default function ReaderScreen({ navigation, route }: Props) {
   const [showChrome, setShowChrome] = useState(true);
   const [theme, setTheme] = useState<ReaderTheme>('dark');
   const [showSettings, setShowSettings] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ chapterIndex: number; title: string; snippet: string }>>([]);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -63,6 +68,8 @@ export default function ReaderScreen({ navigation, route }: Props) {
     if (chapters.length) updateLibraryBook(bookId, { progress: (current + 1) / chapters.length });
   }, [current, chapters.length]);
 
+  useEffect(() => () => { Speech.stop(); }, []);
+
   const cycleFont = () => {
     const sizes = [15, 17, 19, 22, 25];
     const next = sizes[(sizes.indexOf(fontSize) + 1) % sizes.length];
@@ -73,6 +80,43 @@ export default function ReaderScreen({ navigation, route }: Props) {
   const jump = useCallback((direction: number) => {
     setCurrent(prev => Math.max(0, Math.min(chapters.length - 1, prev + direction)));
   }, [chapters.length]);
+
+  const toggleSpeech = () => {
+    if (isSpeaking) { Speech.stop(); setIsSpeaking(false); return; }
+    if (!chapters[current]?.body) return;
+    setIsSpeaking(true);
+    AsyncStorage.getItem('miaobi.reader.speechRate').then(rateValue => {
+      const rate = Number(rateValue) || 1.0;
+      Speech.speak(chapters[current].body.slice(0, 4000), {
+        language: 'zh-CN', rate,
+        onDone: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+        onStopped: () => setIsSpeaking(false),
+      });
+    });
+  };
+
+  const searchInBook = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim() || query.trim().length < 2) { setSearchResults([]); return; }
+    const q = query.toLowerCase();
+    const results: Array<{ chapterIndex: number; title: string; snippet: string }> = [];
+    chapters.forEach((chapter) => {
+      const lowerBody = chapter.body.toLowerCase();
+      let pos = 0;
+      while ((pos = lowerBody.indexOf(q, pos)) !== -1 && results.length < 50) {
+        const start = Math.max(0, pos - 30);
+        const end = Math.min(chapter.body.length, pos + q.length + 40);
+        results.push({
+          chapterIndex: chapter.index,
+          title: chapter.title,
+          snippet: `${start > 0 ? '…' : ''}${chapter.body.slice(start, end).replace(/\n/g, ' ')}${end < chapter.body.length ? '…' : ''}`,
+        });
+        pos += q.length;
+      }
+    });
+    setSearchResults(results);
+  };
 
   const colors = THEMES[theme];
 
@@ -100,7 +144,37 @@ export default function ReaderScreen({ navigation, route }: Props) {
             <Text style={[s.topTitle, { color: colors.text }]} numberOfLines={1}>{chapter.title}</Text>
             <Text style={[s.pageInfo, { color: colors.secondary }]}>{current + 1} / {chapters.length}</Text>
           </View>
-          <TouchableOpacity onPress={() => setShowSettings(v => !v)} style={[s.iconButton, { borderColor: colors.border }]}><Text style={[s.fontLabel, { color: colors.text }]}>Aa</Text></TouchableOpacity>
+          <View style={s.toolbarActions}>
+            <TouchableOpacity onPress={() => setShowSearch(v => !v)} style={[s.toolButton, { borderColor: colors.border }]}>
+              <Icon.search size={14} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleSpeech} style={[s.toolButton, { borderColor: isSpeaking ? '#888' : colors.border }]}>
+              <Icon.tts size={15} color={isSpeaking ? '#888' : colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowSettings(v => !v)} style={[s.iconButton, { borderColor: colors.border }]}><Text style={[s.fontLabel, { color: colors.text }]}>Aa</Text></TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {showSearch && showChrome && (
+        <View style={[s.searchBarWrap, { backgroundColor: colors.bar, borderBottomColor: colors.border }]}>
+          <TextInput
+            value={searchQuery}
+            onChangeText={searchInBook}
+            placeholder="在书内搜索…"
+            placeholderTextColor={colors.secondary}
+            style={[s.searchInput, { color: colors.text, borderColor: colors.border }]}
+          />
+          {!!searchResults.length && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 6 }}>
+              {searchResults.map((result, index) => (
+                <TouchableOpacity key={`${result.chapterIndex}_${index}`} style={[s.searchChip, { borderColor: colors.border }]}
+                  onPress={() => { setCurrent(result.chapterIndex); setSearchQuery(''); setSearchResults([]); setShowSearch(false); }}>
+                  <Text style={{ color: colors.text, fontSize: 10 }} numberOfLines={2}>{result.title}: {result.snippet}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
         </View>
       )}
 

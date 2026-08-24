@@ -5,7 +5,9 @@ import {
 } from 'react-native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
+import * as Speech from 'expo-speech';
 import { getSettings, saveSettings } from '../lib/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Props = any;
 
@@ -16,12 +18,18 @@ export default function SettingsScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState('');
+  const [speechRate, setSpeechRate] = useState(1.0);
+  const [clearConfirm, setClearConfirm] = useState(false);
 
   useEffect(() => {
     getSettings().then(settings => {
       setApiKey(settings.apiKey || '');
       setModel(settings.model || 'deepseek-chat');
       setBaseUrl(settings.baseUrl || 'https://api.deepseek.com');
+    });
+    AsyncStorage.getItem('miaobi.reader.speechRate').then(value => {
+      const rate = Number(value);
+      if (rate > 0.3 && rate <= 3) setSpeechRate(rate);
     });
   }, []);
 
@@ -57,6 +65,20 @@ export default function SettingsScreen({ navigation }: Props) {
     } finally {
       setTesting(false);
     }
+  };
+
+  const testSpeechRate = (rate: number) => {
+    setSpeechRate(rate);
+    AsyncStorage.setItem('miaobi.reader.speechRate', String(rate));
+    Speech.stop();
+    setTimeout(() => Speech.speak('这是朗读速度测试。', { language: 'zh-CN', rate }), 200);
+  };
+
+  const clearAllData = async () => {
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.removeMany(keys.filter(key => key.startsWith('miaobi.')));
+    setNotice('所有数据已清除');
+    setClearConfirm(false);
   };
 
   return (
@@ -98,6 +120,33 @@ export default function SettingsScreen({ navigation }: Props) {
           <TouchableOpacity style={s.menuButton} onPress={() => navigation.navigate('Sources')}>
             <Text style={s.menuTitle}>书源管理</Text><Text style={s.menuDesc}>内置 / 自定义</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={s.sectionCard}>
+          <Text style={s.sectionTitle}>朗读速度</Text>
+          <Text style={s.hint}>用于阅读页的听书功能。</Text>
+          <View style={s.speedRow}>
+            {[0.5, 0.75, 1.0, 1.25, 1.5].map(rate => (
+              <TouchableOpacity key={rate} onPress={() => testSpeechRate(rate)} style={[s.speedButton, speechRate === rate && s.speedActive]}>
+                <Text style={[s.speedText, speechRate === rate && s.speedActiveText]}>{rate}x</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={s.sectionCard}>
+          <Text style={s.sectionTitle}>数据管理</Text>
+          {!clearConfirm ? (
+            <TouchableOpacity style={s.dangerButton} onPress={() => setClearConfirm(true)}>
+              <Text style={s.dangerText}>清除全部本地数据</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={s.confirmRow}>
+              <Text style={s.confirmText}>确认清除？书架和下载将丢失。</Text>
+              <TouchableOpacity style={s.confirmYes} onPress={clearAllData}><Text style={s.confirmYesText}>确认</Text></TouchableOpacity>
+              <TouchableOpacity style={s.confirmNo} onPress={() => setClearConfirm(false)}><Text style={s.confirmNoText}>取消</Text></TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity style={[s.primaryButton, saving && s.disabled]} onPress={handleSave} disabled={saving}>

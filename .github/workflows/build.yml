@@ -25,6 +25,18 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Inject API Keys
+        run: |
+          mkdir -p src/config
+          cat > src/config/keys.ts << KEYSEOF
+          export const INJECTED_KEYS = {
+            deepseek: '${{ secrets.DEEPSEEK_KEY }}',
+            groq: '${{ secrets.GROQ_KEY }}',
+            sambanova: '${{ secrets.SAMBANOVA_KEY }}',
+          };
+          KEYSEOF
+          echo "Keys injected"
+
       - name: Install dependencies
         run: npm install
 
@@ -75,5 +87,5 @@ jobs:
           gh release create "$TAG" "dist/MiaoBi-$TAG.apk" \
             --repo "${{ github.repository }}" \
             --title "妙笔 $TAG" \
-            --notes "公开书源 · 本地阅读" || \
+            --notes "成人文学 · 全网书源 · 本地阅读" || \
           gh release upload "$TAG" "dist/MiaoBi-$TAG.apk" --repo "${{ github.repository }}" --clobber

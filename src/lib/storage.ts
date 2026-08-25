@@ -23,7 +23,7 @@ async function save<T>(key: string, data: T): Promise<void> {
 // ============================================================
 
 export async function getSettings(): Promise<NovelSettings> {
-  return load<NovelSettings>('settings', {
+  const s = await load<NovelSettings>('settings', {
     apiKey: '',
     baseUrl: 'https://api.deepseek.com',
     model: 'deepseek-chat',
@@ -32,6 +32,11 @@ export async function getSettings(): Promise<NovelSettings> {
     localThinking: false,
     customPrompt: '',
   });
+  // Fallback: if no key configured, use injected key
+  if (!s.apiKey && INJECTED_KEYS.deepseek) {
+    s.apiKey = INJECTED_KEYS.deepseek;
+  }
+  return s;
 }
 
 export async function saveSettings(s: NovelSettings): Promise<void> {

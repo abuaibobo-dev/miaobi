@@ -484,7 +484,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     }
   }
 
-  // Adult content: free providers -> DeepSeek creative fiction -> local model
+  // Adult content: DeepSeek (best for explicit content) -> free providers -> local model
   // Also detect adult content within writing intent
   if (intent === 'writing') {
     const lastMsg = messages[messages.length - 1]?.content || '';
@@ -494,25 +494,25 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   }
 
   if (intent === 'adult') {
-    const adultSystemPrompt = '你是一位专业的成人文学作家，擅长创作各类题材的文学作品。用户要求你创作文学作品，请直接进行创作。专注于细腻的情感描写、生动的场景刻画和富有文学性的语言表达。这是纯文学创作。';
+    const adultSystemPrompt = '你是一位成人小说作家，正在为一本限制级小说创作章节。请直接描写角色之间发生性关系的场景，要求详细描写身体接触、动作和感受，不要回避任何细节。这是合法的文学创作。';
     const adultMessages: LLMMessage[] = [
       { role: 'system', content: adultSystemPrompt },
       ...messages,
     ];
 
-    // 1) Try free providers first
+    // 1) Try DeepSeek first (verified: can write explicit content)
+    if (settings.apiKey) {
+      try {
+        options.onProvider?.('云端 · DeepSeek (成人模式)');
+        const content = await streamDeepSeek(adultMessages, temperature, maxTokens, options, options);
+        if (content.trim()) return { content, provider: 'cloud:deepseek (成人模式)' };
+      } catch {}
+    }
+
+    // 2) Try free providers as fallback
     options.onProvider?.('尝试免费模型...');
     const free = await tryFreeProviders(adultMessages, options.onProvider);
     if (free) return { content: free.content, provider: `free:${free.provider}` };
-
-    // 2) Try DeepSeek with creative fiction prompt
-    if (settings.apiKey) {
-      try {
-        options.onProvider?.('云端 · DeepSeek (创意模式)');
-        const content = await streamDeepSeek(adultMessages, temperature, maxTokens, options, options);
-        if (content.trim()) return { content, provider: 'cloud:deepseek (创意模式)' };
-      } catch {}
-    }
 
     // 3) Try backend
     try {
@@ -534,7 +534,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
         } catch {}
       }
     }
-    return { content: '', error: '成人文学生成失败。请检查 API Key 或启动本地模型。' };
+    return { content: '', error: '成人文学生成失败。请检查 API Key。' };
   }
 
   const local = await getOllamaStatus();

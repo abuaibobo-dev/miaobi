@@ -1,3 +1,4 @@
+import { callBackend } from './backend';
 import { tryFreeProviders } from './freeProviders';
 import { getSettings } from './storage';
 
@@ -545,6 +546,22 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     }
   } else if (options.forceLocal) {
     return { content: '', error: 'Ollama 未运行。成人文学内容只在本机处理，请先启动本地模型。' };
+  }
+
+  // Try backend first
+  try {
+    const backendResult = await callBackend(messages, intent);
+    if (backendResult.content) {
+      options.onProvider?.(backendResult.provider);
+      return {
+        content: backendResult.content,
+        provider: `backend:${backendResult.provider}`,
+      };
+    }
+  } catch (e: any) {
+    if (e.message !== 'NO_BACKEND') {
+      // Backend exists but failed - continue to fallback
+    }
   }
 
   if (!settings.apiKey) {

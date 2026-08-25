@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
+import { getBackendUrl, setBackendUrl } from '../lib/backend';
 
 type Props = any;
 
@@ -22,8 +23,10 @@ export default function SettingsScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState('');
+  const [backendUrl, setBackendUrlState] = useState('');
 
   useEffect(() => {
+    getBackendUrl().then(url => setBackendUrlState(url || ''));
     getSettings().then((s: any) => {
       setApiKey(s.apiKey || '');
       setModel(s.model || 'deepseek-chat');
@@ -89,6 +92,26 @@ export default function SettingsScreen({ navigation }: Props) {
             </View>
           </TouchableOpacity>
         ))}
+
+        {/* Backend URL */}
+        <Text style={s.sectionTitle}>后端服务</Text>
+        <Text style={s.hint}>配置后端 API 地址，实现多模型调度和 Boogu-Image 生图。不配置则使用本地直连。</Text>
+        <TextInput
+          value={backendUrl}
+          onChangeText={setBackendUrlState}
+          placeholder="http://your-server:8000"
+          placeholderTextColor={T.textDim}
+          style={s.input}
+          autoCapitalize="none"
+          keyboardType="url"
+        />
+        <TouchableOpacity style={[s.secondaryBtn, { marginTop: 8, paddingVertical: 10 }]} onPress={async () => {
+          await setBackendUrl(backendUrl.trim());
+          setNotice('✅ 后端地址已保存');
+          setTimeout(() => setNotice(''), 2000);
+        }}>
+          <Text style={s.secondaryBtnText}>保存后端地址</Text>
+        </TouchableOpacity>
 
         {/* DeepSeek Config */}
         {provider === 'deepseek' && (

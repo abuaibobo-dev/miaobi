@@ -20,6 +20,8 @@ export default function SourceManagerScreen({ navigation }: Props) {
   const [sources, setSources] = useState<CustomBookSource[]>([]);
   const [enabled, setEnabled] = useState<string[]>(ALL_BUILTIN);
   const [notice, setNotice] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [importingUrl, setImportingUrl] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -94,6 +96,38 @@ export default function SourceManagerScreen({ navigation }: Props) {
     }
   };
 
+  const importFromUrl = async () => {
+    const url = urlInput.trim();
+    if (!url || importingUrl) return;
+    if (!/^https?:\/\/.+\.json(\?.*)?$/i.test(url)) {
+      setNotice('请输入以 .json 结尾的有效网址');
+      return;
+    }
+    setImportingUrl(true);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`下载失败（${response.status}）`);
+      const data = await response.json();
+      const incoming: CustomBookSource[] = Array.isArray(data.sources) ? data.sources : [data];
+      const valid = incoming.filter(item => item.name && item.searchUrl && ['json', 'opds'].includes(item.kind));
+      if (!valid.length) throw new Error('书源格式无效，需要 name/kind/searchUrl');
+      const current = await getCustomSources();
+      const merged = [...valid.map((item, index) => ({
+        ...item,
+        id: item.id || `source_${Date.now()}_${index}`,
+        createdAt: item.createdAt || new Date().toISOString(),
+      })), ...current.filter(old => !valid.some((newItem: any) => newItem.id === old.id))];
+      await saveCustomSources(merged as CustomBookSource[]);
+      setSources(merged);
+      setUrlInput('');
+      setNotice(`已导入 ${valid.length} 个书源`);
+    } catch (error: any) {
+      setNotice(error.message || '导入失败');
+    } finally {
+      setImportingUrl(false);
+    }
+  };
+
   const saveForm = async () => {
     if (!form.name.trim() || !form.searchUrl.trim()) {
       Alert.alert('提示', '书源名称和搜索地址不能为空');
@@ -136,6 +170,20 @@ export default function SourceManagerScreen({ navigation }: Props) {
       </View>
 
       {!!notice && <Text style={s.notice}>{notice}</Text>}
+      <View style={s.urlBar}>
+        <TextInput
+          value={urlInput}
+          onChangeText={setUrlInput}
+          placeholder="粘贴书源 JSON 地址（.json 结尾）"
+          placeholderTextColor="#555"
+          autoCapitalize="none"
+          keyboardType="url"
+          style={s.urlInput}
+        />
+        <TouchableOpacity style={[s.urlButton, importingUrl && s.disabled]} onPress={importFromUrl} disabled={importingUrl}>
+          <Text style={s.urlButtonText}>{importingUrl ? '导入中' : '导入'}</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         data={[...sources.map(source => ({ key: source.id, name: source.name, detail: source.kind.toUpperCase() + ' · 自定义', enabled: true, removable: true })), ...ALL_BUILTIN.map(key => ({ key, name: BUILTIN_SOURCE_NAMES[key], detail: '内置公开源', enabled: enabled.includes(key), removable: false }))]}
         keyExtractor={item => item.key}

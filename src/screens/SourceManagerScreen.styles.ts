@@ -36,4 +36,9 @@ export default StyleSheet.create({
   cancelText: { color: T.textSec, fontSize: 13, fontWeight: '700' },
   saveButton: { flex: 1, height: 42, borderRadius: 21, backgroundColor: '#E7E7E7', alignItems: 'center', justifyContent: 'center' },
   saveText: { color: '#111', fontSize: 13, fontWeight: '800' },
+  urlBar: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
+  urlInput: { flex: 1, minHeight: 38, maxHeight: 80, borderRadius: 19, backgroundColor: '#0E0E0E', borderWidth: 1, borderColor: '#2A2A2A', paddingHorizontal: 13, color: T.text, fontSize: 12 },
+  urlButton: { height: 38, borderRadius: 19, paddingHorizontal: 14, backgroundColor: '#E7E7E7', alignItems: 'center', justifyContent: 'center' },
+  urlButtonText: { color: '#111', fontSize: 12, fontWeight: '800' },
+  disabled: { opacity: 0.5 },
 });

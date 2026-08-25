@@ -21,6 +21,7 @@ const CATEGORIES: Array<{ id: ContentCategory; label: string }> = [
   { id: 'magazine', label: '杂志' },
   { id: 'newspaper', label: '报纸' },
   { id: 'art', label: '写真艺术' },
+  { id: 'adult', label: '成人文学' },
 ];
 
 type DiscoverItem = { title: string; query: string; category: ContentCategory };

@@ -329,12 +329,40 @@ async function searchPoetry(term: string): Promise<BookRecord[]> {
   }));
 }
 
+async function searchAdult(term: string): Promise<BookRecord[]> {
+  const results: BookRecord[] = [];
+  const query = `${term} erotica romance`;
+  try {
+    const gData = await getJson(`https://gutendex.com/books?search=${encodeURIComponent(query)}&page=1`);
+    for (const book of (gData.results || []).slice(0, 8)) {
+      const normalized = normalizeGutenberg(book);
+      if (normalized) results.push({ ...normalized, category: 'adult' as const });
+    }
+  } catch {}
+  try {
+    const archiveData = await getJson(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(query + " AND mediatype:(texts)")}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator&fl%5B%5D=year&fl%5B%5D=description&rows=10&page=1&output=json`);
+    for (const item of (archiveData.response?.docs || []).slice(0, 8)) {
+      const normalized = normalizeArchive(item, 'adult' as ContentCategory);
+      if (normalized) results.push({ ...normalized, category: 'adult' as const });
+    }
+  } catch {}
+  try {
+    const olData = await getJson(`https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=10`);
+    for (const doc of (olData.docs || []).slice(0, 8)) {
+      const normalized = normalizeOpenLibrary(doc, 'adult' as ContentCategory);
+      if (normalized) results.push({ ...normalized, category: 'adult' as const });
+    }
+  } catch {}
+  return results;
+}
+
 function sourcesForCategory(category: ContentCategory): string[] {
   switch (category) {
     case 'magazine': return ['google', 'openlibrary', 'internetarchive'];
     case 'newspaper': return ['chroniclingamerica', 'internetarchive'];
     case 'story': return ['gutenberg', 'wikisource', 'internetarchive', 'poetrydb'];
     case 'art': return ['metmuseum', 'wikimediacommons'];
+    case 'adult': return ['gutenberg', 'internetarchive', 'openlibrary', 'wikisource'];
     case 'book': return ['gutenberg', 'openlibrary', 'google', 'internetarchive', 'wolne'];
     default: return ['gutenberg', 'openlibrary', 'google', 'wikisource', 'internetarchive', 'wolne', 'poetrydb'];
   }
@@ -372,6 +400,7 @@ export async function searchAllSources(queries: string[], category: ContentCateg
         case 'wikimediacommons': tasks.push({ name: 'Wikimedia Commons', promise: searchCommons(term) }); break;
         case 'wolne': tasks.push({ name: 'Wolne Lektury', promise: searchWolne(term) }); break;
         case 'poetrydb': tasks.push({ name: 'PoetryDB', promise: searchPoetry(term) }); break;
+        case 'adult': tasks.push({ name: '成人文学', promise: searchAdult(term) }); break;
       }
     });
   });

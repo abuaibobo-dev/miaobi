@@ -9,7 +9,7 @@ export type BookSourceId =
   | 'wikimediacommons'
   | 'local';
 
-export type ContentCategory = 'all' | 'book' | 'magazine' | 'newspaper' | 'story' | 'art';
+export type ContentCategory = 'all' | 'book' | 'magazine' | 'newspaper' | 'story' | 'art' | 'adult';
 
 export interface BookRecord {
   id: string;

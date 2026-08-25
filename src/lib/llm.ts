@@ -1,3 +1,4 @@
+import { tryFreeProviders } from './freeProviders';
 import { getSettings } from './storage';
 
 export interface LLMMessage {
@@ -546,13 +547,26 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     return { content: '', error: 'Ollama 未运行。成人文学内容只在本机处理，请先启动本地模型。' };
   }
 
-  if (!settings.apiKey) return { content: '', error: '本地模型不可用，且未配置 DeepSeek API Key。' };
+  if (!settings.apiKey) {
+    if (intent === 'adult' || intent === 'writing') {
+      const free = await tryFreeProviders(messages, options.onProvider);
+      if (free) return { content: free.content, provider: `free:${free.provider}` };
+    }
+    return { content: '', error: '本地模型不可用，且未配置 DeepSeek API Key。' };
+  }
   if (intent === 'vision') return { content: '', error: '识图需要本地视觉模型，例如 moondream 或 llava。' };
+
+  if (intent === 'adult') {
+    const free = await tryFreeProviders(messages, options.onProvider);
+    if (free) return { content: free.content, provider: `free:${free.provider}` };
+  }
 
   try {
     const content = await streamDeepSeek(messages, temperature, maxTokens, options, options);
     return { content, provider: `cloud:${options.intent === 'writing' ? settings.model || 'deepseek-chat' : settings.chatModel || settings.model || 'deepseek-chat'}` };
   } catch (error) {
+    const free = await tryFreeProviders(messages, options.onProvider);
+    if (free) return { content: free.content, provider: `free:${free.provider}` };
     return { content: '', error: `DeepSeek 调用失败：${(error as Error).message}` };
   }
 }

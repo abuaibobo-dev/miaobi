@@ -33,6 +33,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [searched, setSearched] = useState(false);
   const [notice, setNotice] = useState('');
   const [shelfCount, setShelfCount] = useState(0);
+  const [sourceCount, setSourceCount] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
   const [recommendations, setRecommendations] = useState<Array<{ key: string; title: string; books: BookRecord[] }>>([]);
   const [discover, setDiscover] = useState<DiscoverItem[]>([]);
@@ -41,6 +42,7 @@ export default function HomeScreen({ navigation }: Props) {
   useFocusEffect(useCallback(() => {
     getLibrary().then(list => setShelfCount(list.length));
     getCustomSources().then(custom => {
+      setSourceCount(custom.length);
       fetchSourceRecommendations(custom).then(groups => {
         setRecommendations(groups);
         const derived: DiscoverItem[] = groups[0]?.books.slice(0, 4).map(book => ({
@@ -149,6 +151,10 @@ export default function HomeScreen({ navigation }: Props) {
         <TouchableOpacity style={s.headerButton} onPress={() => navigation.navigate('Shelf')}>
           <Icon.book size={17} color={T.text} />
           <Text style={s.headerButtonText}>书架{shelfCount ? ` ${shelfCount}` : ''}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.headerButton} onPress={() => navigation.navigate('CustomSources')}>
+          <Icon.search size={16} color={T.text} />
+          <Text style={s.headerButtonText}>书源{sourceCount ? ` ${sourceCount}` : ''}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={s.iconButton} onPress={() => navigation.navigate('Settings')}>
           <Icon.settings size={18} color={T.textSec} />

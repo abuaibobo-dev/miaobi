@@ -418,7 +418,7 @@ function absoluteUrl(value: string, base: string) {
   catch { return value; }
 }
 
-async function searchCustomSource(source: CustomBookSource, term: string): Promise<BookRecord[]> {
+export async function searchCustomSource(source: CustomBookSource, term: string): Promise<BookRecord[]> {
   const url = source.searchUrl.replace(/\{query\}/g, encodeURIComponent(term));
   if (source.kind === 'json') {
     const data = await getJson(url);

@@ -10,6 +10,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
 import AIAssistantScreen from './src/screens/AIAssistantScreen';
 import SourceManagerScreen from './src/screens/SourceManagerScreen';
+import CustomSourcesScreen from './src/screens/CustomSourcesScreen';
 import { importExternalFile } from './src/lib/library';
 
 const Stack = createNativeStackNavigator();
@@ -59,6 +60,7 @@ export default function App() {
         <Stack.Screen name="Reader" component={ReaderScreen} />
         <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
         <Stack.Screen name="Sources" component={SourceManagerScreen} />
+        <Stack.Screen name="CustomSources" component={CustomSourcesScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1,0 +1,33 @@
+import { StyleSheet, StatusBar } from 'react-native';
+import { T } from '../lib/theme';
+
+export default StyleSheet.create({
+  screen: { flex: 1, backgroundColor: T.bg },
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingTop: (StatusBar.currentHeight || 44) + 5, paddingBottom: 10,
+    backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: '#1F1F1F',
+  },
+  back: { width: 36, height: 36, borderRadius: 18, backgroundColor: T.card, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, fontSize: 17, fontWeight: '900', color: T.text },
+  countBadge: { fontSize: 12, color: T.textMuted, backgroundColor: T.card, borderWidth: 1, borderColor: T.border, borderRadius: 12, paddingHorizontal: 9, height: 24, lineHeight: 24, overflow: 'hidden' },
+  list: { padding: 16, paddingBottom: 34, gap: 18 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 120, gap: 10 },
+  emptyText: { color: T.textMuted, fontSize: 15, fontWeight: '700' },
+  emptyHint: { color: T.textMuted, fontSize: 12 },
+  sourceBlock: { borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, padding: 13 },
+  sourceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sourceInfo: { flex: 1, minWidth: 0 },
+  sourceName: { color: T.text, fontSize: 15, fontWeight: '800' },
+  sourceMeta: { marginTop: 2, color: T.textMuted, fontSize: 11 },
+  moreButton: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 30, borderRadius: 15, paddingHorizontal: 10, backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
+  moreText: { color: T.textSec, fontSize: 11, fontWeight: '700' },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20 },
+  loadingText: { color: T.textMuted, fontSize: 12 },
+  noBooks: { color: T.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 16 },
+  bookCard: { width: 86 },
+  bookCover: { width: 86, height: 122, borderRadius: 10, backgroundColor: '#222', overflow: 'hidden' },
+  bookImage: { width: '100%', height: '100%' },
+  bookTitle: { marginTop: 5, color: T.text, fontSize: 11, fontWeight: '700', lineHeight: 15 },
+  bookAuthor: { marginTop: 2, fontSize: 9, color: T.textMuted },
+});

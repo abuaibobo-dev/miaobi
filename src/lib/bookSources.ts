@@ -226,7 +226,7 @@ export async function fetchPopularBooks(): Promise<BookRecord[]> {
   return (data.results || []).slice(0, 18).map(normalizeGutenberg).filter((item: any): item is BookRecord => Boolean(item));
 }
 
-export async function fetchSourceRecommendations(): Promise<Array<{ key: string; title: string; books: BookRecord[] }>> {
+export async function fetchSourceRecommendations(customSources: CustomBookSource[] = []): Promise<Array<{ key: string; title: string; books: BookRecord[] }>> {
   const tasks = [
     { key: 'gutenberg', title: '古登堡热门', promise: fetchPopularBooks() },
     { key: 'google', title: 'Google 经典推荐', promise: getJson('https://www.googleapis.com/books/v1/volumes?q=subject:fiction+classic&maxResults=12').then(data => (data.items || []).map(normalizeGoogle).filter((item: any): item is BookRecord => Boolean(item))) },
@@ -234,6 +234,16 @@ export async function fetchSourceRecommendations(): Promise<Array<{ key: string;
     { key: 'internetarchive', title: 'Internet Archive 文献', promise: getJson(`https://archive.org/advancedsearch.php?q=${encodeURIComponent('classic literature AND mediatype:(texts)')}&fl%5B%5D=identifier&fl%5B%5D=title&fl%5B%5D=creator&fl%5B%5D=year&fl%5B%5D=description&rows=12&page=1&output=json`).then(data => (data.response?.docs || []).map((item: any) => normalizeArchive(item, 'book')).filter((item: any): item is BookRecord => Boolean(item))) },
     { key: 'wolne', title: 'Wolne Lektury 推荐', promise: getJson('https://wolnelektury.pl/api/books/?sort=popularity&limit=12').then(data => (Array.isArray(data) ? data : []).map((item: any) => ({ id: `wolne:${item.slug}`, source: 'openlibrary', sourceLabel: 'Wolne Lektury', category: 'book', title: String(item.title), authors: [].concat(item.authors || []).map((a: any) => a?.name || a).filter(Boolean), coverUrl: item.cover, detailUrl: item.url, locallyReadable: false } as BookRecord)).filter((book: BookRecord) => book.title)) },
   ];
+
+  for (const source of customSources.slice(0, 5)) {
+    const defaultQuery = source.kind === 'opds' ? 'popular' : '经典';
+    tasks.push({
+      key: `custom:${source.id}`,
+      title: source.name,
+      promise: searchCustomSource(source, defaultQuery).catch(() => [] as BookRecord[]),
+    });
+  }
+
   const settled = await Promise.allSettled(tasks.map(task => task.promise));
   return settled.map((result, index) => ({
     key: tasks[index].key,

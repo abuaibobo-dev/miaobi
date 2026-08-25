@@ -40,16 +40,18 @@ export default function HomeScreen({ navigation }: Props) {
 
   useFocusEffect(useCallback(() => {
     getLibrary().then(list => setShelfCount(list.length));
-    fetchSourceRecommendations().then(groups => {
-      setRecommendations(groups);
-      const derived: DiscoverItem[] = groups[0]?.books.slice(0, 4).map(book => ({
-        title: book.authors[0] ? `${book.authors[0]} 作品` : book.title,
-        query: book.authors[0] || book.title,
-        category: 'book',
-      }));
-      setDiscover(derived);
-      suggestDiscoveries().then(items => {
-        if (items.length) setDiscover(items.map(item => ({ ...item, category: (item.category as ContentCategory) || 'all' })));
+    getCustomSources().then(custom => {
+      fetchSourceRecommendations(custom).then(groups => {
+        setRecommendations(groups);
+        const derived: DiscoverItem[] = groups[0]?.books.slice(0, 4).map(book => ({
+          title: book.authors[0] ? `${book.authors[0]} 作品` : book.title,
+          query: book.authors[0] || book.title,
+          category: 'book',
+        }));
+        setDiscover(derived);
+        suggestDiscoveries().then(items => {
+          if (items.length) setDiscover(items.map(item => ({ ...item, category: (item.category as ContentCategory) || 'all' })));
+        }).catch(() => {});
       }).catch(() => {});
     }).catch(() => {});
     AsyncStorage.getItem('miaobi.recentSearches').then(raw => {

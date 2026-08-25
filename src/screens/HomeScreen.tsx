@@ -4,6 +4,7 @@ import {
   StatusBar, Text, TextInput, TouchableOpacity, View, Dimensions, Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { chatCompletion, detectIntent } from '../lib/llm';
@@ -24,13 +25,7 @@ const MENU = [
   { key: 'settings', icon: 'settings-outline' as const, label: '设置' },
 ];
 
-const MODELS = [
-  { key: 'auto', label: '自动' },
-  { key: 'deepseek', label: 'DeepSeek' },
-  { key: 'groq', label: 'Groq' },
-  { key: 'sambanova', label: 'SambaNova' },
-  { key: 'cerebras', label: 'Cerebras' },
-];
+import ModelPicker from '../components/ModelPicker';
 
 const QUICK = [
   '帮我写一个科幻故事的开头',
@@ -51,6 +46,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [streaming, setStreaming] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const scrollRef = useRef<FlatList>(null);
   const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
@@ -136,15 +133,30 @@ export default function HomeScreen({ navigation }: Props) {
     }
   };
 
-  const renderMsg = ({ item }: { item: Msg }) => (
-    <View style={[s.bubble, item.role === 'user' ? s.userBubble : s.aiBubble]}>
-      {item.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
-      <View style={{ flex: 1 }}>
-        <Text style={[s.bubbleText, item.role === 'user' && s.userText]}>{item.content}</Text>
-        {item.provider ? <Text style={s.msgProvider}>{item.provider}</Text> : null}
+  const copyMsg = async (text: string, id: string) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const renderMsg = ({ item, index }: { item: Msg; index: number }) => {
+    const msgId = `${index}`;
+    const isCopied = copiedId === msgId;
+    return (
+      <View style={[s.bubble, item.role === 'user' ? s.userBubble : s.aiBubble]}>
+        {item.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
+        <View style={{ flex: 1 }}>
+          <Text style={[s.bubbleText, item.role === 'user' && s.userText]}>{item.content}</Text>
+          {item.role === 'assistant' && (
+            <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(item.content, msgId)}>
+              <Text style={s.copyText}>{isCopied ? '✓ 已复制' : '复制'}</Text>
+            </TouchableOpacity>
+          )}
+          {item.provider ? <Text style={s.msgProvider}>{item.provider}</Text> : null}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={s.container}>
@@ -211,37 +223,34 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Model switch + Input */}
-        <View style={s.inputArea}>
+        {/* Input area - ChatGPT style */}
+        <View style={s.inputWrap}>
           <View style={s.modelRow}>
-            {MODELS.map(m => (
-              <TouchableOpacity
-                key={m.key}
-                style={[s.modelChip, model === m.key && s.modelActive]}
-                onPress={() => setModel(m.key)}
-              >
-                <Text style={[s.modelText, model === m.key && s.modelTextActive]}>{m.label}</Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
+              <Text style={s.modelBtnLabel}>{model === 'auto' ? '智能' : model.charAt(0).toUpperCase() + model.slice(1)}</Text>
+              <Text style={s.modelBtnArrow}>▾</Text>
+            </TouchableOpacity>
           </View>
-          <View style={s.inputRow}>
+          <View style={s.inputContainer}>
             <TextInput
               value={input}
               onChangeText={setInput}
-              placeholder="输入消息或指令..."
+              placeholder="输入消息..."
               placeholderTextColor={T.textMuted}
               multiline
               style={s.input}
+              textAlignVertical="top"
             />
             <TouchableOpacity
               disabled={!input.trim() || loading}
-              style={[s.sendBtn, (!input.trim() || loading) && { opacity: 0.25, backgroundColor: T.surface2 }]}
+              style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
               onPress={() => send()}
             >
               <Text style={s.sendIcon}>↑</Text>
             </TouchableOpacity>
           </View>
         </View>
+        <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.model || 'auto'); setShowModelPicker(false); }} />
       </View>
     </View>
   );
@@ -278,14 +287,16 @@ const s: any = {
   quickRow: { paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   quickChip: { backgroundColor: T.surface2, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: T.border },
   quickText: { color: T.textSecondary, fontSize: 12 },
-  inputArea: { paddingHorizontal: 12, paddingBottom: 20, backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.border },
-  modelRow: { flexDirection: 'row', gap: 4, marginBottom: 8, paddingHorizontal: 4 },
-  modelChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: T.surface2 },
-  modelActive: { backgroundColor: T.white },
-  modelText: { color: T.textMuted, fontSize: 12, fontWeight: '500' },
-  modelTextActive: { color: T.black, fontWeight: '700' },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  input: { flex: 1, color: T.text, fontSize: 15, backgroundColor: T.surface2, borderRadius: 20, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 120, minHeight: 44, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
-  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
-  sendIcon: { color: T.black, fontSize: 18, fontWeight: '800' },
+  inputWrap: { paddingHorizontal: 12, paddingBottom: 24, paddingTop: 4, backgroundColor: T.bg },
+  modelRow: { flexDirection: 'row', marginBottom: 8, paddingHorizontal: 2 },
+  modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface2 },
+  modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
+  modelBtnArrow: { color: T.textDim, fontSize: 9 },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 16, paddingRight: 6, paddingVertical: 4, minHeight: 48 },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 120, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
+  sendBtn: { width: 36, height: 36, borderRadius: 16, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  sendDisabled: { opacity: 0.25, backgroundColor: T.surface },
+  sendIcon: { color: T.black, fontSize: 16, fontWeight: '800' },
+  copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
 };

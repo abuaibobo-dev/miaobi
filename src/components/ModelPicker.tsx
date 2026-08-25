@@ -68,7 +68,7 @@ export default function ModelPicker({ visible, selectedId, onClose, onSelect }: 
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[s.option, (selectedId ?? 'auto') === item.id && s.optionActive]}
-                  onPress={() => onSelect(item)}
+                  onPress={() => onSelect({ ...item, id: item.model || item.id })}
                   activeOpacity={0.7}
                 >
                   <Text style={[s.optionText, (selectedId ?? 'auto') === item.id && s.optionTextActive]} numberOfLines={1}>{item.label}</Text>
@@ -88,7 +88,7 @@ const s = StyleSheet.create({
   handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: T.borderLight, marginTop: 10 },
   title: { fontSize: 15, fontWeight: '800', color: T.text, paddingHorizontal: 18, marginTop: 12, marginBottom: 8 },
   list: { paddingHorizontal: 14, paddingBottom: 8 },
-  option: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface2, marginBottom: 8 },
+  option: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface2, marginBottom: 8 },
   optionActive: { borderColor: T.accent, backgroundColor: T.accent + '16' },
   optionText: { fontSize: 13.5, color: T.text },
   optionTextActive: { fontWeight: '700' },

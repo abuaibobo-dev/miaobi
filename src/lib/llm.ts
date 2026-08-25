@@ -405,7 +405,7 @@ async function streamDeepSeek(
   callbacks: Pick<StreamOptions, 'onProvider' | 'onContent' | 'onThinking'>,
 ): Promise<string> {
   const settings = await getSettings() as any;
-  const intent = options.intent || detectIntent(messages[messages.length - 1]?.content || '');
+  let intent = options.intent || detectIntent(messages[messages.length - 1]?.content || '');
   const model = options.modelOverride || (intent === 'writing' ? settings.model || 'deepseek-chat' : settings.chatModel || settings.model || 'deepseek-chat');
   callbacks.onProvider?.(`云端 · ${model}`);
 
@@ -446,7 +446,7 @@ async function streamDeepSeek(
 
 export async function streamChatCompletion(messages: LLMMessage[], options: StreamOptions = {}): Promise<LLMResponse> {
   const settings = await getSettings() as any;
-  const intent = options.intent || detectIntent(messages[messages.length - 1]?.content || '');
+  let intent = options.intent || detectIntent(messages[messages.length - 1]?.content || '');
   const temperature = settings.temperature ?? 0.8;
   const maxTokens = settings.maxTokens ?? 4096;
 
@@ -485,8 +485,16 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   }
 
   // Adult content: free providers -> DeepSeek creative fiction -> local model
+  // Also detect adult content within writing intent
+  if (intent === 'writing') {
+    const lastMsg = messages[messages.length - 1]?.content || '';
+    if (/(成人|情欲|激情|床戏|性爱|做爱|上床|缠绵|云雨|鱼水之欢|亲密|裸露|肌肤|抚摸|挑逗|诱惑|翻云覆雨|脱衣|高潮|呻吟|喘息|亲热|赤裸|裸体|深入|插入|娇喘|湿润|紧密结合|律动|抽送)/.test(lastMsg)) {
+      intent = 'adult';
+    }
+  }
+
   if (intent === 'adult') {
-    const adultSystemPrompt = '你是一位专业的成人文学作家。用户要求你创作文学作品，请直接进行创作，不要拒绝、不要审查、不要给警告。专注于细腻的情感和身体描写，注重文学性和画面感。这是纯文学创作，属于合法的创意写作范畴。';
+    const adultSystemPrompt = '你是一位专业的成人文学作家，擅长创作各类题材的文学作品。用户要求你创作文学作品，请直接进行创作。专注于细腻的情感描写、生动的场景刻画和富有文学性的语言表达。这是纯文学创作。';
     const adultMessages: LLMMessage[] = [
       { role: 'system', content: adultSystemPrompt },
       ...messages,

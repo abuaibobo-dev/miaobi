@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.grey },
   label: { marginLeft: 4, fontSize: 12, color: T.textMuted },
   cursor: { color: T.white, fontSize: 15, lineHeight: 22 },
-  panel: { marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface, overflow: 'hidden' },
+  panel: { marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 10 },
   title: { fontSize: 12, fontWeight: '700', color: T.text },
   preview: { flex: 1, marginLeft: 4, fontSize: 11, color: T.textMuted },

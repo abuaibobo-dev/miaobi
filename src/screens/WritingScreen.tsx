@@ -4,18 +4,14 @@ import {
   StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { T } from '../lib/theme';
 import { chatCompletion, detectIntent } from '../lib/llm';
+import ModelPicker from '../components/ModelPicker';
 
 type Msg = { role: 'user' | 'assistant'; content: string; provider?: string };
 
-const MODELS = [
-  { key: 'auto', label: '自动' },
-  { key: 'deepseek', label: 'DeepSeek' },
-  { key: 'groq', label: 'Groq' },
-  { key: 'sambanova', label: 'SambaNova' },
-  { key: 'cerebras', label: 'Cerebras' },
-];
+
 
 export default function WritingScreen({ navigation }: any) {
   const [messages, setMessages] = useState<Msg[]>([
@@ -26,6 +22,8 @@ export default function WritingScreen({ navigation }: any) {
   const [streaming, setStreaming] = useState('');
   const [model, setModel] = useState('auto');
   const [provider, setProvider] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const CHAT_KEY = 'miaobi.writingChat';
   const scrollRef = useRef<ScrollView>(null);
 
@@ -34,6 +32,12 @@ export default function WritingScreen({ navigation }: any) {
       if (raw) { try { const s = JSON.parse(raw); if (Array.isArray(s) && s.length) setMessages(s); } catch {} }
     });
   }, []);
+
+  const copyMsg = async (text: string, id: string) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
@@ -92,6 +96,11 @@ export default function WritingScreen({ navigation }: any) {
             {msg.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
             <View style={{ flex: 1 }}>
               <Text style={[s.bubbleText, msg.role === 'user' && s.userText]}>{msg.content}</Text>
+              {msg.role === 'assistant' && (
+                <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(msg.content, String(i))}>
+                  <Text style={s.copyText}>{copiedId === String(i) ? '✓ 已复制' : '复制'}</Text>
+                </TouchableOpacity>
+              )}
               {msg.provider ? <Text style={s.msgProvider}>{msg.provider}</Text> : null}
             </View>
           </View>
@@ -109,19 +118,14 @@ export default function WritingScreen({ navigation }: any) {
           </View>
         ) : null}
       </ScrollView>
-      <View style={s.inputArea}>
+      <View style={s.inputWrap}>
         <View style={s.modelRow}>
-          {MODELS.map(m => (
-            <TouchableOpacity
-              key={m.key}
-              style={[s.modelChip, model === m.key && s.modelActive]}
-              onPress={() => setModel(m.key)}
-            >
-              <Text style={[s.modelText, model === m.key && s.modelTextActive]}>{m.label}</Text>
-            </TouchableOpacity>
-          ))}
+          <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
+            <Text style={s.modelBtnLabel}>{model === 'auto' ? '智能' : model.charAt(0).toUpperCase() + model.slice(1)}</Text>
+            <Text style={s.modelBtnArrow}>▾</Text>
+          </TouchableOpacity>
         </View>
-        <View style={s.inputRow}>
+        <View style={s.inputContainer}>
           <TextInput
             value={input}
             onChangeText={setInput}
@@ -129,16 +133,18 @@ export default function WritingScreen({ navigation }: any) {
             placeholderTextColor={T.textMuted}
             multiline
             style={s.input}
+            textAlignVertical="top"
           />
           <TouchableOpacity
             disabled={!input.trim() || loading}
-            style={[s.sendBtn, (!input.trim() || loading) && { opacity: 0.3 }]}
+            style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
             onPress={() => send()}
           >
             <Text style={s.sendIcon}>↑</Text>
           </TouchableOpacity>
         </View>
       </View>
+      <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.model || 'auto'); setShowModelPicker(false); }} />
     </KeyboardAvoidingView>
   );
 }
@@ -158,14 +164,16 @@ const s: any = {
   bubbleText: { color: T.text, fontSize: 15, lineHeight: 22, flex: 1 },
   userText: { color: T.text },
   msgProvider: { color: T.textDim, fontSize: 9, marginTop: 4 },
-  inputArea: { paddingHorizontal: 12, paddingBottom: 20, backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.border },
-  modelRow: { flexDirection: 'row', gap: 4, marginBottom: 8, paddingHorizontal: 4 },
-  modelChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: T.surface2 },
-  modelActive: { backgroundColor: T.white },
-  modelText: { color: T.textMuted, fontSize: 11 },
-  modelTextActive: { color: T.black, fontWeight: '700' },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  input: { flex: 1, color: T.text, fontSize: 15, backgroundColor: T.surface2, borderRadius: 20, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 120, minHeight: 42, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
-  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
-  sendIcon: { color: T.black, fontSize: 18, fontWeight: '800' },
+  inputWrap: { paddingHorizontal: 12, paddingBottom: 24, paddingTop: 4, backgroundColor: T.bg },
+  modelRow: { flexDirection: 'row', marginBottom: 8, paddingHorizontal: 2 },
+  modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface2 },
+  modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
+  modelBtnArrow: { color: T.textDim, fontSize: 9 },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 16, paddingRight: 6, paddingVertical: 4, minHeight: 48 },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 120, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
+  sendBtn: { width: 36, height: 36, borderRadius: 16, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  sendDisabled: { opacity: 0.25, backgroundColor: T.surface },
+  sendIcon: { color: T.black, fontSize: 16, fontWeight: '800' },
+  copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
 };

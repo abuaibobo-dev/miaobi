@@ -79,14 +79,30 @@ export default function HomeScreen({ navigation }: Props) {
     setInput('');
     setLoading(true);
     setStreaming('');
+    let streamedContent = '';
     try {
       const intent = detectIntent(msg);
       const result = await chatCompletion(
         history.map(m => ({ role: m.role, content: m.content })),
-        { intent, modelOverride: model === 'auto' ? undefined : model },
+        {
+          intent,
+          modelOverride: model === 'auto' ? undefined : model,
+          onProvider: (p) => setProvider(p),
+          onContent: (delta) => {
+            streamedContent += delta;
+            setStreaming(streamedContent);
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
+          },
+          onThinking: (delta) => {
+            setStreaming(prev => prev || '思考中...');
+          },
+        },
       );
-      setProvider(result.provider || '');
-      setMessages(prev => [...prev, { role: 'assistant', content: result.content || '没有回复内容', provider: result.provider }]);
+      const finalContent = streamedContent || result.content || '没有回复内容';
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
+        return [...filtered, { role: 'assistant', content: finalContent, provider: result.provider }];
+      });
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);
     } finally {
@@ -145,10 +161,18 @@ export default function HomeScreen({ navigation }: Props) {
           contentContainerStyle={s.chatArea}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={loading ? (
-            <View style={[s.bubble, s.aiBubble, { flexDirection: 'row', alignItems: 'center' }]}>
+            <View style={[s.bubble, s.aiBubble]}>
               <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>
-              <ActivityIndicator color={T.grey} size="small" />
-              <Text style={s.thinkingText}>思考中...</Text>
+              <View style={{ flex: 1 }}>
+                {streaming ? (
+                  <Text style={s.bubbleText}>{streaming}</Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ActivityIndicator color={T.grey} size="small" />
+                    <Text style={s.thinkingText}>思考中...</Text>
+                  </View>
+                )}
+              </View>
             </View>
           ) : null}
         />

@@ -234,6 +234,19 @@ export default function SourceManagerScreen({ navigation }: Props) {
       <TouchableOpacity style={s.templateRow} onPress={() => Alert.alert('书源格式示例', '支持多种形式，字段名不固定也会自动识别：\n\n单条：\n{"name":"示例源","searchUrl":"https://api.example.com/books?q={query}"}\n\n多条：\n{"sources":[{"name":"源1","url":"https://a.com/s?q={query}"},{"name":"源2","searchUrl":"https://b.com/search?query={query}"}]}\n\nOPDS：\n{"name":"OPDS源","kind":"opds","searchUrl":"https://opds.example.com/search?q={query}"}')}>
         <Text style={s.templateText}>看不懂格式？点这里看示例</Text>
       </TouchableOpacity>
+      {sources.length > 0 && (
+        <TouchableOpacity style={s.batchDeleteBtn} onPress={() => {
+          Alert.alert('批量删除', `确定要删除全部 ${sources.length} 个自定义书源吗？`, [
+            { text: '取消', style: 'cancel' },
+            { text: '全部删除', style: 'destructive', onPress: async () => {
+              await saveCustomSources([]);
+              setSources([]);
+            }},
+          ]);
+        }}>
+          <Text style={s.batchDeleteText}>🗑️ 清除全部自定义书源 ({sources.length})</Text>
+        </TouchableOpacity>
+      )}
       <FlatList
         data={[...sources.map(source => ({ key: source.id, name: source.name, detail: source.kind.toUpperCase() + ' · 自定义', enabled: true, removable: true })), ...ALL_BUILTIN.map(key => ({ key, name: BUILTIN_SOURCE_NAMES[key], detail: '内置公开源', enabled: enabled.includes(key), removable: false }))]}
         keyExtractor={item => item.key}

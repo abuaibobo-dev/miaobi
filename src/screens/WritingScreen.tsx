@@ -14,6 +14,7 @@ export default function WritingScreen({ navigation }: any) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState('');
   const scrollRef = useRef<ScrollView>(null);
 
   const send = async (raw?: string) => {
@@ -24,16 +25,30 @@ export default function WritingScreen({ navigation }: any) {
     setMessages(history);
     setInput('');
     setLoading(true);
+    let streamedContent = '';
     try {
       const result = await chatCompletion(
         history.map(m => ({ role: m.role, content: m.content })),
-        { intent: 'writing' }
+        {
+          intent: 'writing',
+          onContent: (delta) => {
+            streamedContent += delta;
+            setStreaming(streamedContent);
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
+          },
+          onThinking: () => setStreaming(prev => prev || '思考中...'),
+        }
       );
-      setMessages(prev => [...prev, { role: 'assistant', content: result.content || '没有回复内容' }]);
+      const finalContent = streamedContent || result.content || '没有回复内容';
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
+        return [...filtered, { role: 'assistant', content: finalContent }];
+      });
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);
     } finally {
       setLoading(false);
+      setStreaming('');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
@@ -55,7 +70,18 @@ export default function WritingScreen({ navigation }: any) {
             <Text style={[s.bubbleText, msg.role === 'user' && s.userText]}>{msg.content}</Text>
           </View>
         ))}
-        {loading && <View style={[s.bubble, s.aiBubble]}><ActivityIndicator color={T.grey} size="small" /></View>}
+        {loading ? (
+          <View style={[s.bubble, s.aiBubble]}>
+            {streaming ? (
+              <Text style={s.bubbleText}>{streaming}</Text>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator color={T.grey} size="small" />
+                <Text style={{ color: T.grey, fontSize: 12, marginLeft: 8 }}>思考中...</Text>
+              </View>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
       <View style={s.inputBar}>
         <TextInput value={input} onChangeText={setInput} placeholder="描述你想写的内容..." placeholderTextColor={T.textDim} multiline style={s.input} />

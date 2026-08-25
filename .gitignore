@@ -42,3 +42,5 @@ yarn-error.*
 
 # local module builds
 modules/**/android/build/
+
+src/config/keys.ts

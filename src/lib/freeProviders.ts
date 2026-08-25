@@ -17,12 +17,23 @@ export const FREE_PROVIDERS: FreeProvider[] = [
   { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', model: 'llama-3.1-8b', settingsKey: 'cerebrasKey' },
 ];
 
+let _injectedKeys: Record<string, string> | null = null;
+async function getInjectedKeys(): Promise<Record<string, string>> {
+  if (_injectedKeys) return _injectedKeys;
+  try {
+    const mod = await import('../config/keys');
+    _injectedKeys = mod.INJECTED_KEYS || {};
+  } catch { _injectedKeys = {}; }
+  return _injectedKeys;
+}
+
 export async function getFreeProviderKeys(): Promise<Record<string, string>> {
   const settings = await getSettings() as any;
+  const injected = await getInjectedKeys();
   return {
-    groq: settings.groqKey || '',
-    sambanova: settings.sambanovaKey || '',
-    cerebras: settings.cerebrasKey || '',
+    groq: settings.groqKey || injected.groq || '',
+    sambanova: settings.sambanovaKey || injected.sambanova || '',
+    cerebras: settings.cerebrasKey || injected.cerebras || '',
   };
 }
 

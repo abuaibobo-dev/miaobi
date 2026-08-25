@@ -5,6 +5,7 @@ import {
 import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
 import { getBackendUrl, setBackendUrl } from '../lib/backend';
+import { getFreeProviderKeys, saveFreeProviderKeys } from '../lib/freeProviders';
 
 type Props = any;
 
@@ -24,9 +25,17 @@ export default function SettingsScreen({ navigation }: Props) {
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState('');
   const [backendUrl, setBackendUrlState] = useState('');
+  const [groqKey, setGroqKey] = useState('');
+  const [sambanovaKey, setSambanovaKey] = useState('');
+  const [cerebrasKey, setCerebrasKey] = useState('');
 
   useEffect(() => {
     getBackendUrl().then(url => setBackendUrlState(url || ''));
+    getFreeProviderKeys().then(k => {
+      setGroqKey(k.groq || '');
+      setSambanovaKey(k.sambanova || '');
+      setCerebrasKey(k.cerebras || '');
+    });
     getSettings().then((s: any) => {
       setApiKey(s.apiKey || '');
       setModel(s.model || 'deepseek-chat');
@@ -45,6 +54,7 @@ export default function SettingsScreen({ navigation }: Props) {
       temperature: 0.7,
       maxTokens: 12000,
     } as any);
+    await saveFreeProviderKeys({ groq: groqKey.trim(), sambanova: sambanovaKey.trim(), cerebras: cerebrasKey.trim() });
     setSaving(false);
     setNotice('✅ 已保存');
     setTimeout(() => setNotice(''), 2000);
@@ -125,6 +135,18 @@ export default function SettingsScreen({ navigation }: Props) {
           </View>
         )}
 
+        {/* Free Provider Keys */}
+        <Text style={s.sectionTitle}>免费模型 Key（成人文学用）</Text>
+        <Text style={s.hint}>免费注册获取 Key，用于无审查的成人文学创作。不填则跳过该模型。</Text>
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>Groq Key</Text>
+          <TextInput value={groqKey} onChangeText={setGroqKey} placeholder="gsk_..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+          <Text style={s.fieldLabel}>SambaNova Key</Text>
+          <TextInput value={sambanovaKey} onChangeText={setSambanovaKey} placeholder="..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+          <Text style={s.fieldLabel}>Cerebras Key</Text>
+          <TextInput value={cerebrasKey} onChangeText={setCerebrasKey} placeholder="..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+        </View>
+
         {/* Actions */}
         <View style={s.btnRow}>
           <TouchableOpacity style={s.primaryBtn} onPress={handleSave} disabled={saving}>
@@ -152,7 +174,7 @@ export default function SettingsScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
 
-        <Text style={s.about}>妙笔 v2.3.2 · 黑白灰主题 · AI 写作 + 找书 + 阅读</Text>
+        <Text style={s.about}>妙笔 v2.5.0 · 黑白灰主题 · AI 写作 + 找书 + 阅读</Text>
       </ScrollView>
     </View>
   );

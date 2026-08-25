@@ -84,7 +84,7 @@ export default function ModelPicker({ visible, selectedId, onClose, onSelect }: 
 
 const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#161616', borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '68%', paddingBottom: 18 },
+  sheet: { backgroundColor: '#161616', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '68%', paddingBottom: 18 },
   handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#3A3A3A', marginTop: 10 },
   title: { fontSize: 15, fontWeight: '800', color: T.text, paddingHorizontal: 18, marginTop: 12, marginBottom: 8 },
   list: { paddingHorizontal: 14, paddingBottom: 8 },

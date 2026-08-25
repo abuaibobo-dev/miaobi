@@ -2,7 +2,7 @@
   "expo": {
     "name": "妙笔",
     "slug": "miaobi",
-    "version": "2.3.1",
+    "version": "2.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -12,7 +12,7 @@
     "android": {
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
-        "backgroundColor": "#0D0D0D",
+        "backgroundColor": "#141414",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -25,20 +25,46 @@
           "action": "VIEW",
           "autoVerify": false,
           "data": [
-            { "scheme": "content", "host": "*", "mimeType": "text/plain" },
-            { "scheme": "content", "host": "*", "mimeType": "application/json" },
-            { "scheme": "content", "host": "*", "mimeType": "text/csv" },
-            { "scheme": "content", "host": "*", "mimeType": "application/epub+zip" }
+            {
+              "scheme": "content",
+              "host": "*",
+              "mimeType": "text/plain"
+            },
+            {
+              "scheme": "content",
+              "host": "*",
+              "mimeType": "application/json"
+            },
+            {
+              "scheme": "content",
+              "host": "*",
+              "mimeType": "text/csv"
+            },
+            {
+              "scheme": "content",
+              "host": "*",
+              "mimeType": "application/epub+zip"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         },
         {
           "action": "VIEW",
           "autoVerify": false,
           "data": [
-            { "scheme": "file", "host": "*", "mimeType": "*/*", "pathPattern": ".*\\.(txt|csv|json|epub)" }
+            {
+              "scheme": "file",
+              "host": "*",
+              "mimeType": "*/*",
+              "pathPattern": ".*\\.(txt|csv|json|epub)"
+            }
           ],
-          "category": ["DEFAULT"]
+          "category": [
+            "DEFAULT"
+          ]
         }
       ]
     },

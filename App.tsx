@@ -13,6 +13,7 @@ import CustomSourcesScreen from './src/screens/CustomSourcesScreen';
 import WritingScreen from './src/screens/WritingScreen';
 import { importExternalFile } from './src/lib/library';
 import { T } from './src/lib/theme';
+import { AlertProvider } from './src/components/CustomAlert';
 
 const Stack = createNativeStackNavigator();
 
@@ -46,6 +47,7 @@ export default function App() {
   }, []);
 
   return (
+    <AlertProvider>
     <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <NavigationContainer ref={navigationRef}>
@@ -62,5 +64,6 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </View>
+    </AlertProvider>
   );
 }

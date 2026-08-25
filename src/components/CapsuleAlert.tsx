@@ -55,7 +55,7 @@ export function CapsuleToast({ visible, text, onHide }: { visible: boolean; text
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modal: { width: '100%', maxWidth: 360, backgroundColor: '#1A1A1A', borderRadius: 22, borderWidth: 1, borderColor: '#2E2E2E', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  modal: { width: '100%', maxWidth: 360, backgroundColor: '#1A1A1A', borderRadius: 20, borderWidth: 1, borderColor: '#2E2E2E', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
   title: { fontSize: 16, fontWeight: '700', color: '#F5F5F5', textAlign: 'center' },
   message: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#A3A3A3', textAlign: 'center' },
   btnRow: { flexDirection: 'row', gap: 10, marginTop: 18 },

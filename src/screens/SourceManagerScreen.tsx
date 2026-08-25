@@ -10,6 +10,7 @@ import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { BUILTIN_SOURCE_NAMES } from '../lib/bookSources';
 import { getCustomSources, removeCustomSource, saveCustomSources } from '../lib/library';
+import { showAlert } from '../components/CustomAlert';
 import type { CustomBookSource } from '../types/book';
 
 type Props = any;
@@ -144,7 +145,7 @@ export default function SourceManagerScreen({ navigation }: Props) {
       setSources(merged);
       setNotice(`已导入 ${sources.length} 个书源`);
     } catch (error: any) {
-      Alert.alert('导入失败', error.message || '无法读取书源');
+      showAlert('导入失败', error.message || '无法读取书源');
     }
   };
 
@@ -177,7 +178,7 @@ export default function SourceManagerScreen({ navigation }: Props) {
 
   const saveForm = async () => {
     if (!form.name.trim() || !form.searchUrl.trim()) {
-      Alert.alert('提示', '书源名称和搜索地址不能为空');
+      showAlert('提示', '书源名称和搜索地址不能为空');
       return;
     }
     const current = await getCustomSources();
@@ -231,12 +232,12 @@ export default function SourceManagerScreen({ navigation }: Props) {
           <Text style={s.urlButtonText}>{importingUrl ? '导入中' : '导入'}</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={s.templateRow} onPress={() => Alert.alert('书源格式示例', '支持多种形式，字段名不固定也会自动识别：\n\n单条：\n{"name":"示例源","searchUrl":"https://api.example.com/books?q={query}"}\n\n多条：\n{"sources":[{"name":"源1","url":"https://a.com/s?q={query}"},{"name":"源2","searchUrl":"https://b.com/search?query={query}"}]}\n\nOPDS：\n{"name":"OPDS源","kind":"opds","searchUrl":"https://opds.example.com/search?q={query}"}')}>
+      <TouchableOpacity style={s.templateRow} onPress={() => showAlert('书源格式示例', '支持多种形式，字段名不固定也会自动识别：\n\n单条：\n{"name":"示例源","searchUrl":"https://api.example.com/books?q={query}"}\n\n多条：\n{"sources":[{"name":"源1","url":"https://a.com/s?q={query}"},{"name":"源2","searchUrl":"https://b.com/search?query={query}"}]}\n\nOPDS：\n{"name":"OPDS源","kind":"opds","searchUrl":"https://opds.example.com/search?q={query}"}')}>
         <Text style={s.templateText}>看不懂格式？点这里看示例</Text>
       </TouchableOpacity>
       {sources.length > 0 && (
         <TouchableOpacity style={s.batchDeleteBtn} onPress={() => {
-          Alert.alert('批量删除', `确定要删除全部 ${sources.length} 个自定义书源吗？`, [
+          showAlert('批量删除', `确定要删除全部 ${sources.length} 个自定义书源吗？`, [
             { text: '取消', style: 'cancel' },
             { text: '全部删除', style: 'destructive', onPress: async () => {
               await saveCustomSources([]);

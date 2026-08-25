@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, Image, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
+import { showAlert } from '../components/CustomAlert';
 import { Icon } from '../lib/icons';
 import { importLocalBook, removeFromShelf, updateLibraryBook } from '../lib/library';
 import type { LibraryBook, ShelfStatus } from '../types/book';
@@ -29,7 +30,7 @@ export default function ShelfScreen({ navigation }: Props) {
   const refresh = async () => setBooks(await (await import('../lib/library')).getLibrary());
 
   const remove = (book: LibraryBook) => {
-    Alert.alert('移出书架', book.title, [
+    showAlert('移出书架', book.title, [
       { text: '取消', style: 'cancel' },
       { text: '删除', style: 'destructive', onPress: async () => { await removeFromShelf(book.id); refresh(); } },
     ]);

@@ -4,17 +4,27 @@ import {
   StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { T } from '../lib/theme';
-import { chatCompletion } from '../lib/llm';
+import { chatCompletion, detectIntent } from '../lib/llm';
 
-type Msg = { role: 'user' | 'assistant'; content: string };
+type Msg = { role: 'user' | 'assistant'; content: string; provider?: string };
+
+const MODELS = [
+  { key: 'auto', label: '自动' },
+  { key: 'deepseek', label: 'DeepSeek' },
+  { key: 'groq', label: 'Groq' },
+  { key: 'sambanova', label: 'SambaNova' },
+  { key: 'cerebras', label: 'Cerebras' },
+];
 
 export default function WritingScreen({ navigation }: any) {
   const [messages, setMessages] = useState<Msg[]>([
-    { role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么，我可以帮你创作、续写、润色或提供灵感。\n\n例如：\n• 帮我写一篇科幻短篇小说\n• 续写这段文字...\n• 润色这段描写\n• 给我一个爱情故事的开头' },
+    { role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么，我可以帮你创作、续写、润色或提供灵感。' },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState('');
+  const [model, setModel] = useState('auto');
+  const [provider, setProvider] = useState('');
   const scrollRef = useRef<ScrollView>(null);
 
   const send = async (raw?: string) => {
@@ -25,12 +35,16 @@ export default function WritingScreen({ navigation }: any) {
     setMessages(history);
     setInput('');
     setLoading(true);
+    setStreaming('');
     let streamedContent = '';
     try {
+      const intent = detectIntent(text);
       const result = await chatCompletion(
         history.map(m => ({ role: m.role, content: m.content })),
         {
-          intent: 'writing',
+          intent,
+          modelOverride: model === 'auto' ? undefined : model,
+          onProvider: (p) => setProvider(p),
           onContent: (delta) => {
             streamedContent += delta;
             setStreaming(streamedContent);
@@ -42,7 +56,7 @@ export default function WritingScreen({ navigation }: any) {
       const finalContent = streamedContent || result.content || '没有回复内容';
       setMessages(prev => {
         const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
-        return [...filtered, { role: 'assistant', content: finalContent }];
+        return [...filtered, { role: 'assistant', content: finalContent, provider: result.provider }];
       });
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);
@@ -66,8 +80,11 @@ export default function WritingScreen({ navigation }: any) {
       <ScrollView ref={scrollRef} contentContainerStyle={s.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
         {messages.map((msg, i) => (
           <View key={i} style={[s.bubble, msg.role === 'user' ? s.userBubble : s.aiBubble]}>
-            {msg.role === 'assistant' && <Text style={s.avatar}>AI</Text>}
-            <Text style={[s.bubbleText, msg.role === 'user' && s.userText]}>{msg.content}</Text>
+            {msg.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
+            <View style={{ flex: 1 }}>
+              <Text style={[s.bubbleText, msg.role === 'user' && s.userText]}>{msg.content}</Text>
+              {msg.provider ? <Text style={s.msgProvider}>{msg.provider}</Text> : null}
+            </View>
           </View>
         ))}
         {loading ? (
@@ -83,11 +100,35 @@ export default function WritingScreen({ navigation }: any) {
           </View>
         ) : null}
       </ScrollView>
-      <View style={s.inputBar}>
-        <TextInput value={input} onChangeText={setInput} placeholder="描述你想写的内容..." placeholderTextColor={T.textDim} multiline style={s.input} />
-        <TouchableOpacity disabled={!input.trim() || loading} style={[s.sendBtn, (!input.trim() || loading) && { opacity: 0.3 }]} onPress={() => send()}>
-          <Text style={s.sendIcon}>↑</Text>
-        </TouchableOpacity>
+      <View style={s.inputArea}>
+        <View style={s.modelRow}>
+          {MODELS.map(m => (
+            <TouchableOpacity
+              key={m.key}
+              style={[s.modelChip, model === m.key && s.modelActive]}
+              onPress={() => setModel(m.key)}
+            >
+              <Text style={[s.modelText, model === m.key && s.modelTextActive]}>{m.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={s.inputRow}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="描述你想写的内容..."
+            placeholderTextColor={T.textDim}
+            multiline
+            style={s.input}
+          />
+          <TouchableOpacity
+            disabled={!input.trim() || loading}
+            style={[s.sendBtn, (!input.trim() || loading) && { opacity: 0.3 }]}
+            onPress={() => send()}
+          >
+            <Text style={s.sendIcon}>↑</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -100,14 +141,22 @@ const s: any = {
   backText: { color: T.text, fontSize: 20 },
   headerTitle: { color: T.text, fontSize: 18, fontWeight: '700' },
   messages: { padding: 16, paddingBottom: 8 },
-  bubble: { maxWidth: '85%', padding: 14, borderRadius: T.radius, marginBottom: 10, flexDirection: 'row' },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#2563EB' },
-  aiBubble: { alignSelf: 'flex-start', backgroundColor: T.surface2 },
-  avatar: { color: T.grey, fontSize: 11, fontWeight: '700', marginRight: 8, marginTop: 2 },
+  bubble: { maxWidth: '85%', padding: 12, borderRadius: T.radius, marginBottom: 8, flexDirection: 'row' },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: T.bubbleUser, borderBottomRightRadius: 4 },
+  aiBubble: { alignSelf: 'flex-start', backgroundColor: T.bubbleAI, borderBottomLeftRadius: 4 },
+  avatar: { width: 24, height: 24, borderRadius: 12, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginTop: 2 },
+  avatarText: { color: T.grey, fontSize: 9, fontWeight: '700' },
   bubbleText: { color: T.text, fontSize: 15, lineHeight: 22, flex: 1 },
-  userText: { color: '#FFF' },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, paddingBottom: 30, backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.border },
-  input: { flex: 1, color: T.text, fontSize: 15, backgroundColor: T.surface2, borderRadius: T.radius, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, maxHeight: 100, marginRight: 8 },
-  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center' },
+  userText: { color: T.text },
+  msgProvider: { color: T.textDim, fontSize: 9, marginTop: 4 },
+  inputArea: { paddingHorizontal: 12, paddingBottom: 20, backgroundColor: T.bg, borderTopWidth: 1, borderTopColor: T.border },
+  modelRow: { flexDirection: 'row', gap: 4, marginBottom: 8, paddingHorizontal: 4 },
+  modelChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: T.surface2 },
+  modelActive: { backgroundColor: T.white },
+  modelText: { color: T.textMuted, fontSize: 11 },
+  modelTextActive: { color: T.black, fontWeight: '700' },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  input: { flex: 1, color: T.text, fontSize: 15, backgroundColor: T.surface2, borderRadius: 20, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 120, minHeight: 42, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
+  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
   sendIcon: { color: T.black, fontSize: 18, fontWeight: '800' },
 };

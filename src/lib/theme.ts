@@ -1,7 +1,7 @@
 export const T = {
-  bg: '#0D0D0D',
-  surface: '#161616',
-  surface2: '#1E1E1E',
+  bg: '#141414',
+  surface: '#1A1A1A',
+  surface2: '#222222',
   card: '#222222',
   border: '#2E2E2E',
   borderLight: '#3A3A3A',

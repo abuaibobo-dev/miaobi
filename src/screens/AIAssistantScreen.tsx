@@ -67,6 +67,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
     const userMsg: Msg = { role: 'user', content: text };
     const history = [...messages, userMsg];
     setMessages(history);
+    setResults([]);
     setInput('');
     setLoading(true);
     try {
@@ -111,6 +112,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
 
   const openResult = async (book: BookRecord) => {
     await addToShelf(book);
+    setResults([]);
     navigation.navigate('BookDetail', { book });
   };
 

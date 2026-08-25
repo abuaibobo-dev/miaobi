@@ -236,11 +236,16 @@ export async function fetchSourceRecommendations(customSources: CustomBookSource
   ];
 
   for (const source of customSources.slice(0, 5)) {
-    const defaultQuery = source.kind === 'opds' ? 'popular' : '经典';
     tasks.push({
       key: `custom:${source.id}`,
       title: source.name,
-      promise: searchCustomSource(source, defaultQuery).catch(() => [] as BookRecord[]),
+      promise: (async () => {
+        for (const q of ['classic', 'popular', '小说', '文学']) {
+          const result = await searchCustomSource(source, q).catch(() => [] as BookRecord[]);
+          if (result.length > 0) return result.slice(0, 8);
+        }
+        return [] as BookRecord[];
+      })(),
     });
   }
 

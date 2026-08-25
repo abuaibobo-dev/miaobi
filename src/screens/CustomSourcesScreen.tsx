@@ -15,6 +15,7 @@ interface SourceWithBooks {
   source: CustomBookSource;
   books: BookRecord[];
   loading: boolean;
+  error?: string;
 }
 
 export default function CustomSourcesScreen({ navigation }: Props) {
@@ -31,12 +32,21 @@ export default function CustomSourcesScreen({ navigation }: Props) {
       setItems(initial);
 
       const results = await Promise.allSettled(
-        sources.map(source => searchCustomSource(source, '经典'))
+        sources.map(async source => {
+          const tried: BookRecord[] = [];
+          for (const q of ['classic', 'popular', '小说']) {
+            const result = await searchCustomSource(source, q).catch(() => [] as BookRecord[]);
+            tried.push(...result);
+            if (tried.length > 0) break;
+          }
+          return tried;
+        })
       );
       if (!mounted) return;
       setItems(sources.map((source, index) => ({
         source,
         books: results[index].status === 'fulfilled' ? results[index].value.slice(0, 12) : [],
+        error: results[index].status === 'rejected' ? '请求失败' : (results[index].status === 'fulfilled' && results[index].value.length === 0 ? '该源未返回结果' : undefined),
         loading: false,
       })));
     })();
@@ -50,13 +60,18 @@ export default function CustomSourcesScreen({ navigation }: Props) {
     try {
       const source = items.find(item => item.source.id === sourceId)?.source;
       if (!source) return;
-      const books = await searchCustomSource(source, 'popular');
+      const allBooks: BookRecord[] = [];
+      for (const q of ['popular', 'classic', '小说', '文学']) {
+        const result = await searchCustomSource(source, q).catch(() => [] as BookRecord[]);
+        allBooks.push(...result);
+        if (allBooks.length >= 12) break;
+      }
       setItems(prev => prev.map(item =>
-        item.source.id === sourceId ? { ...item, books: books.slice(0, 20), loading: false } : item
+        item.source.id === sourceId ? { ...item, books: allBooks.slice(0, 20), loading: false, error: allBooks.length === 0 ? '该源未返回结果' : undefined } : item
       ));
     } catch {
       setItems(prev => prev.map(item =>
-        item.source.id === sourceId ? { ...item, loading: false } : item
+        item.source.id === sourceId ? { ...item, loading: false, error: '请求出错' } : item
       ));
     }
   };
@@ -104,6 +119,8 @@ export default function CustomSourcesScreen({ navigation }: Props) {
                 <ActivityIndicator color={T.textMuted} />
                 <Text style={s.loadingText}>加载中…</Text>
               </View>
+            ) : item.error ? (
+              <Text style={s.errorText}>{item.error}</Text>
             ) : item.books.length === 0 ? (
               <Text style={s.noBooks}>暂无内容</Text>
             ) : (

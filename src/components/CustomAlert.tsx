@@ -97,10 +97,10 @@ const s = StyleSheet.create({
   },
   card: {
     width: MODAL_MAX_W,
-    backgroundColor: '#1A1A1A',
-    borderRadius: 20,
+    backgroundColor: T.surface,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2E2E2E',
+    borderColor: T.border,
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 16,
@@ -115,7 +115,7 @@ const s = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     lineHeight: 20,
-    color: '#A3A3A3',
+    color: T.textMuted,
     textAlign: 'center',
   },
   btnRow: {
@@ -126,30 +126,30 @@ const s = StyleSheet.create({
   btn: {
     flex: 1,
     height: 42,
-    borderRadius: 14,
-    backgroundColor: '#242424',
+    borderRadius: 12,
+    backgroundColor: T.surface2,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: T.border,
   },
   btnCancel: {
-    backgroundColor: '#242424',
+    backgroundColor: T.surface2,
   },
   btnDanger: {
-    backgroundColor: '#3A1515',
-    borderColor: '#4A2020',
+    backgroundColor: T.surface2,
+    borderColor: T.border,
   },
   btnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#D4D4D4',
+    color: T.text,
   },
   btnTextCancel: {
-    color: '#999',
+    color: T.textMuted,
   },
   btnTextDanger: {
-    color: '#D6A0A0',
+    color: '#C09090',
     fontWeight: '700',
   },
 });

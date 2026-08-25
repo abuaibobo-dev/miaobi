@@ -157,7 +157,7 @@ export default function SettingsScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: '#4ADE80' } : { color: '#F87171' }]}>{notice}</Text> : null}
+        {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: '#6ECF8A' } : { color: '#D68080' }]}>{notice}</Text> : null}
 
         {/* Navigation */}
         <Text style={[s.sectionTitle, { marginTop: 24 }]}>功能</Text>

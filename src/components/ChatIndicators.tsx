@@ -87,13 +87,13 @@ export function ThinkingPanel({ text, streaming = false }: { text: string; strea
 
 const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D4D4D4' },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.grey },
   label: { marginLeft: 4, fontSize: 12, color: T.textMuted },
-  cursor: { color: '#F5F5F5', fontSize: 15, lineHeight: 22 },
-  panel: { marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#181818', overflow: 'hidden' },
+  cursor: { color: T.white, fontSize: 15, lineHeight: 22 },
+  panel: { marginTop: 8, borderRadius: 14, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 10 },
   title: { fontSize: 12, fontWeight: '700', color: T.text },
-  preview: { flex: 1, marginLeft: 4, fontSize: 11, color: '#8A8A8A' },
+  preview: { flex: 1, marginLeft: 4, fontSize: 11, color: T.textMuted },
   body: { borderTopWidth: 1, borderTopColor: '#262626', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
-  text: { fontSize: 13, lineHeight: 20, color: '#C9C9C9' },
+  text: { fontSize: 13, lineHeight: 20, color: T.textSecondary },
 });

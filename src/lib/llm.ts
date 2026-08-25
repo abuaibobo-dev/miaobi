@@ -57,11 +57,21 @@ function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
   };
 }
 
+
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2, delayMs = 1000): Promise<T> {
+  let lastError: Error | null = null;
+  for (let i = 0; i <= maxRetries; i++) {
+    try { return await fn(); }
+    catch (e) { lastError = e as Error; if (i < maxRetries) await new Promise(r => setTimeout(r, delayMs * (i + 1))); }
+  }
+  throw lastError;
+}
+
 export function detectIntent(text: string, hasImage?: boolean): Intent {
   if (hasImage) return 'vision';
   if (/生图|生成图|画一[张幅]|画个|绘图|插画/.test(text)) return 'image';
   if (/(成人|情欲|激情|床戏|性爱|做爱|上床|缠绵|云雨|鱼水之欢|亲密|裸露|肌肤|抚摸|挑逗|诱惑|翻云覆雨|脱衣|高潮|呻吟|喘息|亲热|赤裸|裸体|深入|插入|娇喘|湿润|紧密结合|律动|抽送)/.test(text)) return 'adult';
-  const keywords = ['写','创作','续写','章节','大纲','剧情','角色','小说','故事','对话','描写','场景','结局','开头','伏笔','设定','世界观','修改','润色'];
+  const keywords = ['写','创作','续写','扩写','章节','大纲','剧情','角色','小说','故事','对话','描写','场景','结局','开头','伏笔','设定','世界观','修改','润色','改写','仿写','模仿','风格'];
   return keywords.some(keyword => text.includes(keyword)) ? 'writing' : 'chat';
 }
 

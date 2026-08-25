@@ -107,7 +107,7 @@ export default function CustomSourcesScreen({ navigation }: Props) {
               </View>
               <TouchableOpacity
                 style={s.moreButton}
-                onPress={() => navigation.navigate('Home' as any, { searchQuery: item.source.name })}
+                onPress={() => navigation.navigate('Home' as any)}
               >
                 <Text style={s.moreText}>查看全部</Text>
                 <Icon.forward size={13} color={T.textSec} />

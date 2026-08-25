@@ -102,6 +102,10 @@ export interface NovelSettings {
   maxTokens: number;
   localThinking?: boolean;
   customPrompt?: string;
+  groqKey?: string;
+  sambanovaKey?: string;
+  cerebrasKey?: string;
+  provider?: string;
 }
 
 export interface AppState {

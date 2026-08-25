@@ -1,8 +1,9 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, FlatList, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform, RefreshControl,
   StatusBar, Text, TextInput, TouchableOpacity, View, Dimensions, Pressable,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { chatCompletion, detectIntent } from '../lib/llm';
@@ -11,15 +12,16 @@ import { getLibrary } from '../lib/library';
 type Props = any;
 type Msg = { role: 'user' | 'assistant'; content: string; provider?: string };
 
-const DRAWER_W = 260;
+const DRAWER_W = 220;
 const { width: SW } = Dimensions.get('window');
 
+import { Ionicons } from '@expo/vector-icons';
 const MENU = [
-  { key: 'writing', icon: '✍️', label: 'AI 写作' },
-  { key: 'sources', icon: '📚', label: '书源管理' },
-  { key: 'shelf', icon: '📖', label: '我的书架' },
-  { key: 'assistant', icon: '🤖', label: '找书助手' },
-  { key: 'settings', icon: '⚙️', label: '设置' },
+  { key: 'writing', icon: 'create-outline' as const, label: 'AI 写作' },
+  { key: 'sources', icon: 'book-outline' as const, label: '书源管理' },
+  { key: 'shelf', icon: 'library-outline' as const, label: '我的书架' },
+  { key: 'assistant', icon: 'sparkles-outline' as const, label: '找书助手' },
+  { key: 'settings', icon: 'settings-outline' as const, label: '设置' },
 ];
 
 const MODELS = [
@@ -47,12 +49,27 @@ export default function HomeScreen({ navigation }: Props) {
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('auto');
   const [streaming, setStreaming] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const scrollRef = useRef<FlatList>(null);
   const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
+  const CHAT_KEY = 'miaobi.homeChat';
+
   useFocusEffect(useCallback(() => {
-    getLibrary().then(() => {});
+    AsyncStorage.getItem('miaobi.searchHistory').then(raw => { if (raw) try { setSearchHistory(JSON.parse(raw).slice(0, 10)); } catch {} });
+    AsyncStorage.getItem(CHAT_KEY).then(raw => {
+      if (raw) {
+        try { const saved = JSON.parse(raw); if (Array.isArray(saved) && saved.length) setMessages(saved); } catch {}
+      }
+    });
   }, []));
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise(r => setTimeout(r, 600));
+    setRefreshing(false);
+  };
 
   const toggleDrawer = () => {
     const to = drawerOpen ? -DRAWER_W : 0;
@@ -73,6 +90,7 @@ export default function HomeScreen({ navigation }: Props) {
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || loading) return;
+    Keyboard.dismiss();
     const userMsg: Msg = { role: 'user', content: msg };
     const history = [...messages, userMsg];
     setMessages(history);
@@ -109,6 +127,12 @@ export default function HomeScreen({ navigation }: Props) {
       setLoading(false);
       setStreaming('');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      setMessages(prev => { AsyncStorage.setItem(CHAT_KEY, JSON.stringify(prev.slice(-50))); return prev; });
+      if (msg.length > 1 && !searchHistory.includes(msg)) {
+        const newHistory = [msg, ...searchHistory].slice(0, 10);
+        setSearchHistory(newHistory);
+        AsyncStorage.setItem('miaobi.searchHistory', JSON.stringify(newHistory));
+      }
     }
   };
 
@@ -135,7 +159,7 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
         {MENU.map(item => (
           <TouchableOpacity key={item.key} style={s.drawerItem} onPress={() => nav(item.key)}>
-            <Text style={s.drawerIcon}>{item.icon}</Text>
+            <Ionicons name={item.icon} size={18} color={T.textSecondary} style={{ marginRight: 14, width: 24 }} />
             <Text style={s.drawerLabel}>{item.label}</Text>
           </TouchableOpacity>
         ))}
@@ -204,14 +228,14 @@ export default function HomeScreen({ navigation }: Props) {
             <TextInput
               value={input}
               onChangeText={setInput}
-              placeholder="告诉我你想写什么..."
-              placeholderTextColor={T.textDim}
+              placeholder="输入消息或指令..."
+              placeholderTextColor={T.textMuted}
               multiline
               style={s.input}
             />
             <TouchableOpacity
               disabled={!input.trim() || loading}
-              style={[s.sendBtn, (!input.trim() || loading) && { opacity: 0.3 }]}
+              style={[s.sendBtn, (!input.trim() || loading) && { opacity: 0.25, backgroundColor: T.surface2 }]}
               onPress={() => send()}
             >
               <Text style={s.sendIcon}>↑</Text>
@@ -258,10 +282,10 @@ const s: any = {
   modelRow: { flexDirection: 'row', gap: 4, marginBottom: 8, paddingHorizontal: 4 },
   modelChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: T.surface2 },
   modelActive: { backgroundColor: T.white },
-  modelText: { color: T.textMuted, fontSize: 11 },
+  modelText: { color: T.textMuted, fontSize: 12, fontWeight: '500' },
   modelTextActive: { color: T.black, fontWeight: '700' },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  input: { flex: 1, color: T.text, fontSize: 15, backgroundColor: T.surface2, borderRadius: 20, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 120, minHeight: 42, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
+  input: { flex: 1, color: T.text, fontSize: 15, backgroundColor: T.surface2, borderRadius: 20, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 120, minHeight: 44, borderWidth: 1, borderColor: T.border, lineHeight: 20 },
   sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
   sendIcon: { color: T.black, fontSize: 18, fontWeight: '800' },
 };

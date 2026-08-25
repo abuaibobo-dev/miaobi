@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
+  FlatList, KeyboardAvoidingView, Modal, Platform,
   ScrollView, StatusBar, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -223,7 +223,7 @@ export default function SourceManagerScreen({ navigation }: Props) {
           value={urlInput}
           onChangeText={setUrlInput}
           placeholder="粘贴书源 JSON 地址（.json 结尾）"
-          placeholderTextColor="#555"
+          placeholderTextColor={T.textMuted}
           autoCapitalize="none"
           keyboardType="url"
           style={s.urlInput}
@@ -284,7 +284,7 @@ export default function SourceManagerScreen({ navigation }: Props) {
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 12 }}>
               <Text style={s.editorTitle}>{editingId ? '编辑书源' : '新增自定义书源'}</Text>
               <Text style={s.fieldLabel}>名称</Text>
-              <TextInput style={s.input} value={form.name} onChangeText={value => setForm(prev => ({ ...prev, name: value }))} placeholder="我的书源" placeholderTextColor="#555" />
+              <TextInput style={s.input} value={form.name} onChangeText={value => setForm(prev => ({ ...prev, name: value }))} placeholder="我的书源" placeholderTextColor={T.textMuted} />
               <Text style={s.fieldLabel}>类型</Text>
               <View style={s.kindRow}>
                 {(['json', 'opds'] as const).map(kind => (
@@ -294,17 +294,17 @@ export default function SourceManagerScreen({ navigation }: Props) {
                 ))}
               </View>
               <Text style={s.fieldLabel}>搜索地址（{'{query}'} 为占位符）</Text>
-              <TextInput style={s.inputUrl} value={form.searchUrl} onChangeText={value => setForm(prev => ({ ...prev, searchUrl: value }))} placeholder={form.kind === 'opds' ? 'https://example.com/search?query={query}' : 'https://api.example.com/books?q={query}'} placeholderTextColor="#555" autoCapitalize="none" keyboardType="url" multiline />
+              <TextInput style={s.inputUrl} value={form.searchUrl} onChangeText={value => setForm(prev => ({ ...prev, searchUrl: value }))} placeholder={form.kind === 'opds' ? 'https://example.com/search?query={query}' : 'https://api.example.com/books?q={query}'} placeholderTextColor={T.textMuted} autoCapitalize="none" keyboardType="url" multiline />
               {form.kind === 'json' && (
                 <>
                   <Text style={s.fieldLabel}>结果路径（可选，如 data.books）</Text>
-                  <TextInput style={s.input} value={form.resultsPath} onChangeText={value => setForm(prev => ({ ...prev, resultsPath: value }))} placeholder="data.books" placeholderTextColor="#555" autoCapitalize="none" />
+                  <TextInput style={s.input} value={form.resultsPath} onChangeText={value => setForm(prev => ({ ...prev, resultsPath: value }))} placeholder="data.books" placeholderTextColor={T.textMuted} autoCapitalize="none" />
                   <Text style={s.fieldLabel}>字段映射</Text>
-                  <TextInput style={s.input} value={form.titleField} onChangeText={value => setForm(prev => ({ ...prev, titleField: value }))} placeholder="标题字段" placeholderTextColor="#555" autoCapitalize="none" />
-                  <TextInput style={s.input} value={form.authorsField} onChangeText={value => setForm(prev => ({ ...prev, authorsField: value }))} placeholder="作者字段" placeholderTextColor="#555" autoCapitalize="none" />
-                  <TextInput style={s.input} value={form.descriptionField} onChangeText={value => setForm(prev => ({ ...prev, descriptionField: value }))} placeholder="简介字段" placeholderTextColor="#555" autoCapitalize="none" />
-                  <TextInput style={s.input} value={form.coverField} onChangeText={value => setForm(prev => ({ ...prev, coverField: value }))} placeholder="封面字段" placeholderTextColor="#555" autoCapitalize="none" />
-                  <TextInput style={s.input} value={form.downloadField} onChangeText={value => setForm(prev => ({ ...prev, downloadField: value }))} placeholder="正文下载字段" placeholderTextColor="#555" autoCapitalize="none" />
+                  <TextInput style={s.input} value={form.titleField} onChangeText={value => setForm(prev => ({ ...prev, titleField: value }))} placeholder="标题字段" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+                  <TextInput style={s.input} value={form.authorsField} onChangeText={value => setForm(prev => ({ ...prev, authorsField: value }))} placeholder="作者字段" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+                  <TextInput style={s.input} value={form.descriptionField} onChangeText={value => setForm(prev => ({ ...prev, descriptionField: value }))} placeholder="简介字段" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+                  <TextInput style={s.input} value={form.coverField} onChangeText={value => setForm(prev => ({ ...prev, coverField: value }))} placeholder="封面字段" placeholderTextColor={T.textMuted} autoCapitalize="none" />
+                  <TextInput style={s.input} value={form.downloadField} onChangeText={value => setForm(prev => ({ ...prev, downloadField: value }))} placeholder="正文下载字段" placeholderTextColor={T.textMuted} autoCapitalize="none" />
                 </>
               )}
               <View style={s.editorButtons}>

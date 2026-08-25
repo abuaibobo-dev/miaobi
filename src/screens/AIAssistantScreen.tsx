@@ -159,12 +159,12 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
           value={input}
           onChangeText={setInput}
           placeholder="描述你的口味、问题或书名"
-          placeholderTextColor="#666"
+          placeholderTextColor={T.textMuted}
           multiline
           style={s.input}
         />
         <TouchableOpacity disabled={!input.trim() || loading} style={[s.send, (!input.trim() || loading) && s.disabled]} onPress={() => send()}>
-          <Icon.send size={17} color="#111" />
+          <Icon.send size={17} color={T.black} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

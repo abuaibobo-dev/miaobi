@@ -73,7 +73,7 @@ export default function ShelfScreen({ navigation }: Props) {
 
       {!!notice && <Text style={s.notice}>{notice}</Text>}
       {!filtered.length ? (
-        <View style={s.empty}><Icon.book size={44} color="#333" /><Text style={s.emptyText}>书架空空</Text></View>
+        <View style={s.empty}><Icon.book size={56} color={T.textDim} /><Text style={s.emptyText}>书架空空</Text></View>
       ) : (
         <FlatList
           data={filtered}

@@ -27,7 +27,7 @@ export default StyleSheet.create({
   noBooks: { color: T.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 16 },
   errorText: { color: '#B08080', fontSize: 11, textAlign: 'center', paddingVertical: 12, backgroundColor: '#1A1515', borderRadius: 10 },
   bookCard: { width: 86 },
-  bookCover: { width: 86, height: 122, borderRadius: 10, backgroundColor: '#222', overflow: 'hidden' },
+  bookCover: { width: 86, height: 122, borderRadius: 10, backgroundColor: T.surface2, overflow: 'hidden' },
   bookImage: { width: '100%', height: '100%' },
   bookTitle: { marginTop: 5, color: T.text, fontSize: 11, fontWeight: '700', lineHeight: 15 },
   bookAuthor: { marginTop: 2, fontSize: 9, color: T.textMuted },

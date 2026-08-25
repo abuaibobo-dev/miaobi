@@ -7,13 +7,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
+import { FlatList } from 'react-native';
 import { findLibraryBook, readBookContent, splitChapters, updateLibraryBook } from '../lib/library';
 
 type Props = any;
 type ReaderTheme = 'dark' | 'sepia' | 'paper';
 
 const THEMES: Record<ReaderTheme, { bg: string; text: string; secondary: string; bar: string; border: string; dark: boolean }> = {
-  dark: { bg: '#0B0B0B', text: '#D6D6D6', secondary: '#8A8A8A', bar: '#141414', border: '#242424', dark: true },
+  dark: { bg: T.bg, text: '#D6D6D6', secondary: '#8A8A8A', bar: T.surface, border: T.border, dark: true },
   sepia: { bg: '#F4EAD5', text: '#3E342A', secondary: '#796852', bar: '#EBDFC6', border: '#D9CBAF', dark: false },
   paper: { bg: '#F7F7F5', text: '#222', secondary: '#666', bar: '#EFEFEF', border: '#DDD', dark: false },
 };
@@ -70,19 +71,15 @@ export default function ReaderScreen({ navigation, route }: Props) {
 
   useEffect(() => () => { Speech.stop(); }, []);
 
-  const cycleFont = () => {
-    const sizes = [15, 17, 19, 22, 25];
-    const next = sizes[(sizes.indexOf(fontSize) + 1) % sizes.length];
-    setFontSize(next);
-    AsyncStorage.setItem('miaobi.reader.fontSize', String(next));
-  };
-
   const jump = useCallback((direction: number) => {
     setCurrent(prev => Math.max(0, Math.min(chapters.length - 1, prev + direction)));
   }, [chapters.length]);
 
+  const [isPaused, setIsPaused] = useState(false);
+  const [showChapters, setShowChapters] = useState(false);
+
   const toggleSpeech = () => {
-    if (isSpeaking) { Speech.stop(); setIsSpeaking(false); return; }
+    if (isSpeaking) { Speech.stop(); setIsSpeaking(false); setIsPaused(false); return; }
     if (!chapters[current]?.body) return;
     setIsSpeaking(true);
     AsyncStorage.getItem('miaobi.reader.speechRate').then(rateValue => {

@@ -84,11 +84,11 @@ export default function ModelPicker({ visible, selectedId, onClose, onSelect }: 
 
 const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#161616', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '68%', paddingBottom: 18 },
-  handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#3A3A3A', marginTop: 10 },
+  sheet: { backgroundColor: T.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '68%', paddingBottom: 18 },
+  handle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: T.borderLight, marginTop: 10 },
   title: { fontSize: 15, fontWeight: '800', color: T.text, paddingHorizontal: 18, marginTop: 12, marginBottom: 8 },
   list: { paddingHorizontal: 14, paddingBottom: 8 },
-  option: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: '#2E2E2E', backgroundColor: '#111', marginBottom: 8 },
+  option: { minHeight: 46, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface2, marginBottom: 8 },
   optionActive: { borderColor: T.accent, backgroundColor: T.accent + '16' },
   optionText: { fontSize: 13.5, color: T.text },
   optionTextActive: { fontWeight: '700' },

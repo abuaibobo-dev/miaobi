@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, ScrollView,
   StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { chatCompletion, detectIntent } from '../lib/llm';
 
@@ -25,7 +26,14 @@ export default function WritingScreen({ navigation }: any) {
   const [streaming, setStreaming] = useState('');
   const [model, setModel] = useState('auto');
   const [provider, setProvider] = useState('');
+  const CHAT_KEY = 'miaobi.writingChat';
   const scrollRef = useRef<ScrollView>(null);
+
+  React.useEffect(() => {
+    AsyncStorage.getItem(CHAT_KEY).then(raw => {
+      if (raw) { try { const s = JSON.parse(raw); if (Array.isArray(s) && s.length) setMessages(s); } catch {} }
+    });
+  }, []);
 
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
@@ -64,6 +72,7 @@ export default function WritingScreen({ navigation }: any) {
       setLoading(false);
       setStreaming('');
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      setMessages(prev => { AsyncStorage.setItem(CHAT_KEY, JSON.stringify(prev.slice(-50))); return prev; });
     }
   };
 
@@ -117,7 +126,7 @@ export default function WritingScreen({ navigation }: any) {
             value={input}
             onChangeText={setInput}
             placeholder="描述你想写的内容..."
-            placeholderTextColor={T.textDim}
+            placeholderTextColor={T.textMuted}
             multiline
             style={s.input}
           />

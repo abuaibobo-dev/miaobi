@@ -58,7 +58,7 @@ export async function tryFreeProviders(
           max_tokens: 3000,
           temperature: 0.8,
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) continue;
       const data = await res.json().catch(() => null);

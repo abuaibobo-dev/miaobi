@@ -6,7 +6,7 @@ export default StyleSheet.create({
   topBar: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
     paddingHorizontal: 16, paddingTop: (StatusBar.currentHeight || 44) + 5, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#1F1F1F',
+    borderBottomWidth: 1, borderBottomColor: T.border,
   },
   backButton: { width: 37, height: 37, borderRadius: 19, backgroundColor: T.card, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
   topTitle: { flex: 1, fontSize: 19, fontWeight: '900', color: T.text },
@@ -25,7 +25,7 @@ export default StyleSheet.create({
   body: { flex: 1, minWidth: 0 },
   title: { color: T.text, fontSize: 14, fontWeight: '800', lineHeight: 19 },
   meta: { marginTop: 4, fontSize: 11, color: T.textMuted },
-  status: { marginTop: 6, fontSize: 10, color: '#D4D4D4' },
+  status: { marginTop: 6, fontSize: 10, color: T.text },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 7, marginTop: 10 },
   miniButton: { height: 27, borderRadius: 14, paddingHorizontal: 10, justifyContent: 'center', backgroundColor: '#222', borderWidth: 1, borderColor: T.border },
   danger: { borderColor: '#3A3A3A' },

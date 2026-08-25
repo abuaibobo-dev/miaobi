@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { StatusBar, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import HomeScreen from './src/screens/HomeScreen';
 import BookDetailScreen from './src/screens/BookDetailScreen';
 import ShelfScreen from './src/screens/ShelfScreen';
@@ -47,7 +46,7 @@ export default function App() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
@@ -62,6 +61,6 @@ export default function App() {
           <Stack.Screen name="Writing" component={WritingScreen} />
         </Stack.Navigator>
       </NavigationContainer>
-    </GestureHandlerRootView>
+    </View>
   );
 }

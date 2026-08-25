@@ -12,7 +12,7 @@ export interface FreeProvider {
 }
 
 export const FREE_PROVIDERS: FreeProvider[] = [
-  { id: 'groq', name: 'Groq (Llama 3)', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.1-8b-instant', settingsKey: 'groqKey' },
+  { id: 'groq', name: 'Groq (Qwen 3.6)', baseUrl: 'https://api.groq.com/openai/v1', model: 'qwen/qwen3.6-27b', settingsKey: 'groqKey' },
   { id: 'sambanova', name: 'SambaNova', baseUrl: 'https://api.sambanova.ai/v1', model: 'Meta-Llama-3.1-8B-Instruct', settingsKey: 'sambanovaKey' },
   { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', model: 'llama-3.1-8b', settingsKey: 'cerebrasKey' },
 ];

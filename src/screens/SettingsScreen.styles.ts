@@ -48,3 +48,14 @@ export default StyleSheet.create({
   confirmNo: { height: 30, borderRadius: 15, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
   confirmNoText: { color: T.textMuted, fontSize: 11 },
 });
+
+// Provider styles
+const providerStyles = {
+  providerOption: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: T.border, marginTop: 8 },
+  providerActive: { borderColor: '#FFF', backgroundColor: T.surface },
+  providerRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  radioDot: { width: 10, height: 10, borderRadius: 5 },
+  radioActive: { backgroundColor: '#FFF' },
+  providerLabel: { color: T.text, fontSize: 14, fontWeight: '700' },
+  providerDesc: { color: T.textMuted, fontSize: 11, marginTop: 2 },
+};

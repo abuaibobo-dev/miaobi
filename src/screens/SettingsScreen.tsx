@@ -1,35 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StatusBar,
-  Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { T } from '../lib/theme';
-import { Icon } from '../lib/icons';
-import * as Speech from 'expo-speech';
 import { getSettings, saveSettings } from '../lib/storage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Props = any;
+
+const PROVIDERS = [
+  { id: 'deepseek', label: 'DeepSeek', desc: '最强中文能力，需 API Key', needsKey: true },
+  { id: 'groq', label: 'Groq (Llama 3)', desc: '免费，速度快，无内容限制', needsKey: false },
+  { id: 'sambanova', label: 'SambaNova', desc: '免费，Llama 3，无限制', needsKey: false },
+  { id: 'cerebras', label: 'Cerebras', desc: '免费，Llama 3，无限制', needsKey: false },
+] as const;
 
 export default function SettingsScreen({ navigation }: Props) {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('deepseek-chat');
   const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com');
+  const [provider, setProvider] = useState<string>('deepseek');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState('');
-  const [speechRate, setSpeechRate] = useState(1.0);
-  const [clearConfirm, setClearConfirm] = useState(false);
 
   useEffect(() => {
-    getSettings().then(settings => {
-      setApiKey(settings.apiKey || '');
-      setModel(settings.model || 'deepseek-chat');
-      setBaseUrl(settings.baseUrl || 'https://api.deepseek.com');
-    });
-    AsyncStorage.getItem('miaobi.reader.speechRate').then(value => {
-      const rate = Number(value);
-      if (rate > 0.3 && rate <= 3) setSpeechRate(rate);
+    getSettings().then((s: any) => {
+      setApiKey(s.apiKey || '');
+      setModel(s.model || 'deepseek-chat');
+      setBaseUrl(s.baseUrl || 'https://api.deepseek.com');
+      setProvider(s.provider || 'deepseek');
     });
   }, []);
 
@@ -39,11 +38,12 @@ export default function SettingsScreen({ navigation }: Props) {
       apiKey: apiKey.trim(),
       baseUrl: baseUrl.trim() || 'https://api.deepseek.com',
       model: model.trim() || 'deepseek-chat',
+      provider,
       temperature: 0.7,
       maxTokens: 12000,
-    });
+    } as any);
     setSaving(false);
-    setNotice('已保存');
+    setNotice('✅ 已保存');
     setTimeout(() => setNotice(''), 2000);
   };
 
@@ -52,122 +52,117 @@ export default function SettingsScreen({ navigation }: Props) {
     setNotice('');
     try {
       await handleSave();
-      const response = await fetch(`${baseUrl.trim()}/models`, {
-        headers: { Authorization: `Bearer ${apiKey.trim()}` },
-      });
-      if (response.ok) setNotice('连接正常');
-      else {
-        const data = await response.json().catch(() => null);
-        setNotice(data?.error?.message || `测试失败（${response.status}）`);
+      if (provider === 'deepseek') {
+        const res = await fetch(`${baseUrl.trim()}/models`, { headers: { Authorization: `Bearer ${apiKey.trim()}` } });
+        if (res.ok) setNotice('✅ 连接正常');
+        else { const d = await res.json().catch(() => null); setNotice(d?.error?.message || `❌ 失败（${res.status}）`); }
+      } else {
+        const p = PROVIDERS.find(p => p.id === provider)!;
+        const res = await fetch(`${p.id === 'groq' ? 'https://api.groq.com' : p.id === 'sambanova' ? 'https://api.sambanova.ai' : 'https://api.cerebras.ai'}/v1/models`, { signal: AbortSignal.timeout(8000) });
+        if (res.ok) setNotice('✅ 连接正常');
+        else setNotice(`❌ 测试失败（${res.status}）`);
       }
-    } catch (e: any) {
-      setNotice(e.message || '网络错误');
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const testSpeechRate = (rate: number) => {
-    setSpeechRate(rate);
-    AsyncStorage.setItem('miaobi.reader.speechRate', String(rate));
-    Speech.stop();
-    setTimeout(() => Speech.speak('这是朗读速度测试。', { language: 'zh-CN', rate }), 200);
-  };
-
-  const clearAllData = async () => {
-    const keys = await AsyncStorage.getAllKeys();
-    await AsyncStorage.removeMany(keys.filter(key => key.startsWith('miaobi.')));
-    setNotice('所有数据已清除');
-    setClearConfirm(false);
+    } catch (e: any) { setNotice(`❌ ${e.message}`); }
+    finally { setTesting(false); }
   };
 
   return (
-    <View style={s.screen}>
+    <View style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
-      <View style={s.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}><Icon.back size={19} color={T.text} /></TouchableOpacity>
-        <Text style={s.topTitle}>设置</Text>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}><Text style={s.backText}>←</Text></TouchableOpacity>
+        <Text style={s.headerTitle}>设置</Text>
         <View style={{ width: 37 }} />
       </View>
-
       <ScrollView contentContainerStyle={s.content}>
-        <View style={s.sectionCard}>
-          <Text style={s.sectionTitle}>DeepSeek API</Text>
-          <Text style={s.hint}>用于找书意图解析和结果排序，不配置也能搜索但排序较基础。</Text>
-
-          <Text style={s.fieldLabel}>API Key</Text>
-          <TextInput
-            value={apiKey}
-            onChangeText={setApiKey}
-            placeholder="sk-..."
-            placeholderTextColor="#555"
-            secureTextEntry
-            style={s.input}
-            autoCapitalize="none"
-          />
-
-          <Text style={s.fieldLabel}>模型</Text>
-          <TextInput value={model} onChangeText={setModel} placeholder="deepseek-chat" placeholderTextColor="#555" style={s.input} autoCapitalize="none" />
-
-          <Text style={s.fieldLabel}>Base URL</Text>
-          <TextInput value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.deepseek.com" placeholderTextColor="#555" style={s.input} autoCapitalize="none" keyboardType="url" />
-        </View>
-
-        <View style={s.menuGrid}>
-          <TouchableOpacity style={s.menuButton} onPress={() => navigation.navigate('AIAssistant')}>
-            <Text style={s.menuTitle}>AI 助手</Text><Text style={s.menuDesc}>找书 / 执行任务</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.menuButton} onPress={() => navigation.navigate('Sources')}>
-            <Text style={s.menuTitle}>书源管理</Text><Text style={s.menuDesc}>内置 / 自定义</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={s.sectionCard}>
-          <Text style={s.sectionTitle}>朗读速度</Text>
-          <Text style={s.hint}>用于阅读页的听书功能。</Text>
-          <View style={s.speedRow}>
-            {[0.5, 0.75, 1.0, 1.25, 1.5].map(rate => (
-              <TouchableOpacity key={rate} onPress={() => testSpeechRate(rate)} style={[s.speedButton, speechRate === rate && s.speedActive]}>
-                <Text style={[s.speedText, speechRate === rate && s.speedActiveText]}>{rate}x</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={s.sectionCard}>
-          <Text style={s.sectionTitle}>数据管理</Text>
-          {!clearConfirm ? (
-            <TouchableOpacity style={s.dangerButton} onPress={() => setClearConfirm(true)}>
-              <Text style={s.dangerText}>清除全部本地数据</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={s.confirmRow}>
-              <Text style={s.confirmText}>确认清除？书架和下载将丢失。</Text>
-              <TouchableOpacity style={s.confirmYes} onPress={clearAllData}><Text style={s.confirmYesText}>确认</Text></TouchableOpacity>
-              <TouchableOpacity style={s.confirmNo} onPress={() => setClearConfirm(false)}><Text style={s.confirmNoText}>取消</Text></TouchableOpacity>
+        {/* Model Selection */}
+        <Text style={s.sectionTitle}>AI 模型</Text>
+        <Text style={s.hint}>选择用于写作和找书的模型。免费模型无需 API Key。</Text>
+        {PROVIDERS.map(p => (
+          <TouchableOpacity key={p.id} style={[s.providerCard, provider === p.id && s.providerActive]} onPress={() => setProvider(p.id)}>
+            <View style={s.radio}>
+              <View style={[s.radioDot, provider === p.id && s.radioActive]} />
             </View>
-          )}
-        </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.providerLabel}>{p.label}</Text>
+              <Text style={s.providerDesc}>{p.desc}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
 
-        <TouchableOpacity style={[s.primaryButton, saving && s.disabled]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#111" /> : <Text style={s.primaryText}>保存设置</Text>}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[s.secondaryButton, testing && s.disabled]} onPress={handleTest} disabled={testing}>
-          {testing ? <ActivityIndicator color="#E5E5E5" /> : <Text style={s.secondaryText}>测试连接</Text>}
-        </TouchableOpacity>
-
-        {!!notice && (
-          <View style={s.toast}><Text style={s.toastText}>{notice}</Text></View>
+        {/* DeepSeek Config */}
+        {provider === 'deepseek' && (
+          <View style={s.card}>
+            <Text style={s.fieldLabel}>API Key</Text>
+            <TextInput value={apiKey} onChangeText={setApiKey} placeholder="sk-..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+            <Text style={s.fieldLabel}>模型</Text>
+            <TextInput value={model} onChangeText={setModel} placeholder="deepseek-chat" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" />
+            <Text style={s.fieldLabel}>Base URL</Text>
+            <TextInput value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.deepseek.com" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" keyboardType="url" />
+          </View>
         )}
 
-        <View style={s.aboutCard}>
-          <Text style={s.aboutTitle}>关于书海</Text>
-          <Text style={s.aboutText}>内容来自古登堡、Open Library、Google Books、Internet Archive、中文维基文库、美国国会图书馆、大都会博物馆和 Wikimedia Commons 等公开来源。仅提供元数据检索和公版正文阅读。</Text>
+        {/* Actions */}
+        <View style={s.btnRow}>
+          <TouchableOpacity style={s.primaryBtn} onPress={handleSave} disabled={saving}>
+            {saving ? <ActivityIndicator color={T.black} /> : <Text style={s.primaryBtnText}>保存</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={s.secondaryBtn} onPress={handleTest} disabled={testing}>
+            {testing ? <ActivityIndicator color={T.grey} /> : <Text style={s.secondaryBtnText}>测试连接</Text>}
+          </TouchableOpacity>
         </View>
+
+        {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: '#4ADE80' } : { color: '#F87171' }]}>{notice}</Text> : null}
+
+        {/* Navigation */}
+        <Text style={[s.sectionTitle, { marginTop: 24 }]}>功能</Text>
+        {[
+          { label: '书源管理', desc: '内置 / 自定义书源', screen: 'Sources' },
+          { label: 'AI 写作', desc: '创作 / 续写 / 润色', screen: 'Writing' },
+          { label: '找书助手', desc: 'AI 搜索推荐', screen: 'AIAssistant' },
+          { label: '我的书架', desc: '已收藏的书籍', screen: 'Shelf' },
+        ].map(item => (
+          <TouchableOpacity key={item.screen} style={s.navCard} onPress={() => navigation.navigate(item.screen)}>
+            <Text style={s.navLabel}>{item.label}</Text>
+            <Text style={s.navDesc}>{item.desc}</Text>
+            <Text style={s.navArrow}>→</Text>
+          </TouchableOpacity>
+        ))}
+
+        <Text style={s.about}>妙笔 v2.3.2 · 黑白灰主题 · AI 写作 + 找书 + 阅读</Text>
       </ScrollView>
     </View>
   );
 }
 
-const s = require('./SettingsScreen.styles').default;
+const s: any = {
+  container: { flex: 1, backgroundColor: T.bg },
+  header: { paddingTop: 50, paddingBottom: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: T.bg, borderBottomWidth: 1, borderBottomColor: T.border },
+  backBtn: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center' },
+  backText: { color: T.text, fontSize: 20 },
+  headerTitle: { color: T.text, fontSize: 18, fontWeight: '700' },
+  content: { padding: 16, paddingBottom: 40 },
+  sectionTitle: { color: T.text, fontSize: 16, fontWeight: '800', marginBottom: 6, marginTop: 16 },
+  hint: { color: T.textMuted, fontSize: 12, marginBottom: 12 },
+  providerCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: T.border, marginBottom: 8 },
+  providerActive: { borderColor: T.white, backgroundColor: T.surface2 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  radioDot: { width: 10, height: 10, borderRadius: 5 },
+  radioActive: { backgroundColor: T.white },
+  providerLabel: { color: T.text, fontSize: 14, fontWeight: '700' },
+  providerDesc: { color: T.textMuted, fontSize: 11, marginTop: 2 },
+  card: { backgroundColor: T.surface2, borderRadius: 12, padding: 14, marginTop: 8 },
+  fieldLabel: { color: T.textSecondary, fontSize: 12, marginBottom: 4, marginTop: 10 },
+  input: { color: T.text, fontSize: 14, backgroundColor: T.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: T.border },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
+  primaryBtn: { flex: 1, backgroundColor: T.white, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  primaryBtnText: { color: T.black, fontSize: 15, fontWeight: '700' },
+  secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 10, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: T.border },
+  secondaryBtnText: { color: T.text, fontSize: 15, fontWeight: '600' },
+  notice: { textAlign: 'center', marginTop: 12, fontSize: 14 },
+  navCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: T.border, marginBottom: 8 },
+  navLabel: { flex: 1, color: T.text, fontSize: 14, fontWeight: '600' },
+  navDesc: { color: T.textMuted, fontSize: 11, marginRight: 8 },
+  navArrow: { color: T.grey, fontSize: 16 },
+  about: { color: T.textDim, fontSize: 11, textAlign: 'center', marginTop: 30 },
+};

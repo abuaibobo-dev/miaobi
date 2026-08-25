@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
+import { StatusBar, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import * as Linking from 'expo-linking';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import HomeScreen from './src/screens/HomeScreen';
 import BookDetailScreen from './src/screens/BookDetailScreen';
 import ShelfScreen from './src/screens/ShelfScreen';
@@ -11,7 +11,9 @@ import ReaderScreen from './src/screens/ReaderScreen';
 import AIAssistantScreen from './src/screens/AIAssistantScreen';
 import SourceManagerScreen from './src/screens/SourceManagerScreen';
 import CustomSourcesScreen from './src/screens/CustomSourcesScreen';
+import WritingScreen from './src/screens/WritingScreen';
 import { importExternalFile } from './src/lib/library';
+import { T } from './src/lib/theme';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,8 +25,8 @@ export default function App() {
     const handle = async (url?: string | null) => {
       if (!url || !mounted) return;
       try {
-        const parsed = Linking.parse(url);
-        const uri = url.includes('content://') ? url : decodedUri(url);
+        const parsed = (await import('expo-linking')).default.parse(url);
+        const uri = url.includes('content://') ? url : decodeURIComponent(url);
         const name = decodeURIComponent(uri.split('/').pop() || '导入文件');
         if (!/\.(txt|csv|json|epub)$/i.test(name)) return;
         const result = await importExternalFile(uri, name);
@@ -35,33 +37,31 @@ export default function App() {
         setTimeout(() => navigationRef.current?.navigate(book.localUri ? 'Reader' : 'BookDetail', book.localUri ? { bookId: book.id } : { book }), 80);
       } catch {}
     };
-    function decodedUri(value: string) {
-      try { return decodeURIComponent(value); } catch { return value; }
-    }
-    Linking.getInitialURL().then(handle);
-    const subscription = Linking.addEventListener('url', (event: { url: string }) => handle(event.url));
-    return () => { mounted = false; subscription.remove(); };
+    (async () => {
+      const Linking = await import('expo-linking');
+      handle(await Linking.default.getInitialURL());
+      const sub = Linking.default.addEventListener('url', ({ url }) => handle(url));
+      return () => sub?.remove();
+    })();
+    return () => { mounted = false; };
   }, []);
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <StatusBar style="light" />
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-          contentStyle: { backgroundColor: '#0D0D0D' },
-        }}
-      >
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="BookDetail" component={BookDetailScreen} />
-        <Stack.Screen name="Shelf" component={ShelfScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
-        <Stack.Screen name="Reader" component={ReaderScreen} />
-        <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
-        <Stack.Screen name="Sources" component={SourceManagerScreen} />
-        <Stack.Screen name="CustomSources" component={CustomSourcesScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="BookDetail" component={BookDetailScreen} />
+          <Stack.Screen name="Shelf" component={ShelfScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="Reader" component={ReaderScreen} />
+          <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
+          <Stack.Screen name="Sources" component={SourceManagerScreen} />
+          <Stack.Screen name="CustomSources" component={CustomSourcesScreen} />
+          <Stack.Screen name="Writing" component={WritingScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }

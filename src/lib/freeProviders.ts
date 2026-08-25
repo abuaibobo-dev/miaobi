@@ -13,7 +13,7 @@ export interface FreeProvider {
 
 export const FREE_PROVIDERS: FreeProvider[] = [
   { id: 'groq', name: 'Groq (Qwen 3.6)', baseUrl: 'https://api.groq.com/openai/v1', model: 'qwen/qwen3.6-27b', settingsKey: 'groqKey' },
-  { id: 'sambanova', name: 'SambaNova', baseUrl: 'https://api.sambanova.ai/v1', model: 'Meta-Llama-3.1-8B-Instruct', settingsKey: 'sambanovaKey' },
+  { id: 'sambanova', name: 'SambaNova (DeepSeek)', baseUrl: 'https://api.sambanova.ai/v1', model: 'DeepSeek-V3.1', settingsKey: 'sambanovaKey' },
   { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', model: 'llama-3.1-8b', settingsKey: 'cerebrasKey' },
 ];
 
@@ -29,6 +29,11 @@ export async function getFreeProviderKeys(): Promise<Record<string, string>> {
 export async function saveFreeProviderKeys(keys: Record<string, string>): Promise<void> {
   const settings = await getSettings() as any;
   await saveSettings({ ...settings, groqKey: keys.groq || '', sambanovaKey: keys.sambanova || '', cerebrasKey: keys.cerebras || '' } as any);
+}
+
+export async function hasFreeProviderKeys(): Promise<boolean> {
+  const keys = await getFreeProviderKeys();
+  return !!(keys.groq || keys.sambanova || keys.cerebras);
 }
 
 export async function tryFreeProviders(

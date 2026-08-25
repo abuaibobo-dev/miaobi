@@ -16,6 +16,63 @@ type Props = any;
 const ENABLED_KEY = 'miaobi.enabledSources.v1';
 const ALL_BUILTIN = Object.keys(BUILTIN_SOURCE_NAMES);
 
+function autoKind(url: string): 'json' | 'opds' {
+  if (/opds|feed|\.xml/i.test(url)) return 'opds';
+  return 'json';
+}
+
+function normalizeSource(item: any, index: number): CustomBookSource | null {
+  if (!item || typeof item !== 'object') {
+    if (typeof item === 'string' && /^https?:\/\//i.test(item)) {
+      return {
+        id: `source_${Date.now()}_${index}`,
+        name: '网络书源',
+        kind: autoKind(item),
+        searchUrl: item,
+        createdAt: new Date().toISOString(),
+      };
+    }
+    return null;
+  }
+  const searchUrl: string | undefined =
+    item.searchUrl || item.url || item.api || item.endpoint || item.search_url || item.link;
+  if (!searchUrl || typeof searchUrl !== 'string' || !/^https?:\/\//i.test(searchUrl)) return null;
+  const kind = item.kind === 'opds' ? 'opds' : autoKind(searchUrl);
+  const fields = item.fields && typeof item.fields === 'object' ? item.fields : undefined;
+  return {
+    id: String(item.id || `source_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 6)}`),
+    name: String(item.name || item.title || item.label || '未命名书源'),
+    kind,
+    searchUrl,
+    resultsPath: item.resultsPath || item.results || item.path || item.list || undefined,
+    fields,
+    createdAt: item.createdAt || new Date().toISOString(),
+  };
+}
+
+function extractSources(raw: any): { sources: CustomBookSource[]; reason?: string } {
+  let list: any[] = [];
+  if (Array.isArray(raw)) list = raw;
+  else if (raw && Array.isArray(raw.sources)) list = raw.sources;
+  else if (raw && raw.data && Array.isArray(raw.data.sources)) list = raw.data.sources;
+  else if (raw && raw.data && Array.isArray(raw.data)) list = raw.data;
+  else if (raw && typeof raw === 'object') list = [raw];
+  else return { sources: [], reason: '内容不是有效的 JSON 对象或数组' };
+  const sources = list.map((item, index) => normalizeSource(item, index)).filter((item): item is CustomBookSource => Boolean(item));
+  if (!sources.length) return { sources: [], reason: '没有找到包含网址的书源条目' };
+  return { sources };
+}
+
+async function mergeSources(incoming: CustomBookSource[]) {
+  const current = await getCustomSources();
+  const merged = [
+    ...incoming.map(item => ({ ...item, id: item.id || `source_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` })),
+    ...current.filter(old => !incoming.some(newItem => newItem.id === old.id)),
+  ];
+  await saveCustomSources(merged);
+  return merged;
+}
+
 export default function SourceManagerScreen({ navigation }: Props) {
   const [sources, setSources] = useState<CustomBookSource[]>([]);
   const [enabled, setEnabled] = useState<string[]>(ALL_BUILTIN);
@@ -78,19 +135,14 @@ export default function SourceManagerScreen({ navigation }: Props) {
       if (result.canceled || !result.assets?.[0]) return;
       const { File } = await import('expo-file-system');
       const file = new File(result.assets[0].uri);
-      const data = JSON.parse(await file.text());
-      const incoming: CustomBookSource[] = Array.isArray(data.sources) ? data.sources : [data];
-      const valid = incoming.filter(item => item.name && item.searchUrl && ['json', 'opds'].includes(item.kind));
-      if (!valid.length) throw new Error('书源格式无效，需要 name/kind/searchUrl');
-      const current = await getCustomSources();
-      const merged = [...valid.map((item, index) => ({
-        ...item,
-        id: item.id || `source_${Date.now()}_${index}`,
-        createdAt: item.createdAt || new Date().toISOString(),
-      })), ...current.filter(old => !valid.some(newItem => newItem.id === old.id))];
-      await saveCustomSources(merged as CustomBookSource[]);
+      let data: any;
+      try { data = JSON.parse(await file.text()); }
+      catch { throw new Error('文件不是有效 JSON'); }
+      const { sources, reason } = extractSources(data);
+      if (!sources.length) throw new Error(reason || '书源格式无效');
+      const merged = await mergeSources(sources);
       setSources(merged);
-      setNotice(`已导入 ${valid.length} 个书源`);
+      setNotice(`已导入 ${sources.length} 个书源`);
     } catch (error: any) {
       Alert.alert('导入失败', error.message || '无法读取书源');
     }
@@ -99,28 +151,23 @@ export default function SourceManagerScreen({ navigation }: Props) {
   const importFromUrl = async () => {
     const url = urlInput.trim();
     if (!url || importingUrl) return;
-    if (!/^https?:\/\/.+\.json(\?.*)?$/i.test(url)) {
-      setNotice('请输入以 .json 结尾的有效网址');
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      setNotice('请输入有效的 http(s) 网址');
       return;
     }
     setImportingUrl(true);
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`下载失败（${response.status}）`);
-      const data = await response.json();
-      const incoming: CustomBookSource[] = Array.isArray(data.sources) ? data.sources : [data];
-      const valid = incoming.filter(item => item.name && item.searchUrl && ['json', 'opds'].includes(item.kind));
-      if (!valid.length) throw new Error('书源格式无效，需要 name/kind/searchUrl');
-      const current = await getCustomSources();
-      const merged = [...valid.map((item, index) => ({
-        ...item,
-        id: item.id || `source_${Date.now()}_${index}`,
-        createdAt: item.createdAt || new Date().toISOString(),
-      })), ...current.filter(old => !valid.some((newItem: any) => newItem.id === old.id))];
-      await saveCustomSources(merged as CustomBookSource[]);
+      let data: any;
+      try { data = await response.json(); }
+      catch { throw new Error('该网址返回的不是 JSON'); }
+      const { sources, reason } = extractSources(data);
+      if (!sources.length) throw new Error(reason || '书源格式无效');
+      const merged = await mergeSources(sources);
       setSources(merged);
       setUrlInput('');
-      setNotice(`已导入 ${valid.length} 个书源`);
+      setNotice(`已导入 ${sources.length} 个书源`);
     } catch (error: any) {
       setNotice(error.message || '导入失败');
     } finally {
@@ -184,6 +231,9 @@ export default function SourceManagerScreen({ navigation }: Props) {
           <Text style={s.urlButtonText}>{importingUrl ? '导入中' : '导入'}</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity style={s.templateRow} onPress={() => Alert.alert('书源格式示例', '支持多种形式，字段名不固定也会自动识别：\n\n单条：\n{"name":"示例源","searchUrl":"https://api.example.com/books?q={query}"}\n\n多条：\n{"sources":[{"name":"源1","url":"https://a.com/s?q={query}"},{"name":"源2","searchUrl":"https://b.com/search?query={query}"}]}\n\nOPDS：\n{"name":"OPDS源","kind":"opds","searchUrl":"https://opds.example.com/search?q={query}"}')}>
+        <Text style={s.templateText}>看不懂格式？点这里看示例</Text>
+      </TouchableOpacity>
       <FlatList
         data={[...sources.map(source => ({ key: source.id, name: source.name, detail: source.kind.toUpperCase() + ' · 自定义', enabled: true, removable: true })), ...ALL_BUILTIN.map(key => ({ key, name: BUILTIN_SOURCE_NAMES[key], detail: '内置公开源', enabled: enabled.includes(key), removable: false }))]}
         keyExtractor={item => item.key}

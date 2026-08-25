@@ -41,4 +41,6 @@ export default StyleSheet.create({
   urlButton: { height: 38, borderRadius: 19, paddingHorizontal: 14, backgroundColor: '#E7E7E7', alignItems: 'center', justifyContent: 'center' },
   urlButtonText: { color: '#111', fontSize: 12, fontWeight: '800' },
   disabled: { opacity: 0.5 },
+  templateRow: { marginTop: 2, marginBottom: 6 },
+  templateText: { color: '#9A9A9A', fontSize: 11, textDecorationLine: 'underline' },
 });

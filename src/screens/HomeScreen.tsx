@@ -193,7 +193,7 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
         <View style={s.drawerFooter}>
-          <Text style={s.footerText}>v2.5 · 黑白灰</Text>
+          <Text style={s.footerText}>v2.5.22 · 黑白灰</Text>
         </View>
       </Animated.View>
 
@@ -302,8 +302,8 @@ export default function HomeScreen({ navigation }: Props) {
         <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.model || 'auto'); setShowModelPicker(false); }} />
 
         {showNewBook && (
-          <View style={s.modalOverlay}>
-            <View style={s.modalCard}>
+          <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowNewBook(false)}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalCard}>
               <Text style={s.modalTitle}>创建新书</Text>
               <Text style={s.modalLabel}>书名</Text>
               <TextInput style={s.modalInput} value={newBookName} onChangeText={setNewBookName} placeholder="输入书名..." placeholderTextColor={T.textMuted} />
@@ -327,16 +327,17 @@ export default function HomeScreen({ navigation }: Props) {
                     const { saveAiContent } = await import('../lib/library');
                     const intro = `《${newBookName}》\n类型：${newBookGenre}\n简介：${newBookSynopsis || '暂无'}\n\n--- 开始创作 ---`;
                     await saveAiContent(newBookName, intro);
+                    const gName = newBookName, gGenre = newBookGenre, gSynopsis = newBookSynopsis;
                     setShowNewBook(false);
                     setNewBookName(''); setNewBookSynopsis(''); setNewBookGenre('玄幻');
-                    setInput(`我正在写一本${newBookGenre}小说《${newBookName}》，${newBookSynopsis ? '简介：' + newBookSynopsis + '。' : ''}请帮我写第一章。`);
+                    setInput(`我正在写一本${gGenre}小说《${gName}》，${gSynopsis ? '简介：' + gSynopsis + '。' : ''}请帮我写第一章。`);
                   } catch {}
                 }}>
                   <Text style={s.modalConfirmText}>创建并开始写</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         )}
       </KeyboardAvoidingView>
     </View>

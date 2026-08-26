@@ -76,7 +76,6 @@ export default function ReaderScreen({ navigation, route }: Props) {
   }, [chapters.length]);
 
   const [isPaused, setIsPaused] = useState(false);
-  const [showChapters, setShowChapters] = useState(false);
 
   const toggleSpeech = () => {
     if (isSpeaking) { Speech.stop(); setIsSpeaking(false); setIsPaused(false); return; }

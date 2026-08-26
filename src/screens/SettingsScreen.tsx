@@ -178,7 +178,7 @@ export default function SettingsScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
 
-        <Text style={s.about}>妙笔 v2.5 · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
+        <Text style={s.about}>妙笔 v2.5.22 · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
       </ScrollView>
     </View>
   );

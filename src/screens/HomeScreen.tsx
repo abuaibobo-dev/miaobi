@@ -199,7 +199,7 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       </Animated.View>
 
-      <View style={s.main}>
+      <KeyboardAvoidingView style={s.main} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={s.header}>
           <TouchableOpacity onPress={toggleDrawer} style={s.menuBtn}>
             <Text style={s.menuIcon}>☰</Text>
@@ -217,7 +217,7 @@ export default function HomeScreen({ navigation }: Props) {
               <Text style={s.headerMenuText}>写新书</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.headerMenuItem} onPress={() => { setShowMenu(false); setMessages([{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }]); }}>
-              <Icon.plus size={16} color={T.text} />
+              <Icon.add size={16} color={T.text} />
               <Text style={s.headerMenuText}>新建对话</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.headerMenuItem} onPress={async () => {
@@ -340,7 +340,7 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
           </View>
         )}
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -15,7 +15,7 @@ import { getChapters, getNovels, saveChapter, saveNovel } from '../lib/storage';
 import type { Chapter, NovelProject } from '../types/novel';
 
 type Props = any;
-type Msg = { role: 'user' | 'assistant'; content: string; provider?: string; thinking?: string };
+type Msg = { role: 'user' | 'assistant' | 'system'; content: string; provider?: string; thinking?: string };
 
 const DRAWER_W = 220;
 
@@ -46,7 +46,8 @@ const QUICK = [
 export default function HomeScreen({ navigation }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
-    { role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' },
+    { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
+    { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -77,7 +78,14 @@ export default function HomeScreen({ navigation }: Props) {
     AsyncStorage.getItem('miaobi.searchHistory').then(raw => { if (raw) try { setSearchHistory(JSON.parse(raw).slice(0, 10)); } catch {} });
     AsyncStorage.getItem(CHAT_KEY).then(raw => {
       if (raw) {
-        try { const saved = JSON.parse(raw); if (Array.isArray(saved) && saved.length) setMessages(saved); } catch {}
+        try {
+          const saved = JSON.parse(raw);
+          if (Array.isArray(saved) && saved.length) {
+            const SYSTEM_MSG: Msg = { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' };
+            const hasSystem = saved[0]?.role === 'system';
+            setMessages(hasSystem ? saved : [SYSTEM_MSG, ...saved]);
+          }
+        } catch {}
       }
     });
   }, []));
@@ -192,7 +200,13 @@ export default function HomeScreen({ navigation }: Props) {
       setThinking('');
       setTimeout(() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }, 100);
       setUserScrolling(false);
-      setMessages(prev => { AsyncStorage.setItem(CHAT_KEY, JSON.stringify(prev.slice(-50))); return prev; });
+      setMessages(prev => {
+            const withoutSystem = prev.filter(m => m.role !== 'system');
+            const SYSTEM_MSG: Msg = { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' };
+            const toSave = [SYSTEM_MSG, ...withoutSystem].slice(-50);
+            AsyncStorage.setItem(CHAT_KEY, JSON.stringify(toSave));
+            return prev;
+          });
       if (msg.length > 1 && !searchHistory.includes(msg)) {
         const newHistory = [msg, ...searchHistory].slice(0, 10);
         setSearchHistory(newHistory);
@@ -291,7 +305,10 @@ export default function HomeScreen({ navigation }: Props) {
               <Text style={s.headerMenuText}>写新书</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.headerMenuItem} onPress={() => {
-              const initial: Msg[] = [{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }];
+              const initial: Msg[] = [
+                { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
+                { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
+              ];
               setShowMenu(false);
               setMessages(initial);
               setInput('');

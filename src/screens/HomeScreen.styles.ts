@@ -7,7 +7,7 @@ export default StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 18, paddingTop: (StatusBar.currentHeight || 44) + 6, paddingBottom: 14,
   },
-  headerTitle: { flex: 1 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800', color: T.text },
   brand: { fontSize: 26, lineHeight: 31, fontWeight: '900', color: T.text, letterSpacing: 2 },
   subline: { marginTop: 2, fontSize: 11, color: T.textMuted },
   headerButton: {

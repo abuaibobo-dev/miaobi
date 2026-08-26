@@ -177,7 +177,7 @@ export default function WritingScreen({ navigation, route }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior="height" >
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
@@ -245,20 +245,22 @@ export default function WritingScreen({ navigation, route }: any) {
       </ScrollView>
       <View style={s.inputWrap}>
         <View style={s.inputContainer}>
-          <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
-            <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能模型' : model.replace(/^local:/, '本地 · ').replace(/^cloud:/, '云端 · ')}</Text><Text style={s.modelBtnArrow}>▾</Text>
-          </TouchableOpacity>
           <View style={s.inputBody}>
             <TextInput value={input} onChangeText={setInput} placeholder="描述剧情、人物或粘贴待润色正文..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
-            {loading ? (
-              <TouchableOpacity style={s.stopBtn} onPress={() => { setLoading(false); setStreaming(''); setThinking(''); }}>
-                <Icon.close size={16} color={T.white} />
+            <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
+                <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能' : model.replace(/^local:/, '本·').replace(/^cloud:/, '云·')}</Text>
+                <Text style={s.modelBtnArrow}>▾</Text>
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
-                <Icon.send size={18} color={T.black} />
-              </TouchableOpacity>
-            )}
+              <View style={{ flex: 1 }} />
+              {loading ? (
+                <TouchableOpacity style={s.stopBtn} onPress={() => { setLoading(false); setStreaming(''); setThinking(''); }}>
+                  <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: T.white }} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
+                  <Icon.send size={18} color={'#111'} />
+                </TouchableOpacity>
+              )}
           </View>
         </View>
       </View>
@@ -287,13 +289,13 @@ const s: any = {
   userText: { color: T.text },
   msgProvider: { color: T.textDim, fontSize: 9, marginTop: 4 },
   inputWrap: { paddingHorizontal: 12, paddingBottom: Platform.OS === 'ios' ? 16 : 10, paddingTop: 4, backgroundColor: T.bg },
-  modelBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, maxWidth: '75%', paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface },
-  modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
-  modelBtnArrow: { color: T.textDim, fontSize: 9 },
+  modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 22, paddingHorizontal: 8, borderRadius: 10, backgroundColor: T.surface },
+  modelBtnLabel: { color: T.textMuted, fontSize: 10, fontWeight: '600' },
+  modelBtnArrow: { color: T.textDim, fontSize: 8 },
   inputContainer: { backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 6 },
   inputBody: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 },
-  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, lineHeight: 22, minHeight: 24 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, lineHeight: 22, minHeight: 48 },
+  sendBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 2 },
   stopBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#666666', alignItems: 'center', justifyContent: 'center' },
   sendDisabled: { opacity: 0.25 },
   copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },

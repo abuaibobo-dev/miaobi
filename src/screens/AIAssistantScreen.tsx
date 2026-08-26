@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, ScrollView,
   StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { T } from '../lib/theme';
@@ -28,7 +28,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<BookRecord[]>([]);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<FlatList>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
     }
   }, []);
 
-  useEffect(() => { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80); }, [messages, loading]);
+  useEffect(() => { setTimeout(() => { try { scrollRef.current?.scrollToEnd({ animated: true }); } catch {} }, 80); }, [messages, loading]);
 
   const callAI = async (history: Msg[]): Promise<string> => {
     const settings = await getSettings() as any;
@@ -144,9 +144,13 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
         <TouchableOpacity onPress={() => navigation.navigate('Settings')}><Text style={s.settings}>设置</Text></TouchableOpacity>
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={s.messages}>
-        {messages.map((message, index) => (
-          <View key={`${index}`} style={[s.bubble, message.role === 'user' ? s.user : s.ai, { flexDirection: 'row', gap: 8 }]}>
+      <FlatList
+        ref={scrollRef as any}
+        data={messages}
+        keyExtractor={(_, i) => String(i)}
+        contentContainerStyle={s.messages}
+        renderItem={({ item: message, index }) => (
+          <View style={[s.bubble, message.role === 'user' ? s.user : s.ai, { flexDirection: 'row', gap: 8 }]}>
             {message.role === 'assistant' && <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}><Text style={{ color: T.grey, fontSize: 8, fontWeight: '700' }}>AI</Text></View>}
             <Text style={[s.messageText, message.role === 'user' && s.userText, { flex: 1 }]}>{message.content}</Text>
             {message.role === 'assistant' && message.content.trim().length > 0 && (
@@ -155,23 +159,25 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             )}
           </View>
-        ))}
-        {!!results.length && (
-          <View style={s.resultBlock}>
-            <Text style={s.resultLabel}>执行大脑找到 {results.length} 本</Text>
-            {results.map(book => (
-              <TouchableOpacity key={book.id} style={s.resultCard} onPress={() => openResult(book)}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.resultTitle} numberOfLines={1}>{book.title}</Text>
-                  <Text style={s.resultMeta} numberOfLines={1}>{book.sourceLabel}{book.authors.length ? ` · ${book.authors.join('/')}` : ''}</Text>
-                </View>
-                <Text style={s.openText}>打开</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         )}
-        {loading && <View style={[s.bubble, s.ai]}><ActivityIndicator color={T.text} /></View>}
-      </ScrollView>
+        ListFooterComponent={<>
+          {!!results.length && (
+            <View style={s.resultBlock}>
+              <Text style={s.resultLabel}>找到 {results.length} 本</Text>
+              {results.map(book => (
+                <TouchableOpacity key={book.id} style={s.resultCard} onPress={() => openResult(book)}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.resultTitle} numberOfLines={1}>{book.title}</Text>
+                    <Text style={s.resultMeta} numberOfLines={1}>{book.sourceLabel}{book.authors.length ? ` · ${book.authors.join('/')}` : ''}</Text>
+                  </View>
+                  <Text style={s.openText}>打开</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {loading && <View style={[s.bubble, s.ai]}><ActivityIndicator color={T.text} /></View>}
+        </>}
+      />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickWrap}>
         {QUICK.map(item => (

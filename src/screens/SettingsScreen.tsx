@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
-import { getBackendUrl, setBackendUrl } from '../lib/backend';
+
 import { getFreeProviderKeys, saveFreeProviderKeys } from '../lib/freeProviders';
 
 type Props = any;
@@ -24,13 +24,13 @@ export default function SettingsScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState('');
-  const [backendUrl, setBackendUrlState] = useState('');
+
   const [groqKey, setGroqKey] = useState('');
   const [sambanovaKey, setSambanovaKey] = useState('');
   const [cerebrasKey, setCerebrasKey] = useState('');
 
   useEffect(() => {
-    getBackendUrl().then(url => setBackendUrlState(url || ''));
+
     getFreeProviderKeys().then(k => {
       setGroqKey(k.groq || '');
       setSambanovaKey(k.sambanova || '');
@@ -89,8 +89,9 @@ export default function SettingsScreen({ navigation }: Props) {
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}><Text style={s.backText}>←</Text></TouchableOpacity>
+        <View style={{ flex: 1 }} />
         <Text style={s.headerTitle}>设置</Text>
-        <View style={{ width: 37 }} />
+        <View style={{ flex: 1 }} />
       </View>
       <ScrollView contentContainerStyle={s.content}>
         {/* Model Selection */}
@@ -109,26 +110,7 @@ export default function SettingsScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
 
-        {/* Backend URL */}
-        <View style={s.divider} />
-        <Text style={s.sectionTitle}>后端服务</Text>
-        <Text style={s.hint}>配置后端 API 地址，实现多模型调度和 Boogu-Image 生图。不配置则使用本地直连。</Text>
-        <TextInput
-          value={backendUrl}
-          onChangeText={setBackendUrlState}
-          placeholder="http://your-server:8000"
-          placeholderTextColor={T.textDim}
-          style={s.input}
-          autoCapitalize="none"
-          keyboardType="url"
-        />
-        <TouchableOpacity style={[s.secondaryBtn, { marginTop: 8, paddingVertical: 10 }]} onPress={async () => {
-          await setBackendUrl(backendUrl.trim());
-          setNotice('✅ 后端地址已保存');
-          setTimeout(() => setNotice(''), 2000);
-        }}>
-          <Text style={s.secondaryBtnText}>保存后端地址</Text>
-        </TouchableOpacity>
+
 
         {/* DeepSeek Config */}
         {provider === 'deepseek' && (
@@ -160,30 +142,11 @@ export default function SettingsScreen({ navigation }: Props) {
           <TouchableOpacity style={s.primaryBtn} onPress={handleSave} disabled={saving}>
             {saving ? <ActivityIndicator color={T.black} /> : <Text style={s.primaryBtnText}>保存</Text>}
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryBtn} onPress={handleTest} disabled={testing}>
-            {testing ? <ActivityIndicator color={T.grey} /> : <Text style={s.secondaryBtnText}>测试连接</Text>}
-          </TouchableOpacity>
         </View>
 
-        {notice ? <Text style={[s.notice, notice.startsWith('✅') ?    { color: T.success } :  { color: T.error }]}>{notice}</Text> : null}
-        <View style={s.divider} />
+        {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: T.success } : { color: T.error }]}>{notice}</Text> : null}
 
-        {/* Navigation */}
-        <Text style={[s.sectionTitle, { marginTop: 24 }]}>功能</Text>
-        {[
-          { label: '书源管理', desc: '内置 / 自定义书源', screen: 'Sources' },
-          { label: 'AI 写作', desc: '创作 / 续写 / 润色', screen: 'Writing' },
-          { label: '找书助手', desc: 'AI 搜索推荐', screen: 'AIAssistant' },
-          { label: '我的书架', desc: '已收藏的书籍', screen: 'Shelf' },
-        ].map(item => (
-          <TouchableOpacity key={item.screen} style={s.navCard} onPress={() => navigation.navigate(item.screen)}>
-            <Text style={s.navLabel}>{item.label}</Text>
-            <Text style={s.navDesc}>{item.desc}</Text>
-            <Text style={s.navArrow}>→</Text>
-          </TouchableOpacity>
-        ))}
-
-        <Text style={s.about}>妙笔 v2.5.22 · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
+        <Text style={s.about}>妙笔 v2.5.32 · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
       </ScrollView>
     </View>
   );
@@ -195,29 +158,27 @@ const s: any = {
   backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   backText: { color: T.text, fontSize: 18 },
   headerTitle: { color: T.text, fontSize: 16, fontWeight: '700' },
-  content: { padding: 14, paddingBottom: 40 },
-  sectionTitle: { color: T.text, fontSize: 13, fontWeight: '700', marginBottom: 4, marginTop: 14, letterSpacing: 0.5, textTransform: 'uppercase' as any },
-  hint: { color: T.textMuted, fontSize: 11, marginBottom: 8, lineHeight: 16 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: T.border, marginVertical: 10 },
-  providerCard: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: T.border, marginBottom: 6 },
+  content: { padding: 12, paddingBottom: 40 },
+  sectionTitle: { color: T.text, fontSize: 12, fontWeight: '700', marginBottom: 4, marginTop: 10, letterSpacing: 0.5, textTransform: 'uppercase' as any },
+  hint: { color: T.textMuted, fontSize: 10, marginBottom: 6, lineHeight: 14 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: T.border, marginVertical: 8 },
+  providerCard: { flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: T.border, marginBottom: 5 },
   providerActive: { borderColor: T.white, backgroundColor: T.surface2 },
   radio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   radioDot: { width: 8, height: 8, borderRadius: 4 },
   radioActive: { backgroundColor: T.white },
   providerLabel: { color: T.text, fontSize: 13, fontWeight: '600' },
   providerDesc: { color: T.textMuted, fontSize: 10, marginTop: 1 },
-  card: { backgroundColor: T.surface2, borderRadius: 8, padding: 10, marginTop: 6 },
-  fieldLabel: { color: T.textSecondary, fontSize: 11, marginBottom: 3, marginTop: 8 },
-  input: { color: T.text, fontSize: 13, backgroundColor: T.surface, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
-  btnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  primaryBtn: { flex: 1, backgroundColor: T.white, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  card: { backgroundColor: T.surface2, borderRadius: 8, padding: 8, marginTop: 4 },
+  fieldLabel: { color: T.textSecondary, fontSize: 10, marginBottom: 2, marginTop: 6 },
+  input: { color: T.text, fontSize: 12, backgroundColor: T.surface, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
+  btnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  primaryBtn: { flex: 1, backgroundColor: T.white, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   primaryBtnText: { color: T.black, fontSize: 13, fontWeight: '700' },
-  secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
+  secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
   secondaryBtnText: { color: T.text, fontSize: 13, fontWeight: '600' },
   notice: { textAlign: 'center', marginTop: 8, fontSize: 12 },
   navCard: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border, marginBottom: 6 },
   navLabel: { flex: 1, color: T.text, fontSize: 13, fontWeight: '600' },
-  navDesc: { color: T.textMuted, fontSize: 10, marginRight: 6 },
-  navArrow: { color: T.grey, fontSize: 14 },
   about: { color: T.textDim, fontSize: 10, textAlign: 'center', marginTop: 24 },
 };

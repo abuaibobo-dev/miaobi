@@ -109,7 +109,7 @@ export default function WritingScreen({ navigation }: any) {
                       await saveAiContent('AI 创作 · ' + new Date().toLocaleDateString(), msg.content);
                       setCopiedId('saved_' + String(i));
                       setTimeout(() => setCopiedId(null), 2000);
-                    } catch (e) { console.log('save error', e); }
+                    } catch (e) { /* silent */ }
                   }}>
                     <Text style={s.copyText}>{copiedId === 'saved_' + String(i) ? '✓ 已保存到书架' : '保存到书架'}</Text>
                   </TouchableOpacity>

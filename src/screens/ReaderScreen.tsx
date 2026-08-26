@@ -145,8 +145,8 @@ export default function ReaderScreen({ navigation, route }: Props) {
             <TouchableOpacity onPress={() => setShowSearch(v => !v)} style={[s.toolButton, { borderColor: colors.border }]}>
               <Icon.search size={14} color={colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={toggleSpeech} style={[s.toolButton, { borderColor: isSpeaking ? '#888' : colors.border }]}>
-              <Icon.tts size={15} color={isSpeaking ? '#888' : colors.text} />
+            <TouchableOpacity onPress={toggleSpeech} style={[s.toolButton, { borderColor: isSpeaking ? T.grey : colors.border }]}>
+              <Icon.tts size={15} color={isSpeaking ? T.grey : colors.text} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowSettings(v => !v)} style={[s.iconButton, { borderColor: colors.border }]}><Text style={[s.fontLabel, { color: colors.text }]}>Aa</Text></TouchableOpacity>
           </View>
@@ -187,7 +187,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
           <Text style={[s.settingLabel, { color: colors.secondary }]}>背景</Text>
           <View style={s.themeRow}>
             {Object.entries(THEMES).map(([key, value]) => (
-              <TouchableOpacity key={key} onPress={() => { setTheme(key as ReaderTheme); AsyncStorage.setItem('miaobi.reader.theme', key); }} style={[s.themeButton, { backgroundColor: value.bg, borderColor: theme === key ? '#888' : value.border }]}>
+              <TouchableOpacity key={key} onPress={() => { setTheme(key as ReaderTheme); AsyncStorage.setItem('miaobi.reader.theme', key); }} style={[s.themeButton, { backgroundColor: value.bg, borderColor: theme === key ? T.grey : value.border }]}>
                 <Text style={{ color: value.text, fontSize: 10 }}>{key === 'dark' ? '夜间' : key === 'sepia' ? '护眼' : '纸张'}</Text>
               </TouchableOpacity>
             ))}
@@ -195,7 +195,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
           <Text style={[s.settingLabel, { color: colors.secondary }]}>字号</Text>
           <View style={s.fontRow}>
             {[15, 17, 19, 22, 25].map(size => (
-              <TouchableOpacity key={size} onPress={() => { setFontSize(size); AsyncStorage.setItem('miaobi.reader.fontSize', String(size)); }} style={[s.fontButton, { borderColor: fontSize === size ? '#888' : colors.border }]}>
+              <TouchableOpacity key={size} onPress={() => { setFontSize(size); AsyncStorage.setItem('miaobi.reader.fontSize', String(size)); }} style={[s.fontButton, { borderColor: fontSize === size ? T.grey : colors.border }]}>
                 <Text style={{ color: colors.text, fontSize: Math.min(size - 3, 15) }}>A</Text>
               </TouchableOpacity>
             ))}

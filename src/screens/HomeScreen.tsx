@@ -160,7 +160,7 @@ export default function HomeScreen({ navigation }: Props) {
                   await saveAiContent('AI 创作 · ' + new Date().toLocaleDateString(), item.content);
                   setCopiedId('saved_' + msgId);
                   setTimeout(() => setCopiedId(null), 2000);
-                } catch (e) { console.log('save error', e); }
+                } catch (e) { /* silent */ }
               }}>
                 <Text style={s.copyText}>{copiedId === 'saved_' + msgId ? '✓ 已保存到书架' : '保存到书架'}</Text>
               </TouchableOpacity>
@@ -190,7 +190,7 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
         <View style={s.drawerFooter}>
-          <Text style={s.footerText}>v2.4.2 · 黑白灰</Text>
+          <Text style={s.footerText}>v2.5 · 黑白灰</Text>
         </View>
       </Animated.View>
 

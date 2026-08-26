@@ -14,6 +14,7 @@ import WritingScreen from './src/screens/WritingScreen';
 import { importExternalFile } from './src/lib/library';
 import { T } from './src/lib/theme';
 import { AlertProvider } from './src/components/CustomAlert';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,8 +48,9 @@ export default function App() {
   }, []);
 
   return (
+    <ErrorBoundary>
     <AlertProvider>
-    <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <NavigationContainer ref={navigationRef}>
         <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
@@ -65,5 +67,6 @@ export default function App() {
       </NavigationContainer>
     </View>
     </AlertProvider>
+    </ErrorBoundary>
   );
 }

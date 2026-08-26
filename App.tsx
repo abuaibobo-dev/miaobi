@@ -23,6 +23,7 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
+    let subscription: { remove: () => void } | undefined;
     const handle = async (url?: string | null) => {
       if (!url || !mounted) return;
       try {
@@ -41,10 +42,12 @@ export default function App() {
     (async () => {
       const Linking = await import('expo-linking');
       handle(await Linking.default.getInitialURL());
-      const sub = Linking.default.addEventListener('url', ({ url }) => handle(url));
-      return () => sub?.remove();
+      subscription = Linking.default.addEventListener('url', ({ url }) => handle(url));
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      subscription?.remove();
+    };
   }, []);
 
   return (

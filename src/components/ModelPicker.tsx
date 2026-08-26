@@ -68,7 +68,7 @@ export default function ModelPicker({ visible, selectedId, onClose, onSelect }: 
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[s.option, (selectedId ?? 'auto') === item.id && s.optionActive]}
-                  onPress={() => onSelect({ ...item, id: item.model || item.id })}
+                  onPress={() => onSelect(item)}
                   activeOpacity={0.7}
                 >
                   <Text style={[s.optionText, (selectedId ?? 'auto') === item.id && s.optionTextActive]} numberOfLines={1}>{item.label}</Text>

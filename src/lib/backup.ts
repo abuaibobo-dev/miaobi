@@ -52,7 +52,7 @@ export async function restoreFromBackup(jsonString: string): Promise<{ success: 
       await Store.saveSettings({ ...current, ...backup.settings, apiKey: current.apiKey });
     }
 
-    for (const novelData of backup.novels) {
+    for (const novelData of (Array.isArray(backup.novels) ? backup.novels : [])) {
       const { chapters, characters, foreshadowing, memoryChunks, snapshots, chatHistory, ...novel } = novelData;
       await Store.saveNovel(novel); novelCount++;
       for (const ch of (chapters || [])) { await Store.saveChapter(ch); chapterCount++; }
@@ -63,7 +63,7 @@ export async function restoreFromBackup(jsonString: string): Promise<{ success: 
       if (chatHistory?.length > 0) await AsyncStorage.setItem(`miaobi.chat.${novel.id}`, JSON.stringify(chatHistory));
     }
 
-    for (const item of backup.chatChannels || []) {
+    for (const item of (Array.isArray(backup.chatChannels) ? backup.chatChannels : [])) {
       if (!item?.channel || !Array.isArray(item.messages)) continue;
       await AsyncStorage.setItem(`miaobi.chat.${item.channel}`, JSON.stringify(item.messages));
     }

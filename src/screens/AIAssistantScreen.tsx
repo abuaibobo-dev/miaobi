@@ -9,7 +9,6 @@ import { Icon } from '../lib/icons';
 import { getSettings } from '../lib/storage';
 import { searchAllSourcesWithCustom } from '../lib/bookSources';
 import { addToShelf, getCustomSources, getLibrary } from '../lib/library';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BookRecord } from '../types/book';
 
 type Props = any;
@@ -30,7 +29,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<BookRecord[]>([]);
   const scrollRef = useRef<ScrollView>(null);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode === 'recommend') {
@@ -79,7 +78,10 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
       const raw = await callAI([...history.slice(0, -1), userMsg].map((msg, index, arr) => index === arr.length - 1 ? { ...msg, content: prompt } : msg));
       const parsed = parseBrain(raw);
       setMessages(prev => [...prev, { role: 'assistant', content: parsed.reply || raw || '没有返回内容' }]);
-      for (const action of parsed.actions) await executeAction(action);
+      let availableResults = results;
+      for (const action of parsed.actions) {
+        availableResults = await executeAction(action, availableResults);
+      }
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: e.message || 'AI请求失败' }]);
     } finally {
@@ -96,26 +98,35 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
     } catch { return { reply: raw, actions: [] as any[] }; }
   };
 
-  const executeAction = async (action: any) => {
+  const executeAction = async (action: any, availableResults: BookRecord[]): Promise<BookRecord[]> => {
     if (action?.type === 'search' && action.query) {
       const custom = await getCustomSources();
       const response = await searchAllSourcesWithCustom([String(action.query)], action.category || 'all', custom);
-      setResults(response.books.slice(0, 10));
+      const nextResults = response.books.slice(0, 10);
+      setResults(nextResults);
+      return nextResults;
     }
     if (/^(openBook|saveBook)$/.test(action?.type) && action.title) {
       const library = await getLibrary();
-      const target = results.find(book => book.title.toLowerCase().includes(String(action.title).toLowerCase()))
+      const target = availableResults.find(book => book.title.toLowerCase().includes(String(action.title).toLowerCase()))
         || library.find(book => book.title.toLowerCase().includes(String(action.title).toLowerCase()));
-      if (!target) return;
+      if (!target) return availableResults;
       if (action.type === 'saveBook') await addToShelf(target);
       navigation.navigate('BookDetail', { book: target });
     }
+    return availableResults;
   };
 
   const copyMsg = async (text: string, idx: number) => {
-    await Clipboard.setStringAsync(text);
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 1500);
+    const id = String(idx);
+    try {
+      await Clipboard.setStringAsync(text);
+      setCopiedId(id);
+    } catch {
+      setCopiedId(`error_${id}`);
+    } finally {
+      setTimeout(() => setCopiedId(null), 1800);
+    }
   };
 
   const openResult = async (book: BookRecord) => {
@@ -138,9 +149,9 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
           <View key={`${index}`} style={[s.bubble, message.role === 'user' ? s.user : s.ai, { flexDirection: 'row', gap: 8 }]}>
             {message.role === 'assistant' && <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}><Text style={{ color: T.grey, fontSize: 8, fontWeight: '700' }}>AI</Text></View>}
             <Text style={[s.messageText, message.role === 'user' && s.userText, { flex: 1 }]}>{message.content}</Text>
-            {message.role === 'assistant' && message.content.length > 20 && (
+            {message.role === 'assistant' && message.content.trim().length > 0 && (
               <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: T.surface2 }} onPress={() => copyMsg(message.content, index)}>
-                <Text style={{ color: T.textMuted, fontSize: 10, fontWeight: '600' }}>{copiedIdx === index ? '✓ 已复制' : '复制'}</Text>
+                <Text style={{ color: T.textMuted, fontSize: 10, fontWeight: '600' }}>{copiedId === String(index) ? '✓ 已复制' : copiedId === `error_${index}` ? '复制失败' : '一键复制'}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -175,10 +186,15 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
           placeholder="描述你的口味、问题或书名"
           placeholderTextColor={T.textMuted}
           multiline
+          maxLength={12000}
+          scrollEnabled
+          blurOnSubmit={false}
+          keyboardAppearance="dark"
+          textAlignVertical="top"
           style={s.input}
         />
         <TouchableOpacity disabled={!input.trim() || loading} style={[s.send, (!input.trim() || loading) && s.disabled]} onPress={() => send()}>
-          <Icon.send size={17} color={T.black} />
+          <Icon.send size={18} color={T.black} />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

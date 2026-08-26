@@ -44,7 +44,12 @@ export default function ReaderScreen({ navigation, route }: Props) {
         if (!mounted) return;
         setChapters(parsed);
         const saved = await findLibraryBook(bookId);
-        if (saved?.progress) setCurrent(Math.min(Math.round(saved.progress * parsed.length), parsed.length - 1));
+        if (Number.isInteger(saved?.currentChapterIndex)) {
+          setCurrent(Math.max(0, Math.min(saved!.currentChapterIndex!, parsed.length - 1)));
+        } else if (saved?.progress) {
+          // Older versions stored (chapter + 1) / chapterCount.
+          setCurrent(Math.max(0, Math.min(Math.round(saved.progress * parsed.length) - 1, parsed.length - 1)));
+        }
       } catch (e: any) {
         if (mounted) setError(e.message || '无法加载内容');
       } finally {
@@ -66,7 +71,11 @@ export default function ReaderScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
-    if (chapters.length) updateLibraryBook(bookId, { progress: (current + 1) / chapters.length });
+    if (chapters.length) updateLibraryBook(bookId, {
+      currentChapterIndex: current,
+      progress: (current + 1) / chapters.length,
+      lastReadAt: new Date().toISOString(),
+    });
   }, [current, chapters.length]);
 
   useEffect(() => () => { Speech.stop(); }, []);

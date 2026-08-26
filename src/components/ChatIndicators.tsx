@@ -71,7 +71,7 @@ export function ThinkingPanel({ text, streaming = false }: { text: string; strea
         <Animated.View style={{ opacity: pulse }}>
           <Icon.thinking size={13} color={streaming ? '#F5F5F5' : T.textSec} />
         </Animated.View>
-        <Text style={styles.title}>{streaming ? '思考中' : '思考过程'}</Text>
+        <Text style={styles.title}>{streaming ? '构思中' : '构思过程'}</Text>
         {!streaming && <Text style={styles.preview} numberOfLines={1}>{text.replace(/\s+/g, ' ')}</Text>}
         <Icon.down size={13} color={T.textMuted} />
       </TouchableOpacity>

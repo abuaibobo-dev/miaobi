@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform, RefreshControl,
-  StatusBar, Text, TextInput, TouchableOpacity, View, Dimensions, Pressable,
+  Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform,
+  StatusBar, Text, TextInput, TouchableOpacity, View, Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
@@ -9,13 +9,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
-import { getLibrary } from '../lib/library';
+import ModelPicker from '../components/ModelPicker';
+import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
+import { saveNovel } from '../lib/storage';
+import type { NovelProject } from '../types/novel';
 
 type Props = any;
-type Msg = { role: 'user' | 'assistant'; content: string; provider?: string };
+type Msg = { role: 'user' | 'assistant'; content: string; provider?: string; thinking?: string };
 
 const DRAWER_W = 220;
-const { width: SW } = Dimensions.get('window');
 
 const MENU = [
   { key: 'writing', iconName: 'write' as const, label: 'AI 写作' },
@@ -24,8 +26,6 @@ const MENU = [
   { key: 'assistant', iconName: 'search' as const, label: '找书助手' },
   { key: 'settings', iconName: 'settings' as const, label: '设置' },
 ];
-
-import ModelPicker from '../components/ModelPicker';
 
 const QUICK = [
   '帮我写一个科幻故事的开头',
@@ -44,7 +44,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [provider, setProvider] = useState('');
   const [model, setModel] = useState('auto');
   const [streaming, setStreaming] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [thinking, setThinking] = useState('');
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -67,12 +67,6 @@ export default function HomeScreen({ navigation }: Props) {
       }
     });
   }, []));
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await new Promise(r => setTimeout(r, 600));
-    setRefreshing(false);
-  };
 
   const toggleDrawer = () => {
     const to = drawerOpen ? -DRAWER_W : 0;
@@ -98,14 +92,17 @@ export default function HomeScreen({ navigation }: Props) {
     setInput('');
     setLoading(true);
     setStreaming('');
+    setThinking('');
     let streamedContent = '';
+    let streamedThinking = '';
     try {
       const intent = detectIntent(msg);
       const result = await chatCompletion(
         history.map(m => ({ role: m.role, content: m.content })),
         {
           intent,
-          modelOverride: model === 'auto' ? undefined : model,
+          providerOverride: model.startsWith('local:') ? 'local' : model.startsWith('cloud:') ? 'cloud' : undefined,
+          modelOverride: model === 'auto' ? undefined : model.replace(/^(?:local|cloud):/, ''),
           onProvider: (p) => setProvider(p),
           onContent: (delta) => {
             streamedContent += delta;
@@ -113,20 +110,22 @@ export default function HomeScreen({ navigation }: Props) {
             if (!userScrolling) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
           },
           onThinking: (delta) => {
-            setStreaming(prev => prev || '思考中...');
+            streamedThinking += delta;
+            setThinking(streamedThinking);
           },
         },
       );
-      const finalContent = streamedContent || result.content || '没有回复内容';
+      const finalContent = streamedContent || result.content || (result.error ? `错误：${result.error}` : '没有回复内容');
       setMessages(prev => {
         const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
-        return [...filtered, { role: 'assistant', content: finalContent, provider: result.provider }];
+        return [...filtered, { role: 'assistant', content: finalContent, provider: result.provider, thinking: streamedThinking || result.thinking }];
       });
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);
     } finally {
       setLoading(false);
       setStreaming('');
+      setThinking('');
       setTimeout(() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }, 100);
       setUserScrolling(false);
       setMessages(prev => { AsyncStorage.setItem(CHAT_KEY, JSON.stringify(prev.slice(-50))); return prev; });
@@ -139,9 +138,14 @@ export default function HomeScreen({ navigation }: Props) {
   };
 
   const copyMsg = async (text: string, id: string) => {
-    await Clipboard.setStringAsync(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
+    try {
+      await Clipboard.setStringAsync(text);
+      setCopiedId(id);
+    } catch {
+      setCopiedId(`error_${id}`);
+    } finally {
+      setTimeout(() => setCopiedId(null), 1800);
+    }
   };
 
   const renderMsg = ({ item, index }: { item: Msg; index: number }) => {
@@ -151,11 +155,12 @@ export default function HomeScreen({ navigation }: Props) {
       <View style={[s.bubble, item.role === 'user' ? s.userBubble : s.aiBubble]}>
         {item.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
         <View style={{ flex: 1 }}>
+          {item.role === 'assistant' && item.thinking ? <ThinkingPanel text={item.thinking} /> : null}
           <Text style={[s.bubbleText, item.role === 'user' && s.userText]}>{item.content}</Text>
-          {item.role === 'assistant' && item.content.length > 20 && (
+          {item.role === 'assistant' && item.content.trim().length > 0 && (
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
               <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(item.content, msgId)}>
-                <Text style={s.copyText}>{isCopied ? '✓ 已复制' : '复制'}</Text>
+                <Text style={s.copyText}>{isCopied ? '✓ 已复制' : copiedId === `error_${msgId}` ? '复制失败' : '一键复制'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.copyBtn} onPress={async () => {
                 try {
@@ -193,11 +198,11 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
         ))}
         <View style={s.drawerFooter}>
-          <Text style={s.footerText}>v2.5.22 · 黑白灰</Text>
+          <Text style={s.footerText}>v2.5.25 · 黑白灰</Text>
         </View>
       </Animated.View>
 
-      <KeyboardAvoidingView style={s.main} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView style={s.main} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={s.header}>
           <TouchableOpacity onPress={toggleDrawer} style={s.menuBtn}>
             <Text style={s.menuIcon}>☰</Text>
@@ -214,7 +219,13 @@ export default function HomeScreen({ navigation }: Props) {
               <Icon.write size={16} color={T.text} />
               <Text style={s.headerMenuText}>写新书</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.headerMenuItem} onPress={() => { setShowMenu(false); setMessages([{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }]); }}>
+            <TouchableOpacity style={s.headerMenuItem} onPress={() => {
+              const initial: Msg[] = [{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }];
+              setShowMenu(false);
+              setMessages(initial);
+              setInput('');
+              AsyncStorage.setItem(CHAT_KEY, JSON.stringify(initial));
+            }}>
               <Icon.add size={16} color={T.text} />
               <Text style={s.headerMenuText}>新建对话</Text>
             </TouchableOpacity>
@@ -222,7 +233,6 @@ export default function HomeScreen({ navigation }: Props) {
               setShowMenu(false);
               try {
                 const text = messages.map(m => (m.role === 'user' ? '【我】' : '【AI】') + ': ' + m.content).join('\n\n');
-                const { default: Clipboard } = await import('expo-clipboard');
                 await Clipboard.setStringAsync(text);
               } catch {}
             }}>
@@ -249,14 +259,8 @@ export default function HomeScreen({ navigation }: Props) {
             <View style={[s.bubble, s.aiBubble]}>
               <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>
               <View style={{ flex: 1 }}>
-                {streaming ? (
-                  <Text style={s.bubbleText}>{streaming}</Text>
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <ActivityIndicator color={T.text} size="small" />
-                    <Text style={s.thinkingText}>思考中...</Text>
-                  </View>
-                )}
+                {!!thinking && <ThinkingPanel text={thinking} streaming />}
+                {streaming ? <Text style={s.bubbleText}>{streaming}</Text> : !thinking ? <GenerationDots label="正在构思" /> : null}
               </View>
             </View>
           ) : null}
@@ -274,32 +278,20 @@ export default function HomeScreen({ navigation }: Props) {
 
         {/* Input area - ChatGPT style */}
         <View style={s.inputWrap}>
-          <View style={s.modelRow}>
+          <View style={s.inputContainer}>
             <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
-              <Text style={s.modelBtnLabel}>{model === 'auto' ? '智能' : model.charAt(0).toUpperCase() + model.slice(1)}</Text>
+              <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能模型' : model.replace(/^local:/, '本地 · ').replace(/^cloud:/, '云端 · ')}</Text>
               <Text style={s.modelBtnArrow}>▾</Text>
             </TouchableOpacity>
-          </View>
-          <View style={s.inputContainer}>
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder="输入消息..."
-              placeholderTextColor={T.textMuted}
-              multiline
-              style={s.input}
-              textAlignVertical="top"
-            />
-            <TouchableOpacity
-              disabled={!input.trim() || loading}
-              style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
-              onPress={() => send()}
-            >
-              <Icon.arrow size={20} color={T.black} />
-            </TouchableOpacity>
+            <View style={s.inputBody}>
+              <TextInput value={input} onChangeText={setInput} placeholder="输入消息..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
+              <TouchableOpacity disabled={!input.trim() || loading} style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]} onPress={() => send()}>
+                <Icon.send size={18} color={T.black} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-        <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.model || 'auto'); setShowModelPicker(false); }} />
+        <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.id); setShowModelPicker(false); }} />
 
         {showNewBook && (
           <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowNewBook(false)}>
@@ -324,13 +316,23 @@ export default function HomeScreen({ navigation }: Props) {
                 <TouchableOpacity style={s.modalConfirm} onPress={async () => {
                   if (!newBookName.trim()) return;
                   try {
-                    const { saveAiContent } = await import('../lib/library');
-                    const intro = `《${newBookName}》\n类型：${newBookGenre}\n简介：${newBookSynopsis || '暂无'}\n\n--- 开始创作 ---`;
-                    await saveAiContent(newBookName, intro);
-                    const gName = newBookName, gGenre = newBookGenre, gSynopsis = newBookSynopsis;
+                    const now = new Date().toISOString();
+                    const novel: NovelProject = {
+                      id: `novel_${Date.now()}`,
+                      title: newBookName.trim(),
+                      genre: newBookGenre,
+                      synopsis: newBookSynopsis.trim(),
+                      styleGuide: '',
+                      totalVolumes: 1,
+                      currentVolume: 1,
+                      totalChapters: 0,
+                      createdAt: now,
+                      updatedAt: now,
+                    };
+                    await saveNovel(novel);
                     setShowNewBook(false);
                     setNewBookName(''); setNewBookSynopsis(''); setNewBookGenre('玄幻');
-                    setInput(`我正在写一本${gGenre}小说《${gName}》，${gSynopsis ? '简介：' + gSynopsis + '。' : ''}请帮我写第一章。`);
+                    navigation.navigate('Writing', { novelId: novel.id });
                   } catch {}
                 }}>
                   <Text style={s.modalConfirmText}>创建并开始写</Text>
@@ -375,13 +377,13 @@ const s: any = {
   quickRow: { paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   quickChip: { backgroundColor: T.surface2, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: T.border },
   quickText: { color: T.textSecondary, fontSize: 12 },
-  inputWrap: { paddingHorizontal: 12, paddingBottom: 24, paddingTop: 4, backgroundColor: T.bg },
-  modelRow: { flexDirection: 'row', marginBottom: 8, paddingHorizontal: 2 },
-  modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface2 },
+  inputWrap: { paddingHorizontal: 12, paddingBottom: Platform.OS === 'ios' ? 16 : 10, paddingTop: 4, backgroundColor: T.bg },
+  modelBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, maxWidth: '75%', paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface },
   modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   modelBtnArrow: { color: T.textDim, fontSize: 9 },
-  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 14, paddingRight: 8, paddingVertical: 6, minHeight: 50 },
-  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingTop: 10, paddingBottom: 10, lineHeight: 22, minHeight: 24 },
+  inputContainer: { backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 7, minHeight: 112 },
+  inputBody: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 220, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, lineHeight: 22, minHeight: 64 },
   sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
   sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },

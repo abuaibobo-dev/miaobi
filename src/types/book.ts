@@ -36,6 +36,7 @@ export interface LibraryBook extends BookRecord {
   savedAt: string;
   status: ShelfStatus;
   progress: number;
+  currentChapterIndex?: number;
   lastReadAt?: string;
   rating?: number;
   note?: string;

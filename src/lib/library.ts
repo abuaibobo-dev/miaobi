@@ -289,6 +289,7 @@ export async function importExternalFile(uri: string, fileName?: string): Promis
 async function importEpubFile(file: File, filename: string): Promise<{ ok: boolean; message: string }> {
   try {
     const bytes = await file.bytes();
+    if (bytes.byteLength > 50 * 1024 * 1024) throw new Error('EPUB 文件过大（最大 50 MB）');
     const extracted = extractEpubText(bytes);
     const id = `local:${Date.now()}`;
     const uri = await writeLocalText(id, extracted.title, extracted.content);
@@ -340,6 +341,10 @@ function xmlTag(xml: string, tag: string) {
 
 export function extractEpubText(bytes: Uint8Array) {
   const files = unzipSync(bytes);
+  const entries = Object.entries(files);
+  if (entries.length > 5000) throw new Error('EPUB 文件条目过多');
+  const uncompressedSize = entries.reduce((total, [, data]) => total + data.byteLength, 0);
+  if (uncompressedSize > 100 * 1024 * 1024) throw new Error('EPUB 解压后内容过大（最大 100 MB）');
   const containerName = Object.keys(files).find(name => name.endsWith('META-INF/container.xml'));
   if (!containerName) throw new Error('无效 EPUB：缺少 container.xml');
   const containerXml = strFromU8(files[containerName]);

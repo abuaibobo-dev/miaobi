@@ -71,7 +71,12 @@ export default function SettingsScreen({ navigation }: Props) {
         else { const d = await res.json().catch(() => null); setNotice(d?.error?.message || `❌ 失败（${res.status}）`); }
       } else {
         const p = PROVIDERS.find(p => p.id === provider)!;
-        const res = await fetch(`${p.id === 'groq' ? 'https://api.groq.com' : p.id === 'sambanova' ? 'https://api.sambanova.ai' : 'https://api.cerebras.ai'}/v1/models`, { signal: AbortSignal.timeout(8000) });
+        const providerKey = p.id === 'groq' ? groqKey : p.id === 'sambanova' ? sambanovaKey : cerebrasKey;
+        if (!providerKey.trim()) throw new Error(`请先填写 ${p.label} API Key`);
+        const res = await fetch(`${p.id === 'groq' ? 'https://api.groq.com/openai' : p.id === 'sambanova' ? 'https://api.sambanova.ai' : 'https://api.cerebras.ai'}/v1/models`, {
+          headers: { Authorization: `Bearer ${providerKey.trim()}` },
+          signal: AbortSignal.timeout(8000),
+        });
         if (res.ok) setNotice('✅ 连接正常');
         else setNotice(`❌ 测试失败（${res.status}）`);
       }

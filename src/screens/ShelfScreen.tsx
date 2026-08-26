@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, Image, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, RefreshControl, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { showAlert } from '../components/CustomAlert';
@@ -21,6 +21,7 @@ export default function ShelfScreen({ navigation }: Props) {
   const [books, setBooks] = useState<LibraryBook[]>([]);
   const [tab, setTab] = useState<ShelfStatus | 'all'>('all');
   const [notice, setNotice] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => {
     import('../lib/library').then(({ getLibrary }) => getLibrary().then(setBooks));
@@ -77,6 +78,7 @@ export default function ShelfScreen({ navigation }: Props) {
       ) : (
         <FlatList
           data={filtered}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await refresh(); setRefreshing(false); }} tintColor={T.grey} />}
           keyExtractor={item => item.id}
           contentContainerStyle={s.list}
           renderItem={({ item }) => (

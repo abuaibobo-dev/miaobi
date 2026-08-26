@@ -83,7 +83,7 @@ export default function WritingScreen({ navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={s.container} behavior="height">
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
@@ -125,8 +125,8 @@ export default function WritingScreen({ navigation }: any) {
               <Text style={s.bubbleText}>{streaming}</Text>
             ) : (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <ActivityIndicator color={T.grey} size="small" />
-                <Text style={{ color: T.grey, fontSize: 12, marginLeft: 8 }}>思考中...</Text>
+                <ActivityIndicator color={T.text} size="small" />
+                <Text style={{ color: T.textMuted, fontSize: 14, marginLeft: 10, fontWeight: "500" }}>思考中...</Text>
               </View>
             )}
           </View>
@@ -185,9 +185,8 @@ const s: any = {
   modelBtnArrow: { color: T.textDim, fontSize: 9 },
   inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 14, paddingRight: 8, paddingVertical: 6, minHeight: 50 },
   input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingTop: 10, paddingBottom: 10, lineHeight: 22, minHeight: 24 },
-  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
   sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
-  sendIcon: { color: '#111', fontSize: 18, fontWeight: '900' },
   copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
 };

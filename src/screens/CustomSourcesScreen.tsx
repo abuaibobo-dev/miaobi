@@ -93,7 +93,7 @@ export default function CustomSourcesScreen({ navigation }: Props) {
         contentContainerStyle={s.list}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Icon.book size={40} color="#444" />
+            <Icon.book size={40} color={T.textDim} />
             <Text style={s.emptyText}>还没有导入书源</Text>
             <Text style={s.emptyHint}>去书源管理页面导入 JSON 书源文件</Text>
           </View>
@@ -139,7 +139,7 @@ export default function CustomSourcesScreen({ navigation }: Props) {
                     <View style={[s.bookCover, !book.coverUrl && { alignItems: 'center', justifyContent: 'center' }]}>
                       {book.coverUrl
                         ? <Image source={{ uri: book.coverUrl }} style={s.bookImage} />
-                        : <Icon.book size={16} color="#555" />
+                        : <Icon.book size={16} color={T.grey} />
                       }
                     </View>
                     <Text style={s.bookTitle} numberOfLines={2}>{book.title}</Text>

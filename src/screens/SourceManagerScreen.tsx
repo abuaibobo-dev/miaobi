@@ -270,7 +270,7 @@ export default function SourceManagerScreen({ navigation }: Props) {
               <Switch
                 value={item.enabled}
                 onValueChange={value => setEnabled(prev => value ? [...prev, item.key] : prev.filter(key => key !== item.key))}
-                thumbColor="#E5E5E5"
+                thumbColor={T.white}
                 trackColor={{ false: T.surface2, true: T.grey }}
               />
             )}

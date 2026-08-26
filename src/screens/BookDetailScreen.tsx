@@ -67,7 +67,7 @@ export default function BookDetailScreen({ navigation, route }: Props) {
           <View style={s.cover}>
             {book.coverUrl
               ? <Image source={{ uri: book.coverUrl }} style={s.coverImage} />
-              : <Icon.book size={30} color="#666" />}
+              : <Icon.book size={30} color={T.grey} />}
           </View>
           <View style={s.meta}>
             <Text style={s.title}>{book.title}</Text>
@@ -97,7 +97,7 @@ export default function BookDetailScreen({ navigation, route }: Props) {
         )}
 
         <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={startReading} disabled={!!busy}>
-          {busy ? <ActivityIndicator color="#111" /> : <Text style={s.primaryText}>{book.localUri ? '继续阅读' : '下载并阅读'}</Text>}
+          {busy ? <ActivityIndicator color={T.black} /> : <Text style={s.primaryText}>{book.localUri ? '继续阅读' : '下载并阅读'}</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity style={s.secondaryButton} onPress={async () => { await addToShelf(book); setNotice('已加入书架'); }}>

@@ -84,7 +84,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
     setIsSpeaking(true);
     AsyncStorage.getItem('miaobi.reader.speechRate').then(rateValue => {
       const rate = Number(rateValue) || 1.0;
-      Speech.speak(chapters[current].body.slice(0, 4000), {
+      Speech.speak(chapters[current].body.slice(0, 12000), {
         language: 'zh-CN', rate,
         onDone: () => setIsSpeaking(false),
         onError: () => setIsSpeaking(false),

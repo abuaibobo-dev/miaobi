@@ -29,7 +29,7 @@ export default StyleSheet.create({
   clearText: { color: T.textSec, fontSize: 11 },
   categories: { flexDirection: 'row', gap: 7, paddingHorizontal: 16, marginTop: 12, flexWrap: 'wrap' },
   categoryChip: { minHeight: 31, borderRadius: 16, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: T.surface, borderWidth: 1, borderColor: T.border },
-  categoryActive: { backgroundColor: T.white, borderColor: '#E7E7E7' },
+  categoryActive: { backgroundColor: T.white, borderColor: T.borderLight },
   categoryText: { color: T.textSec, fontSize: 12, fontWeight: '600' },
   categoryActiveText: { color: T.black },
   startBlock: { padding: 20 },
@@ -76,7 +76,7 @@ export default StyleSheet.create({
   noResult: { marginTop: 40, textAlign: 'center', color: T.textMuted },
   notice: {
     position: 'absolute', left: 24, right: 24, bottom: 28,
-    borderRadius: 16, backgroundColor: '#1F1F1FEE', borderWidth: 1, borderColor: T.borderLight,
+    borderRadius: 16, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.borderLight,
     paddingHorizontal: 14, paddingVertical: 11,
   },
   noticeText: { color: T.text, fontSize: 12, textAlign: 'center', lineHeight: 18 },

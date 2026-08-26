@@ -160,7 +160,7 @@ export default function SettingsScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: '#6ECF8A' } : { color: '#D68080' }]}>{notice}</Text> : null}
+        {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: '#4CAF50' } : { color: '#E57373' }]}>{notice}</Text> : null}
         <View style={s.divider} />
 
         {/* Navigation */}

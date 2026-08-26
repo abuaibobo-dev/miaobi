@@ -4,6 +4,7 @@ import {
   StatusBar, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { T } from '../lib/theme';
+import * as Clipboard from 'expo-clipboard';
 import { Icon } from '../lib/icons';
 import { getSettings } from '../lib/storage';
 import { searchAllSourcesWithCustom } from '../lib/bookSources';
@@ -29,6 +30,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<BookRecord[]>([]);
   const scrollRef = useRef<ScrollView>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (mode === 'recommend') {
@@ -110,6 +112,12 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
     }
   };
 
+  const copyMsg = async (text: string, idx: number) => {
+    await Clipboard.setStringAsync(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 1500);
+  };
+
   const openResult = async (book: BookRecord) => {
     await addToShelf(book);
     setResults([]);
@@ -129,6 +137,11 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
         {messages.map((message, index) => (
           <View key={`${index}`} style={[s.bubble, message.role === 'user' ? s.user : s.ai]}>
             <Text style={[s.messageText, message.role === 'user' && s.userText]}>{message.content}</Text>
+            {message.role === 'assistant' && message.content.length > 20 && (
+              <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: T.surface2 }} onPress={() => copyMsg(message.content, index)}>
+                <Text style={{ color: T.textMuted, fontSize: 10, fontWeight: '600' }}>{copiedIdx === index ? '✓ 已复制' : '复制'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ))}
         {!!results.length && (
@@ -145,7 +158,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
             ))}
           </View>
         )}
-        {loading && <View style={[s.bubble, s.ai]}><ActivityIndicator color="#D4D4D4" /></View>}
+        {loading && <View style={[s.bubble, s.ai]}><ActivityIndicator color={T.text} /></View>}
       </ScrollView>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickWrap}>

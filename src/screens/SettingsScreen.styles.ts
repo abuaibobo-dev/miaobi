@@ -36,15 +36,15 @@ export default StyleSheet.create({
   aboutText: { marginTop: 7, color: T.textMuted, fontSize: 12, lineHeight: 19 },
   speedRow: { flexDirection: 'row', gap: 7, marginTop: 10, flexWrap: 'wrap' },
   speedButton: { width: 48, height: 34, borderRadius: 16, borderWidth: 1, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center' },
-  speedActive: { backgroundColor: T.white, borderColor: '#E7E7E7' },
+  speedActive: { backgroundColor: T.white, borderColor: T.borderLight },
   speedText: { color: T.textSec, fontSize: 11 },
   speedActiveText: { color: T.black, fontWeight: '800' },
   dangerButton: { height: 40, marginTop: 10, borderRadius: 20, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
-  dangerText: { color: '#C09090', fontSize: 13, fontWeight: '700' },
+  dangerText: { color: '#E57373', fontSize: 13, fontWeight: '700' },
   confirmRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   confirmText: { flex: 1, color: T.textSec, fontSize: 11 },
   confirmYes: { height: 30, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: T.surface2 },
-  confirmYesText: { color: '#C09090', fontSize: 11, fontWeight: '700' },
+  confirmYesText: { color: '#E57373', fontSize: 11, fontWeight: '700' },
   confirmNo: { height: 30, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
   confirmNoText: { color: T.textMuted, fontSize: 11 },
 });
@@ -52,10 +52,10 @@ export default StyleSheet.create({
 // Provider styles
 const providerStyles = {
   providerOption: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: T.border, marginTop: 8 },
-  providerActive: { borderColor: '#FFF', backgroundColor: T.surface },
+  providerActive: { borderColor: T.white, backgroundColor: T.surface },
   providerRadio: { width: 20, height: 20, borderRadius: 12, borderWidth: 2, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
-  radioActive: { backgroundColor: '#FFF' },
+  radioActive: { backgroundColor: T.white },
   providerLabel: { color: T.text, fontSize: 14, fontWeight: '700' },
   providerDesc: { color: T.textMuted, fontSize: 11, marginTop: 2 },
 };

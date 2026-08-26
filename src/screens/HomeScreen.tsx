@@ -161,12 +161,18 @@ export default function HomeScreen({ navigation }: Props) {
         <View style={{ flex: 1 }}>
           {item.role === 'assistant' && item.thinking ? <ThinkingPanel text={item.thinking} /> : null}
           <Text style={[s.bubbleText, item.role === 'user' && s.userText]}>{item.content}</Text>
+          {item.role === 'user' && item.content.length > 5 && (
+            <TouchableOpacity style={{ alignSelf: 'flex-start', marginTop: 4 }} onPress={() => Clipboard.setStringAsync(item.content)}>
+              <Text style={{ color: T.textMuted, fontSize: 9 }}>❏❏ 复制</Text>
+            </TouchableOpacity>
+          )}
           {item.role === 'assistant' && item.content.trim().length > 0 && (
-            <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-              <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(item.content, msgId)}>
-                <Text style={s.copyText}>{isCopied ? '✓ 已复制' : copiedId === `error_${msgId}` ? '复制失败' : '一键复制'}</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} onPress={() => copyMsg(item.content, msgId)}>
+                <Text style={{ fontSize: 10, color: T.textMuted }}>❏❏</Text>
+                <Text style={{ color: T.textMuted, fontSize: 9 }}>{isCopied ? '✓ 已复制' : '复制'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.copyBtn} onPress={async () => {
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} onPress={async () => {
                 try {
                   const { saveAiContent } = await import('../lib/library');
                   await saveAiContent('AI 创作 · ' + new Date().toLocaleDateString(), item.content);
@@ -174,7 +180,7 @@ export default function HomeScreen({ navigation }: Props) {
                   setTimeout(() => setCopiedId(null), 2000);
                 } catch (e) { /* silent */ }
               }}>
-                <Text style={s.copyText}>{copiedId === 'saved_' + msgId ? '✓ 已保存到书架' : '保存到书架'}</Text>
+                <Text style={{ color: T.textMuted, fontSize: 9 }}>{copiedId === 'saved_' + msgId ? '✓ 已生成' : '生成正文'}</Text>
               </TouchableOpacity>
             </View>
           )}

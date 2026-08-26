@@ -177,7 +177,7 @@ export default function WritingScreen({ navigation, route }: any) {
   };
 
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={s.container} behavior="height" >
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
@@ -206,12 +206,18 @@ export default function WritingScreen({ navigation, route }: any) {
             <View style={{ flex: 1 }}>
               {msg.role === 'assistant' && msg.thinking ? <ThinkingPanel text={msg.thinking} /> : null}
               <Text style={[s.bubbleText, msg.role === 'user' && s.userText]}>{msg.content}</Text>
+              {msg.role === 'user' && msg.content.length > 5 && (
+                <TouchableOpacity style={{ alignSelf: 'flex-start', marginTop: 4 }} onPress={() => Clipboard.setStringAsync(msg.content)}>
+                  <Text style={{ color: T.textMuted, fontSize: 9 }}>❏❏ 复制</Text>
+                </TouchableOpacity>
+              )}
               {msg.role === 'assistant' && msg.content.trim().length > 0 && (
-                <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-                  <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(msg.content, String(i))}>
-                    <Text style={s.copyText}>{copiedId === String(i) ? '✓ 已复制' : copiedId === `error_${i}` ? '复制失败' : '一键复制'}</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} onPress={() => copyMsg(msg.content, String(i))}>
+                    <Text style={{ fontSize: 10, color: T.textMuted }}>❏❏</Text>
+                    <Text style={{ color: T.textMuted, fontSize: 9 }}>{copiedId === String(i) ? '✓ 已复制' : '复制'}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.copyBtn} onPress={async () => {
+                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} onPress={async () => {
                     try {
                       if (novel) await saveAsChapter(msg.content);
                       else {
@@ -222,7 +228,7 @@ export default function WritingScreen({ navigation, route }: any) {
                       setTimeout(() => setCopiedId(null), 2000);
                     } catch (e) { /* silent */ }
                   }}>
-                    <Text style={s.copyText}>{copiedId === 'saved_' + String(i) ? '✓ 已保存' : novel ? '保存为章节' : '保存到书架'}</Text>
+                    <Text style={{ color: T.textMuted, fontSize: 9 }}>{copiedId === 'saved_' + String(i) ? '✓ 已生成' : '生成正文'}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -244,7 +250,15 @@ export default function WritingScreen({ navigation, route }: any) {
           </TouchableOpacity>
           <View style={s.inputBody}>
             <TextInput value={input} onChangeText={setInput} placeholder="描述剧情、人物或粘贴待润色正文..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
-            <TouchableOpacity disabled={!input.trim() || loading} style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]} onPress={() => send()}><Icon.send size={18} color={T.black} /></TouchableOpacity>
+            {loading ? (
+              <TouchableOpacity style={s.stopBtn} onPress={() => { setLoading(false); setStreaming(''); setThinking(''); }}>
+                <Icon.close size={16} color={T.white} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
+                <Icon.send size={18} color={T.black} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -280,7 +294,8 @@ const s: any = {
   inputBody: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 },
   input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, lineHeight: 22, minHeight: 24 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
+  stopBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#666666', alignItems: 'center', justifyContent: 'center' },
+  sendDisabled: { opacity: 0.25 },
   copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
 };

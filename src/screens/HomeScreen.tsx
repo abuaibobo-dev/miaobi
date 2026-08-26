@@ -44,11 +44,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [userScrolling, setUserScrolling] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [showNewBook, setShowNewBook] = useState(false);
   const [ctxMenu, setCtxMenu] = useState<{msg: Msg; idx: number; x: number; y: number} | null>(null);
-  const [newBookName, setNewBookName] = useState('');
-  const [newBookGenre, setNewBookGenre] = useState('玄幻');
-  const [newBookSynopsis, setNewBookSynopsis] = useState('');
   const scrollRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
   const agentSessionRef = useRef(createAgentSession());
@@ -205,10 +201,6 @@ export default function HomeScreen({ navigation }: Props) {
           <>
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onPress={() => setShowMenu(false)} />
           <View style={[s.headerMenu, { zIndex: 31 }]}>
-            <TouchableOpacity style={s.headerMenuItem} onPress={() => { setShowMenu(false); setShowNewBook(true); }}>
-              <Icon.write size={16} color={T.text} />
-              <Text style={s.headerMenuText}>写新书</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={s.headerMenuItem} onPress={() => {
               const initial: Msg[] = [
                 { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
@@ -345,54 +337,7 @@ export default function HomeScreen({ navigation }: Props) {
         )}
         <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.id); setShowModelPicker(false); }} />
 
-        {showNewBook && (
-          <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setShowNewBook(false)}>
-            <TouchableOpacity activeOpacity={1} onPress={() => {}} style={s.modalCard}>
-              <Text style={s.modalTitle}>创建新书</Text>
-              <Text style={s.modalLabel}>书名</Text>
-              <TextInput style={s.modalInput} value={newBookName} onChangeText={setNewBookName} placeholder="输入书名..." placeholderTextColor={T.textMuted} />
-              <Text style={s.modalLabel}>类型</Text>
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                {['玄幻','言情','悬疑','科幻','历史','武侠','都市','成人'].map(g => (
-                  <TouchableOpacity key={g} style={[s.genreChip, newBookGenre === g && s.genreActive]} onPress={() => setNewBookGenre(g)}>
-                    <Text style={[s.genreText, newBookGenre === g && s.genreActiveText]}>{g}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={s.modalLabel}>简介</Text>
-              <TextInput style={[s.modalInput, { height: 80 }]} value={newBookSynopsis} onChangeText={setNewBookSynopsis} placeholder="故事简介..." placeholderTextColor={T.textMuted} multiline textAlignVertical="top" />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={s.modalCancel} onPress={() => setShowNewBook(false)}>
-                  <Text style={s.modalCancelText}>取消</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.modalConfirm} onPress={async () => {
-                  if (!newBookName.trim()) return;
-                  try {
-                    const now = new Date().toISOString();
-                    const novel: NovelProject = {
-                      id: `novel_${Date.now()}`,
-                      title: newBookName.trim(),
-                      genre: newBookGenre,
-                      synopsis: newBookSynopsis.trim(),
-                      styleGuide: '',
-                      totalVolumes: 1,
-                      currentVolume: 1,
-                      totalChapters: 0,
-                      createdAt: now,
-                      updatedAt: now,
-                    };
-                    await saveNovel(novel);
-                    setShowNewBook(false);
-                    setNewBookName(''); setNewBookSynopsis(''); setNewBookGenre('玄幻');
-                    navigation.navigate('Writing', { novelId: novel.id });
-                  } catch {}
-                }}>
-                  <Text style={s.modalConfirmText}>创建并开始写</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        )}
+        
       </KeyboardAvoidingView>
     </View>
   );

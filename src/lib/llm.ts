@@ -517,25 +517,13 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
           },
           options.signal,
         );
-        if (adultContent2) {
-          // Check if DeepSeek refused the content
-          const refusalPattern = /抱歉|我无法|不能|违反|安全|道德准则|伦理|不予|拒绝|不适合|不当/i;
-          if (refusalPattern.test(adultContent2) && adultContent2.length < 200) {
-            // DeepSeek refused - fall through to free providers
-          } else {
-            return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
-          }
-        }
+        if (adultContent2) return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
       } catch (e) {
         // DeepSeek failed, try free providers as fallback
       }
     }
 
-    // Priority 2: Fallback to free providers (Groq/SambaNova/Cerebras)
-    const freeResult = await tryFreeProviders(adultMessages, options.onProvider);
-    if (freeResult) return { content: freeResult.content, provider: `free:${freeResult.provider}` };
-
-    return { content: '', error: 'DeepSeek 成人模式无内容返回，且免费模型不可用。' };
+    return { content: '', error: 'DeepSeek 成人内容生成失败或被拒绝。' };
   }
 
 

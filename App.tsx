@@ -10,7 +10,6 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
 import SourceManagerScreen from './src/screens/SourceManagerScreen';
 import CustomSourcesScreen from './src/screens/CustomSourcesScreen';
-import WritingScreen from './src/screens/WritingScreen';
 import { importExternalFile } from './src/lib/library';
 import { T } from './src/lib/theme';
 import { AlertProvider } from './src/components/CustomAlert';
@@ -46,15 +45,7 @@ function HomeTabs() {
           tabBarIcon: ({ color, size }) => <Icon.chat size={size} color={color} />,
         }}
       />
-      <Tab.Screen
-        name="Write"
-        component={WritingScreen}
-        options={{
-          tabBarLabel: '写作',
-          tabBarIcon: ({ color, size }) => <Icon.write size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
+<Tab.Screen
         name="ShelfTab"
         component={ShelfScreen}
         options={{

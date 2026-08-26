@@ -164,10 +164,24 @@ export async function agentExecute(
     session.stepCount++;
     options?.onStep?.(session.stepCount);
 
-    const result = await chatCompletion(
-      session.messages.map(m => ({ role: m.role, content: m.content })),
-      { intent: detectIntent(msg), onContent: options?.onContent }
-    );
+      
+      // Adult + Writing: bypass agent engine, use clean messages
+      const intent = detectIntent(msg);
+      let result;
+      if (intent === 'adult' || intent === 'writing') {
+        const historyClean = session.messages
+          .filter(m => m.role !== 'system' || !m.content.includes('Agent'))
+          .slice(-10);
+        result = await chatCompletion(
+          [...historyClean, { role: 'user' as const, content: msg }],
+          { intent, onContent: options?.onContent }
+        );
+      } else {
+        result = await chatCompletion(
+          session.messages.map(m => ({ role: m.role, content: m.content })),
+          { intent, onContent: options?.onContent }
+        );
+      }
 
     const content = result.content || result.error || '';
     

@@ -2,7 +2,7 @@
   "expo": {
     "name": "妙笔",
     "slug": "miaobi",
-    "version": "2.5.35",
+    "version": "2.5.36",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",

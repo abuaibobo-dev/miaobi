@@ -10,6 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
+import { createAgentSession, agentExecute } from '../lib/agent-engine';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
 import { saveNovel } from '../lib/storage';
@@ -50,6 +51,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [newBookSynopsis, setNewBookSynopsis] = useState('');
   const scrollRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const agentSessionRef = useRef(createAgentSession());
 
   const CHAT_KEY = 'miaobi.homeChat';
 
@@ -88,29 +90,29 @@ export default function HomeScreen({ navigation }: Props) {
     abortRef.current = ctrl;
     try {
       const intent = detectIntent(msg);
-      const result = await chatCompletion(
-        history.map(m => ({ role: m.role, content: m.content })),
+      
+      // 使用 Agent 引擎（支持工具调用）
+      const agentResult = await agentExecute(
+        agentSessionRef.current,
+        msg,
         {
-          intent,
-          providerOverride: model.startsWith('local:') ? 'local' : model.startsWith('cloud:') ? 'cloud' : undefined,
-          modelOverride: model === 'auto' ? undefined : model.replace(/^(?:local|cloud):/, ''),
-          onProvider: (p) => setProvider(p),
+          signal: ctrl.signal,
+          onToolCall: (tool) => {
+            setStreaming(`🔧 正在调用 ${tool}...`);
+          },
           onContent: (delta) => {
             streamedContent += delta;
             setStreaming(streamedContent);
             if (!userScrolling) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
           },
-          onThinking: (delta) => {
-            streamedThinking += delta;
-            setThinking(streamedThinking);
-          },
-        },
-        ctrl.signal,
+        }
       );
-      const finalContent = streamedContent || result.content || (result.error ? `错误：${result.error}` : '没有回复内容');
+      
+      const finalContent = agentResult.reply || streamedContent || '没有回复内容';
+      const toolInfo = agentResult.toolsUsed > 0 ? ` [工具×${agentResult.toolsUsed}]` : '';
       setMessages(prev => {
         const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
-        return [...filtered, { role: 'assistant', content: finalContent, provider: result.provider, thinking: streamedThinking || result.thinking }];
+        return [...filtered, { role: 'assistant', content: finalContent + toolInfo, provider: `agent:${agentResult.steps}步`, thinking: streamedThinking }];
       });
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);

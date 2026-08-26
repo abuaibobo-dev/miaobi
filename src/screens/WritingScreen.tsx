@@ -90,7 +90,9 @@ export default function WritingScreen({ navigation }: any) {
           <Text style={s.backText}>←</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>AI 写作</Text>
-        <View style={{ width: 37 }} />
+        <TouchableOpacity onPress={() => { setMessages([{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }]); setStreaming(''); }} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+          <Text style={{ color: T.textMuted, fontSize: 12 }}>新对话</Text>
+        </TouchableOpacity>
       </View>
       <ScrollView ref={scrollRef} contentContainerStyle={s.messages} onContentSizeChange={() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }}>
         {messages.map((msg, i) => (

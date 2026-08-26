@@ -25,7 +25,7 @@ export default StyleSheet.create({
   loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20 },
   loadingText: { color: T.textMuted, fontSize: 12 },
   noBooks: { color: T.textMuted, fontSize: 12, textAlign: 'center', paddingVertical: 16 },
-  errorText: { color: '#B08080', fontSize: 11, textAlign: 'center', paddingVertical: 12, backgroundColor: '#1A1515', borderRadius: 12 },
+  errorText: { color: '#E57373', fontSize: 11, textAlign: 'center', paddingVertical: 12, backgroundColor: T.surface2, borderRadius: 12 },
   bookCard: { width: 86 },
   bookCover: { width: 86, height: 122, borderRadius: 12, backgroundColor: T.surface2, overflow: 'hidden' },
   bookImage: { width: '100%', height: '100%' },

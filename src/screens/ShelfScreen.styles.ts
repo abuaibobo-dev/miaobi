@@ -16,7 +16,7 @@ export default StyleSheet.create({
   tabChip: { minHeight: 30, borderRadius: 12, paddingHorizontal: 11, justifyContent: 'center', backgroundColor: T.surface, borderWidth: 1, borderColor: T.border },
   activeTab: { backgroundColor: T.borderLight, borderColor: T.borderLight },
   tabText: { color: T.textSec, fontSize: 12 },
-  activeTabText: { color: '#111', fontWeight: '800' },
+  activeTabText: { color: T.black, fontWeight: '800' },
   notice: { textAlign: 'center', marginBottom: 8, color: T.textMuted, fontSize: 12 },
   list: { padding: 16, paddingBottom: 30, gap: 10 },
   card: { borderRadius: 16, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, padding: 11 },

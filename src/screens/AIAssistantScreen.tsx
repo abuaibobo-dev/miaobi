@@ -135,8 +135,9 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
 
       <ScrollView ref={scrollRef} contentContainerStyle={s.messages}>
         {messages.map((message, index) => (
-          <View key={`${index}`} style={[s.bubble, message.role === 'user' ? s.user : s.ai]}>
-            <Text style={[s.messageText, message.role === 'user' && s.userText]}>{message.content}</Text>
+          <View key={`${index}`} style={[s.bubble, message.role === 'user' ? s.user : s.ai, { flexDirection: 'row', gap: 8 }]}>
+            {message.role === 'assistant' && <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}><Text style={{ color: T.grey, fontSize: 8, fontWeight: '700' }}>AI</Text></View>}
+            <Text style={[s.messageText, message.role === 'user' && s.userText, { flex: 1 }]}>{message.content}</Text>
             {message.role === 'assistant' && message.content.length > 20 && (
               <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: T.surface2 }} onPress={() => copyMsg(message.content, index)}>
                 <Text style={{ color: T.textMuted, fontSize: 10, fontWeight: '600' }}>{copiedIdx === index ? '✓ 已复制' : '复制'}</Text>

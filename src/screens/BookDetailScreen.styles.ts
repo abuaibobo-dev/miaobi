@@ -17,7 +17,7 @@ export default StyleSheet.create({
   meta: { flex: 1, minWidth: 0 },
   title: { color: T.text, fontSize: 21, lineHeight: 28, fontWeight: '900' },
   authors: { marginTop: 7, color: T.textSec, fontSize: 13 },
-  badge: { alignSelf: 'flex-start', marginTop: 10, borderRadius: 12, backgroundColor: '#E7E7E7', paddingHorizontal: 9, height: 22, lineHeight: 22, fontSize: 11, fontWeight: '800', color: T.black, overflow: 'hidden' },
+  badge: { alignSelf: 'flex-start', marginTop: 10, borderRadius: 12, backgroundColor: T.borderLight, paddingHorizontal: 9, height: 22, lineHeight: 22, fontSize: 11, fontWeight: '800', color: T.black, overflow: 'hidden' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 },
   tag: { borderRadius: 12, backgroundColor: T.surface, paddingHorizontal: 8, height: 20, lineHeight: 20, fontSize: 10, color: T.textMuted, overflow: 'hidden' },
   sectionCard: { marginTop: 17, borderRadius: 16, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, padding: 15 },

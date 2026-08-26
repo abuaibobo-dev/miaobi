@@ -31,7 +31,7 @@ export default function ShelfScreen({ navigation }: Props) {
   const refresh = async () => setBooks(await (await import('../lib/library')).getLibrary());
 
   const remove = (book: LibraryBook) => {
-    showAlert('移出书架', book.title, [
+    showAlert('删除这本书', book.title, [
       { text: '取消', style: 'cancel' },
       { text: '删除', style: 'destructive', onPress: async () => { await removeFromShelf(book.id); refresh(); } },
     ]);

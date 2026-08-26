@@ -20,7 +20,7 @@ const { width: SW } = Dimensions.get('window');
 const MENU = [
   { key: 'writing', iconName: 'write' as const, label: 'AI 写作' },
   { key: 'sources', iconName: 'book' as const, label: '书源管理' },
-  { key: 'shelf', iconName: 'book' as const, label: '我的书架' },
+  { key: 'shelf', iconName: 'save' as const, label: '我的书架' },
   { key: 'assistant', iconName: 'search' as const, label: '找书助手' },
   { key: 'settings', iconName: 'settings' as const, label: '设置' },
 ];
@@ -295,7 +295,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
               onPress={() => send()}
             >
-              <Icon.arrow size={20} color={'#111'} />
+              <Icon.arrow size={20} color={T.black} />
             </TouchableOpacity>
           </View>
         </View>

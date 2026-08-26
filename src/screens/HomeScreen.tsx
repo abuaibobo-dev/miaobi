@@ -255,7 +255,7 @@ export default function HomeScreen({ navigation }: Props) {
                   <Text style={s.bubbleText}>{streaming}</Text>
                 ) : (
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <ActivityIndicator color={T.grey} size="small" />
+                    <ActivityIndicator color={T.text} size="small" />
                     <Text style={s.thinkingText}>思考中...</Text>
                   </View>
                 )}
@@ -372,7 +372,7 @@ const s: any = {
   bubbleText: { color: T.text, fontSize: 14, lineHeight: 21 },
   userText: { color: T.text },
   msgProvider: { color: T.textDim, fontSize: 9, marginTop: 4 },
-  thinkingText: { color: T.grey, fontSize: 12, marginLeft: 8 },
+  thinkingText: { color: T.textMuted, fontSize: 14, marginLeft: 10, fontWeight: "500" },
   quickRow: { paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   quickChip: { backgroundColor: T.surface2, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: T.border },
   quickText: { color: T.textSecondary, fontSize: 12 },

@@ -73,19 +73,47 @@ jobs:
           CODE=$((MAJOR*10000 + MINOR*100 + PATCH))
           VERSION_NAME="$VERSION" VERSION_CODE="$CODE" ./gradlew assembleRelease --no-daemon
 
-      - name: Copy APK
+      - name: Download Pi Agent (ARM64)
+        run: |
+          curl -sL "https://github.com/Dicklesworthstone/pi_agent_rust/releases/download/v0.3.0/pi-linux-arm64.tar.xz" -o pi-arm64.tar.xz
+          tar xf pi-arm64.tar.xz
+          cp pi-0.3.0-aarch64-unknown-linux-gnu/pi pi-agent-arm64
+          chmod +x pi-agent-arm64
+          ls -lh pi-agent-arm64
+
+      - name: Copy APK and Pi Agent
         run: |
           mkdir -p dist
           TAG="${{ steps.ver.outputs.tag }}"
           cp android/app/build/outputs/apk/release/app-release.apk "dist/MiaoBi-$TAG.apk"
+          cp pi-agent-arm64 "dist/pi-agent-arm64"
 
       - name: Create Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.ver.outputs.tag }}"
-          gh release create "$TAG" "dist/MiaoBi-$TAG.apk" \
+          gh release create "$TAG" \
+            "dist/MiaoBi-$TAG.apk" \
+            "dist/pi-agent-arm64" \
             --repo "${{ github.repository }}" \
             --title "妙笔 $TAG" \
-            --notes "成人文学 · 全网书源 · 本地阅读" || \
-          gh release upload "$TAG" "dist/MiaoBi-$TAG.apk" --repo "${{ github.repository }}" --clobber
+            --notes "## 妙笔 $TAG
+
+### 📱 Android APK
+下载 MiaoBi-$TAG.apk 安装到手机
+
+### 🧠 Pi Agent (Termux 用)
+1. 手机安装 Termux
+2. 下载 pi-agent-arm64 到 Termux
+3. 迌行: chmod +x pi-agent-arm64 && ./pi-agent-arm64
+4. 配置 DeepSeek API Key
+
+### 更新内容
+- 成人文学 DeepSeek 优先模式
+- 底部Tab导航
+- Pi Agent 集成" || \
+          gh release upload "$TAG" \
+            "dist/MiaoBi-$TAG.apk" \
+            "dist/pi-agent-arm64" \
+            --repo "${{ github.repository }}" --clobber

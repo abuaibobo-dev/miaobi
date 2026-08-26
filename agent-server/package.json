@@ -1,0 +1,14 @@
+{
+  "name": "miaobi-agent-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/server.ts",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch run src/server.ts"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  }
+}

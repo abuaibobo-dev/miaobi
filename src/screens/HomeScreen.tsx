@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform,
+  Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform, ScrollView,
   StatusBar, Text, TextInput, TouchableOpacity, View, Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,8 +11,8 @@ import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
-import { saveNovel } from '../lib/storage';
-import type { NovelProject } from '../types/novel';
+import { getChapters, getNovels, saveChapter, saveNovel } from '../lib/storage';
+import type { Chapter, NovelProject } from '../types/novel';
 
 type Props = any;
 type Msg = { role: 'user' | 'assistant'; content: string; provider?: string; thinking?: string };
@@ -26,6 +26,15 @@ const MENU = [
   { key: 'assistant', iconName: 'search' as const, label: '找书助手' },
   { key: 'settings', iconName: 'settings' as const, label: '设置' },
 ];
+
+const WORKFLOW = [
+  { key: 'setting', label: '世界设定' },
+  { key: 'characters', label: '人物小传' },
+  { key: 'outline', label: '故事大纲' },
+  { key: 'chapter', label: '写下一章' },
+  { key: 'polish', label: '润色改写' },
+  { key: 'export', label: '导出成书' },
+] as const;
 
 const QUICK = [
   '帮我写一个科幻故事的开头',
@@ -49,8 +58,12 @@ export default function HomeScreen({ navigation }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [userScrolling, setUserScrolling] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showNewBook, setShowNewBook] = useState(false);
+  const [novelId, setNovelId] = useState<string | undefined>();
+  const [novel, setNovel] = useState<NovelProject | null>(null);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [newBookName, setNewBookName] = useState('');
   const [newBookGenre, setNewBookGenre] = useState('玄幻');
   const [newBookSynopsis, setNewBookSynopsis] = useState('');
@@ -81,6 +94,53 @@ export default function HomeScreen({ navigation }: Props) {
     Animated.spring(drawerX, { toValue: -DRAWER_W, useNativeDriver: true, tension: 65, friction: 11 }).start();
     const route = ROUTE_MAP[key];
     if (route) navigation.navigate(route);
+  };
+
+  const useWorkflow = async (key: typeof WORKFLOW[number]['key']) => {
+    if (key === 'export') {
+      if (!novel || !chapters.length) return;
+      const { exportAsTxt } = await import('../lib/export');
+      await exportAsTxt(novel.id);
+      return;
+    }
+    if (!novel) {
+      setInput(key === 'polish' ? '请润色下面这段文字：\n' : '请先帮我构思一部小说。');
+      return;
+    }
+    const base = `小说《${novel.title}》，类型：${novel.genre}，简介：${novel.synopsis || '暂无'}。`;
+    const recent = chapters.slice(-3).map(ch => `第${ch.chapterNumber}章《${ch.title}》摘要：${ch.summary || ch.body.slice(0, 160)}`).join('\n');
+    const prompts: Record<string, string> = {
+      setting: `${base}\n请建立可持续长篇创作的世界设定，包括时代背景、规则、地点、势力和核心冲突。`,
+      characters: `${base}\n请设计主要人物小传，包括目标、动机、缺陷、关系、成长弧线和说话特点。`,
+      outline: `${base}\n请给出完整故事大纲，按卷和章节列出关键事件、转折、伏笔与高潮。`,
+      chapter: `${base}\n${recent ? `已有章节：\n${recent}\n` : ''}请创作第${chapters.length + 1}章，保持前文一致，输出章节标题和正文。`,
+      polish: '请在保留剧情、人物口吻和信息的前提下润色下面文字，提升节奏、画面和语言质感：\n',
+    };
+    setInput(prompts[key] || '');
+  };
+
+  const saveAsChapter = async (content: string) => {
+    if (!novel || !content.trim() || content.startsWith('错误：')) return;
+    const firstLine = content.trim().split('\n')[0].replace(/^#+\s*/, '').trim();
+    const chapterNumber = chapters.length + 1;
+    const now = new Date().toISOString();
+    const chapter: Chapter = {
+      id: `chapter_${novel.id}_${Date.now()}`,
+      novelId: novel.id,
+      volumeNumber: novel.currentVolume || 1,
+      chapterNumber,
+      title: firstLine.length <= 50 ? firstLine.replace(/^第[^章]*章\s*/, '') || `第${chapterNumber}章` : `第${chapterNumber}章`,
+      body: content.trim(),
+      summary: content.trim().slice(0, 220),
+      status: 'drafting',
+      wordCount: content.replace(/\s/g, '').length,
+      createdAt: now,
+    };
+    await saveChapter(chapter);
+    const nextNovel = { ...novel, totalChapters: chapterNumber, updatedAt: now };
+    await saveNovel(nextNovel);
+    setNovel(nextNovel);
+    setChapters(prev => [...prev, chapter]);
   };
 
   const send = async (text?: string) => {
@@ -220,12 +280,9 @@ export default function HomeScreen({ navigation }: Props) {
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={s.headerTitle}>妙笔</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {provider ? <Text style={s.headerBadge}>{provider}</Text> : null}
-            <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
-              <Icon.more size={20} color={T.text} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
+            <Icon.more size={20} color={T.text} />
+          </TouchableOpacity>
         </View>
         {showMenu && (
           <View style={s.headerMenu}>
@@ -256,6 +313,13 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 6 }} keyboardShouldPersistTaps="handled">
+          {WORKFLOW.map(item => (
+            <TouchableOpacity key={item.key} style={{ height: 26, borderRadius: 13, paddingHorizontal: 10, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, justifyContent: 'center' }} onPress={() => useWorkflow(item.key)}>
+              <Text style={{ color: T.textMuted, fontSize: 10, fontWeight: '600' }}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
         <FlatList
           ref={scrollRef}
           data={messages}
@@ -266,9 +330,19 @@ export default function HomeScreen({ navigation }: Props) {
           onScrollEndDrag={(e) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
             const distFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
-            if (distFromBottom < 80) setUserScrolling(false);
+            if (distFromBottom < 80) {
+              setUserScrolling(false);
+              setShowScrollBtn(false);
+            } else {
+              setShowScrollBtn(true);
+            }
           }}
-          onContentSizeChange={() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }}
+          onScroll={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            const distFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+            setShowScrollBtn(distFromBottom > 120);
+          }}
+          onContentSizeChange={() => {}}
           ListFooterComponent={loading ? (
             <View style={[s.bubble, s.aiBubble]}>
               <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>
@@ -290,22 +364,28 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
+        {showScrollBtn && (
+          <TouchableOpacity style={s.scrollBtn} onPress={() => { scrollRef.current?.scrollToEnd({ animated: true }); setShowScrollBtn(false); setUserScrolling(false); }}>
+            <Icon.down size={16} color={T.white} />
+          </TouchableOpacity>
+        )}
         {/* Input area - ChatGPT style */}
         <View style={s.inputWrap}>
           <View style={s.inputContainer}>
-            <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
-              <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能模型' : model.replace(/^local:/, '本地 · ').replace(/^cloud:/, '云端 · ')}</Text>
-              <Text style={s.modelBtnArrow}>▾</Text>
-            </TouchableOpacity>
-            <View style={s.inputBody}>
-              <TextInput value={input} onChangeText={setInput} placeholder="输入消息..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
+            <TextInput value={input} onChangeText={setInput} placeholder="输入消息..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
+            <View style={s.inputFooter}>
+              <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
+                <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能' : model.replace(/^local:/, '本·').replace(/^cloud:/, '云·')}</Text>
+                <Text style={s.modelBtnArrow}>▾</Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
               {loading ? (
                 <TouchableOpacity style={s.stopBtn} onPress={() => { abortRef.current?.abort(); setLoading(false); setStreaming(''); setThinking(''); }}>
-                  <Icon.close size={16} color={T.white} />
+                  <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: T.white }} />
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
-                  <Icon.send size={18} color={T.black} />
+                  <Icon.send size={16} color={'#111'} />
                 </TouchableOpacity>
               )}
             </View>
@@ -398,15 +478,16 @@ const s: any = {
   quickChip: { backgroundColor: T.surface2, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: T.border },
   quickText: { color: T.textSecondary, fontSize: 12 },
   inputWrap: { paddingHorizontal: 12, paddingBottom: 8, paddingTop: 4, backgroundColor: T.bg },
-  modelBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, maxWidth: '75%', paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface },
-  modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
-  modelBtnArrow: { color: T.textDim, fontSize: 9 },
-  inputContainer: { backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingHorizontal: 8, paddingTop: 6, paddingBottom: 6 },
-  inputBody: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 },
-  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, lineHeight: 22, minHeight: 24 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  stopBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#666666', alignItems: 'center', justifyContent: 'center' },
-  sendDisabled: { opacity: 0.25 },
+  modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 22, paddingHorizontal: 8, borderRadius: 10, backgroundColor: T.surface },
+  modelBtnLabel: { color: T.textMuted, fontSize: 10, fontWeight: '600' },
+  modelBtnArrow: { color: T.textDim, fontSize: 8 },
+  inputContainer: { backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 6 },
+  inputFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 4, lineHeight: 22, minHeight: 48 },
+  sendBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', elevation: 2 },
+  stopBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#666666', alignItems: 'center', justifyContent: 'center' },
+  sendDisabled: { opacity: 0.3 },
+  scrollBtn: { position: 'absolute', right: 20, bottom: 80, width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center', elevation: 3, zIndex: 10 },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   headerMenu: { backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingBottom: 8 },

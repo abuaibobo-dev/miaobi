@@ -1,15 +1,9 @@
-name: Build Android APK
+name: Build APK
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: '版本号（如 v1.0.0）'
-        required: true
-        type: string
+    branches: [master]
+    tags: ['v*']
 
 jobs:
   build:
@@ -17,103 +11,71 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Inject API Keys
+      - name: Inject Keys
         run: |
           mkdir -p src/config
-          cat > src/config/keys.ts << KEYSEOF
+          cat > src/config/keys.ts << 'KEYS'
           export const INJECTED_KEYS = {
             deepseek: '${{ secrets.DEEPSEEK_KEY }}',
             groq: '${{ secrets.GROQ_KEY }}',
             sambanova: '${{ secrets.SAMBANOVA_KEY }}',
           };
-          KEYSEOF
-          echo "Keys injected"
+          KEYS
 
-      - name: Install dependencies
-        run: npm install
+      - run: npm install
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
 
-      - name: Generate Android project
-        run: npx expo prebuild --platform android --clean
+      - run: npx expo prebuild --platform android --clean
 
-      - name: Compute version
+      - name: Version
         id: ver
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          fi
+          TAG="${GITHUB_REF#refs/tags/}"
+          [ "$TAG" = "$GITHUB_REF" ] && TAG="v$(grep '"version"' package.json | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Build APK
+      - name: Build
         working-directory: android
         run: |
-          VERSION="${{ steps.ver.outputs.tag }}"
-          VERSION="${VERSION#v}"
-          MAJOR=$(echo "$VERSION" | cut -d. -f1)
-          MINOR=$(echo "$VERSION" | cut -d. -f2)
-          PATCH=$(echo "$VERSION" | cut -d. -f3)
-          [ -z "$PATCH" ] && PATCH=0
-          CODE=$((MAJOR*10000 + MINOR*100 + PATCH))
-          VERSION_NAME="$VERSION" VERSION_CODE="$CODE" ./gradlew assembleRelease --no-daemon
-
-      - name: Download Pi Agent (ARM64)
-        run: |
-          curl -sL "https://github.com/Dicklesworthstone/pi_agent_rust/releases/download/v0.3.0/pi-linux-arm64.tar.xz" -o pi-arm64.tar.xz
-          tar xf pi-arm64.tar.xz
-          cp pi-0.3.0-aarch64-unknown-linux-gnu/pi pi-agent-arm64
-          chmod +x pi-agent-arm64
-          ls -lh pi-agent-arm64
-
-      - name: Copy APK and Pi Agent
-        run: |
-          mkdir -p dist
           TAG="${{ steps.ver.outputs.tag }}"
-          cp android/app/build/outputs/apk/release/app-release.apk "dist/MiaoBi-$TAG.apk"
-          cp pi-agent-arm64 "dist/pi-agent-arm64"
+          VER="${TAG#v}"
+          MAJOR=$(echo "$VER" | cut -d. -f1)
+          MINOR=$(echo "$VER" | cut -d. -f2)
+          PATCH=$(echo "$VER" | cut -d. -f3)
+          [ -z "$PATCH" ] && PATCH=0
+          CODE=$((MAJOR*10000+MINOR*100+PATCH))
+          VERSION_NAME="$VER" VERSION_CODE="$CODE" ./gradlew assembleRelease --no-daemon
 
-      - name: Create Release
+      - name: Download Pi Agent
+        run: |
+          curl -sL "https://github.com/Dicklesworthstone/pi_agent_rust/releases/download/v0.3.0/pi-linux-arm64.tar.xz" -o /tmp/pi.tar.xz
+          tar xf /tmp/pi.tar.xz -C /tmp
+          cp /tmp/pi-0.3.0-aarch64-unknown-linux-gnu/pi pi-agent-arm64
+          chmod +x pi-agent-arm64
+
+      - name: Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.ver.outputs.tag }}"
-          gh release create "$TAG" \
-            "dist/MiaoBi-$TAG.apk" \
-            "dist/pi-agent-arm64" \
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/MiaoBi-$TAG.apk"
+          cp pi-agent-arm64 dist/
+          gh release create "$TAG" dist/MiaoBi-$TAG.apk dist/pi-agent-arm64 \
             --repo "${{ github.repository }}" \
             --title "妙笔 $TAG" \
-            --notes "## 妙笔 $TAG
-
-### 📱 Android APK
-下载 MiaoBi-$TAG.apk 安装到手机
-
-### 🧠 Pi Agent (Termux 用)
-1. 手机安装 Termux
-2. 下载 pi-agent-arm64 到 Termux
-3. 迌行: chmod +x pi-agent-arm64 && ./pi-agent-arm64
-4. 配置 DeepSeek API Key
-
-### 更新内容
-- 成人文学 DeepSeek 优先模式
-- 底部Tab导航
-- Pi Agent 集成" || \
-          gh release upload "$TAG" \
-            "dist/MiaoBi-$TAG.apk" \
-            "dist/pi-agent-arm64" \
+            --notes "APK + Pi Agent ARM64" || \
+          gh release upload "$TAG" dist/MiaoBi-$TAG.apk dist/pi-agent-arm64 \
             --repo "${{ github.repository }}" --clobber

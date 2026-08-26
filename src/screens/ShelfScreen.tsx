@@ -44,9 +44,8 @@ export default function ShelfScreen({ navigation }: Props) {
 
   return (
     <View style={s.screen}>
-      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      
       <View style={s.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backButton}><Icon.back size={19} color={T.text} /></TouchableOpacity>
         <Text style={s.topTitle}>我的书架</Text>
         <TouchableOpacity
           style={s.importButton}

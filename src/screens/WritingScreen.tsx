@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   Keyboard, KeyboardAvoidingView, Platform, ScrollView,
-  StatusBar, Text, TextInput, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
@@ -178,7 +178,6 @@ export default function WritingScreen({ navigation, route }: any) {
 
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
           <Text style={s.backText}>←</Text>

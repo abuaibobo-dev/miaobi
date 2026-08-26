@@ -86,7 +86,7 @@ export default function SettingsScreen({ navigation }: Props) {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      
       <View style={s.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}><Text style={s.backText}>←</Text></TouchableOpacity>
         <View style={{ flex: 1 }} />

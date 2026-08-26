@@ -19,14 +19,6 @@ import type { NovelProject } from '../types/novel';
 type Props = any;
 type Msg = { role: 'user' | 'assistant' | 'system'; content: string; provider?: string; thinking?: string };
 
-const DRAWER_W = 220;
-
-const MENU = [
-  { key: 'sources', iconName: 'book' as const, label: '书源管理' },
-  { key: 'shelf', iconName: 'save' as const, label: '我的书架' },
-  { key: 'settings', iconName: 'settings' as const, label: '设置' },
-];
-
 const QUICK = [
   '帮我写一个科幻故事的开头',
   '续写这段文字...',
@@ -35,7 +27,6 @@ const QUICK = [
 ];
 
 export default function HomeScreen({ navigation }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
     { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
@@ -59,7 +50,6 @@ export default function HomeScreen({ navigation }: Props) {
   const [newBookSynopsis, setNewBookSynopsis] = useState('');
   const scrollRef = useRef<FlatList>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
   const CHAT_KEY = 'miaobi.homeChat';
 
@@ -79,19 +69,7 @@ export default function HomeScreen({ navigation }: Props) {
     });
   }, []));
 
-  const toggleDrawer = () => {
-    const to = drawerOpen ? -DRAWER_W : 0;
-    setDrawerOpen(!drawerOpen);
-    Animated.spring(drawerX, { toValue: to, useNativeDriver: true, tension: 65, friction: 11 }).start();
-  };
 
-  const ROUTE_MAP: Record<string, string> = { sources: 'Sources', shelf: 'Shelf', settings: 'Settings' };
-  const nav = (key: string) => {
-    setDrawerOpen(false);
-    Animated.spring(drawerX, { toValue: -DRAWER_W, useNativeDriver: true, tension: 65, friction: 11 }).start();
-    const route = ROUTE_MAP[key];
-    if (route) navigation.navigate(route);
-  };
 
   const send = async (text?: string) => {
     const msg = (text ?? input).trim();
@@ -211,36 +189,15 @@ export default function HomeScreen({ navigation }: Props) {
     <View style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
 
-      {drawerOpen && <Pressable style={s.overlay} onPress={toggleDrawer} />}
-
-      <Animated.View style={[s.drawer, { transform: [{ translateX: drawerX }] }]}>
-        <View style={s.drawerHeader}>
-          <Text style={s.drawerLogo}>📖 妙笔</Text>
-          <Text style={s.drawerSub}>AI 写作 · 找书 · 阅读</Text>
-        </View>
-        {MENU.map(item => (
-          <TouchableOpacity key={item.key} style={s.drawerItem} onPress={() => nav(item.key)}>
-            {(Icon as any)[item.iconName]({ size: 18, color: T.textSecondary })}
-            <Text style={s.drawerLabel}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
-        <View style={s.drawerFooter}>
-          <Text style={s.footerText}>v2.5.32 · 黑白灰</Text>
-        </View>
-      </Animated.View>
-
-      <KeyboardAvoidingView style={s.main} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+<KeyboardAvoidingView style={s.main} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
         <View style={s.header}>
-          <TouchableOpacity onPress={toggleDrawer} style={s.menuBtn}>
-            <Text style={s.menuIcon}>☰</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={s.headerTitle}>妙笔</Text>
+          <View style={{ flex: 1 }} />
+          <Text style={s.headerTitle}>妙笔</Text>
+          <View style={{ flex: 1, alignItems: 'flex-end' }}>
+            <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
+              <Icon.more size={20} color={T.text} />
+            </TouchableOpacity>
           </View>
-          <View style={{ width: 36 }} />
-          <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
-            <Icon.more size={20} color={T.text} />
-          </TouchableOpacity>
         </View>
         {showMenu && (
           <>
@@ -441,20 +398,10 @@ export default function HomeScreen({ navigation }: Props) {
 
 const s: any = {
   container: { flex: 1, backgroundColor: T.bg },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 },
-  drawer: { position: 'absolute', top: 0, left: 0, bottom: 0, width: DRAWER_W, backgroundColor: T.surface, zIndex: 20, paddingTop: 60 },
-  drawerHeader: { paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: T.border },
-  drawerLogo: { color: T.text, fontSize: 20, fontWeight: '800' },
-  drawerSub: { color: T.textMuted, fontSize: 11, marginTop: 4 },
-  drawerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 13 },
   drawerIcon: { fontSize: 16, marginRight: 14, width: 24, textAlign: 'center' },
-  drawerLabel: { color: T.text, fontSize: 14, fontWeight: '500' },
-  drawerFooter: { position: 'absolute', bottom: 40, left: 20 },
-  footerText: { color: T.textDim, fontSize: 10 },
   main: { flex: 1 },
   header: { paddingTop: 50, paddingBottom: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   menuBtn: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center' },
-  menuIcon: { color: T.text, fontSize: 20 },
   headerTitle: { color: T.text, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   headerBadge: { color: T.textMuted, fontSize: 9, backgroundColor: T.surface2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   chatArea: { padding: 16, paddingBottom: 8 },

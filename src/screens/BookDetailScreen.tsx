@@ -104,7 +104,7 @@ export default function BookDetailScreen({ navigation, route }: Props) {
           <Text style={s.secondaryText}>加入书架</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={s.aiButton} onPress={() => navigation.navigate('AIAssistant', { mode: 'interpret', context: { book } })}>
+        <TouchableOpacity style={s.aiButton} onPress={() => navigation.navigate('Main', { screen: 'Chat', params: { aiPrompt: `请解读这本书：${book.title}，作者：${book.authors?.join(',')}。简介：${book.description || '无'}。` } })}>
           <Text style={s.aiButtonText}>AI 解读这本书</Text>
         </TouchableOpacity>
 

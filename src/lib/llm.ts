@@ -517,7 +517,15 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
           },
           options.signal,
         );
-        if (adultContent2) return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
+        if (adultContent2) {
+          // Check if DeepSeek refused the content
+          const refusalPattern = /抱歉|我无法|不能|违反|安全|道德准则|伦理|不予|拒绝|不适合|不当/i;
+          if (refusalPattern.test(adultContent2) && adultContent2.length < 200) {
+            // DeepSeek refused - fall through to free providers
+          } else {
+            return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
+          }
+        }
       } catch (e) {
         // DeepSeek failed, try free providers as fallback
       }

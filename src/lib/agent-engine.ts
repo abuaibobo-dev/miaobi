@@ -166,7 +166,7 @@ export async function agentExecute(
 
     const result = await chatCompletion(
       session.messages.map(m => ({ role: m.role, content: m.content })),
-      { intent: 'chat', onContent: options?.onContent }
+      { intent: detectIntent(msg), onContent: options?.onContent }
     );
 
     const content = result.content || result.error || '';

@@ -723,8 +723,8 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   }
 }
 
-export async function chatCompletion(messages: LLMMessage[], options: Omit<StreamOptions, 'signal'> = {}): Promise<LLMResponse> {
-  return streamChatCompletion(messages, options);
+export async function chatCompletion(messages: LLMMessage[], options: Omit<StreamOptions, 'signal'> = {}, signal?: AbortSignal): Promise<LLMResponse> {
+  return streamChatCompletion(messages, { ...options, signal });
 }
 
 export async function checkBalance(): Promise<{ balance?: number; currency?: string; error?: string }> {

@@ -55,6 +55,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [newBookGenre, setNewBookGenre] = useState('玄幻');
   const [newBookSynopsis, setNewBookSynopsis] = useState('');
   const scrollRef = useRef<FlatList>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
   const CHAT_KEY = 'miaobi.homeChat';
@@ -95,6 +96,8 @@ export default function HomeScreen({ navigation }: Props) {
     setThinking('');
     let streamedContent = '';
     let streamedThinking = '';
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     try {
       const intent = detectIntent(msg);
       const result = await chatCompletion(
@@ -114,6 +117,7 @@ export default function HomeScreen({ navigation }: Props) {
             setThinking(streamedThinking);
           },
         },
+        ctrl.signal,
       );
       const finalContent = streamedContent || result.content || (result.error ? `错误：${result.error}` : '没有回复内容');
       setMessages(prev => {
@@ -289,9 +293,15 @@ export default function HomeScreen({ navigation }: Props) {
             </TouchableOpacity>
             <View style={s.inputBody}>
               <TextInput value={input} onChangeText={setInput} placeholder="输入消息..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
-              <TouchableOpacity disabled={!input.trim() || loading} style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]} onPress={() => send()}>
-                <Icon.send size={18} color={T.black} />
-              </TouchableOpacity>
+              {loading ? (
+                <TouchableOpacity style={s.stopBtn} onPress={() => { abortRef.current?.abort(); setLoading(false); setStreaming(''); setThinking(''); }}>
+                  <Icon.close size={16} color={T.white} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
+                  <Icon.send size={18} color={T.black} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -389,7 +399,8 @@ const s: any = {
   inputBody: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 },
   input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, lineHeight: 22, minHeight: 24 },
   sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
+  stopBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#666666', alignItems: 'center', justifyContent: 'center' },
+  sendDisabled: { opacity: 0.25 },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   headerMenu: { backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingBottom: 8 },

@@ -94,6 +94,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 10 },
   title: { fontSize: 12, fontWeight: '700', color: T.text },
   preview: { flex: 1, marginLeft: 4, fontSize: 11, color: T.textMuted },
-  body: { borderTopWidth: 1, borderTopColor: '#262626', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
+  body: { borderTopWidth: 1, borderTopColor: T.border, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 },
   text: { fontSize: 13, lineHeight: 20, color: T.textSecondary },
 });

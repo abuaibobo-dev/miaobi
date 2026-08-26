@@ -18,6 +18,8 @@ export const T = {
   white: '#EDEDED',
   black: '#111111',
   grey: '#777777',
+  success: '#4CAF50',
+  error: '#E57373',
 
   // Border radius - consistent system
   r: {

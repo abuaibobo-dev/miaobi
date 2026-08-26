@@ -149,7 +149,7 @@ const s = StyleSheet.create({
     color: T.textMuted,
   },
   btnTextDanger: {
-    color: '#C09090',
+    color: T.error,
     fontWeight: '700',
   },
 });

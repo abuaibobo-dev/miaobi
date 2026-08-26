@@ -89,7 +89,7 @@ export default function ShelfScreen({ navigation }: Props) {
                 onLongPress={() => remove(item)}
               >
                 <View style={s.cover}>
-                  {item.coverUrl ? <Image source={{ uri: item.coverUrl }} style={s.coverImage} /> : <Icon.book size={20} color="#666" />}
+                  {item.coverUrl ? <Image source={{ uri: item.coverUrl }} style={s.coverImage} onError={() => {}} /> : <Icon.book size={20} color={T.grey} />}
                 </View>
                 <View style={s.body}>
                   <Text style={s.title} numberOfLines={2}>{item.title}</Text>

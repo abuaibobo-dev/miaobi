@@ -120,7 +120,12 @@ export default function CustomSourcesScreen({ navigation }: Props) {
                 <Text style={s.loadingText}>加载中…</Text>
               </View>
             ) : item.error ? (
-              <Text style={s.errorText}>{item.error}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={s.errorText}>{item.error}</Text>
+                <TouchableOpacity onPress={() => loadMore(item.source.id)} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border }}>
+                  <Text style={{ color: T.textMuted, fontSize: 11, fontWeight: '600' }}>重试</Text>
+                </TouchableOpacity>
+              </View>
             ) : item.books.length === 0 ? (
               <Text style={s.noBooks}>暂无内容</Text>
             ) : (

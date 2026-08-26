@@ -40,11 +40,11 @@ export default StyleSheet.create({
   speedText: { color: T.textSec, fontSize: 11 },
   speedActiveText: { color: T.black, fontWeight: '800' },
   dangerButton: { height: 40, marginTop: 10, borderRadius: 20, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, alignItems: 'center', justifyContent: 'center' },
-  dangerText: { color: '#E57373', fontSize: 13, fontWeight: '700' },
+  dangerText: { color: T.error, fontSize: 13, fontWeight: '700' },
   confirmRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   confirmText: { flex: 1, color: T.textSec, fontSize: 11 },
   confirmYes: { height: 30, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: T.surface2 },
-  confirmYesText: { color: '#E57373', fontSize: 11, fontWeight: '700' },
+  confirmYesText: { color: T.error, fontSize: 11, fontWeight: '700' },
   confirmNo: { height: 30, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: T.card, borderWidth: 1, borderColor: T.border },
   confirmNoText: { color: T.textMuted, fontSize: 11 },
 });

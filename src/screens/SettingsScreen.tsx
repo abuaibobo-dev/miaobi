@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
@@ -89,6 +89,7 @@ export default function SettingsScreen({ navigation }: Props) {
       </View>
       <ScrollView contentContainerStyle={s.content}>
         {/* Model Selection */}
+        <View style={s.divider} />
         <Text style={s.sectionTitle}>AI 模型</Text>
         <Text style={s.hint}>选择用于写作和找书的模型。免费模型无需 API Key。</Text>
         {PROVIDERS.map(p => (
@@ -104,6 +105,7 @@ export default function SettingsScreen({ navigation }: Props) {
         ))}
 
         {/* Backend URL */}
+        <View style={s.divider} />
         <Text style={s.sectionTitle}>后端服务</Text>
         <Text style={s.hint}>配置后端 API 地址，实现多模型调度和 Boogu-Image 生图。不配置则使用本地直连。</Text>
         <TextInput
@@ -135,6 +137,7 @@ export default function SettingsScreen({ navigation }: Props) {
           </View>
         )}
 
+        <View style={s.divider} />
         {/* Free Provider Keys */}
         <Text style={s.sectionTitle}>免费模型 Key（成人文学用）</Text>
         <Text style={s.hint}>免费注册获取 Key，用于无审查的成人文学创作。不填则跳过该模型。</Text>
@@ -158,6 +161,7 @@ export default function SettingsScreen({ navigation }: Props) {
         </View>
 
         {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: '#6ECF8A' } : { color: '#D68080' }]}>{notice}</Text> : null}
+        <View style={s.divider} />
 
         {/* Navigation */}
         <Text style={[s.sectionTitle, { marginTop: 24 }]}>功能</Text>
@@ -182,32 +186,33 @@ export default function SettingsScreen({ navigation }: Props) {
 
 const s: any = {
   container: { flex: 1, backgroundColor: T.bg },
-  header: { paddingTop: 50, paddingBottom: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: T.bg, borderBottomWidth: 1, borderBottomColor: T.border },
-  backBtn: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center' },
-  backText: { color: T.text, fontSize: 20 },
-  headerTitle: { color: T.text, fontSize: 18, fontWeight: '700' },
-  content: { padding: 16, paddingBottom: 40 },
-  sectionTitle: { color: T.text, fontSize: 16, fontWeight: '800', marginBottom: 6, marginTop: 16 },
-  hint: { color: T.textMuted, fontSize: 12, marginBottom: 12 },
-  providerCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: T.border, marginBottom: 8 },
+  header: { paddingTop: 48, paddingBottom: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: T.bg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: T.border },
+  backBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  backText: { color: T.text, fontSize: 18 },
+  headerTitle: { color: T.text, fontSize: 16, fontWeight: '700' },
+  content: { padding: 14, paddingBottom: 40 },
+  sectionTitle: { color: T.text, fontSize: 13, fontWeight: '700', marginBottom: 4, marginTop: 14, letterSpacing: 0.5, textTransform: 'uppercase' as any },
+  hint: { color: T.textMuted, fontSize: 11, marginBottom: 8, lineHeight: 16 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: T.border, marginVertical: 10 },
+  providerCard: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: T.border, marginBottom: 6 },
   providerActive: { borderColor: T.white, backgroundColor: T.surface2 },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  radioDot: { width: 10, height: 10, borderRadius: 5 },
+  radio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: T.borderLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  radioDot: { width: 8, height: 8, borderRadius: 4 },
   radioActive: { backgroundColor: T.white },
-  providerLabel: { color: T.text, fontSize: 14, fontWeight: '700' },
-  providerDesc: { color: T.textMuted, fontSize: 11, marginTop: 2 },
-  card: { backgroundColor: T.surface2, borderRadius: 12, padding: 14, marginTop: 8 },
-  fieldLabel: { color: T.textSecondary, fontSize: 12, marginBottom: 4, marginTop: 10 },
-  input: { color: T.text, fontSize: 14, backgroundColor: T.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: T.border },
-  btnRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  primaryBtn: { flex: 1, backgroundColor: T.white, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  primaryBtnText: { color: T.black, fontSize: 15, fontWeight: '700' },
-  secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 10, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: T.border },
-  secondaryBtnText: { color: T.text, fontSize: 15, fontWeight: '600' },
-  notice: { textAlign: 'center', marginTop: 12, fontSize: 14 },
-  navCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: T.border, marginBottom: 8 },
-  navLabel: { flex: 1, color: T.text, fontSize: 14, fontWeight: '600' },
-  navDesc: { color: T.textMuted, fontSize: 11, marginRight: 8 },
-  navArrow: { color: T.grey, fontSize: 16 },
-  about: { color: T.textDim, fontSize: 11, textAlign: 'center', marginTop: 30 },
+  providerLabel: { color: T.text, fontSize: 13, fontWeight: '600' },
+  providerDesc: { color: T.textMuted, fontSize: 10, marginTop: 1 },
+  card: { backgroundColor: T.surface2, borderRadius: 8, padding: 10, marginTop: 6 },
+  fieldLabel: { color: T.textSecondary, fontSize: 11, marginBottom: 3, marginTop: 8 },
+  input: { color: T.text, fontSize: 13, backgroundColor: T.surface, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
+  btnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  primaryBtn: { flex: 1, backgroundColor: T.white, borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  primaryBtnText: { color: T.black, fontSize: 13, fontWeight: '700' },
+  secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
+  secondaryBtnText: { color: T.text, fontSize: 13, fontWeight: '600' },
+  notice: { textAlign: 'center', marginTop: 8, fontSize: 12 },
+  navCard: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border, marginBottom: 6 },
+  navLabel: { flex: 1, color: T.text, fontSize: 13, fontWeight: '600' },
+  navDesc: { color: T.textMuted, fontSize: 10, marginRight: 6 },
+  navArrow: { color: T.grey, fontSize: 14 },
+  about: { color: T.textDim, fontSize: 10, textAlign: 'center', marginTop: 24 },
 };

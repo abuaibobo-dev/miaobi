@@ -17,13 +17,12 @@ type Msg = { role: 'user' | 'assistant'; content: string; provider?: string };
 const DRAWER_W = 220;
 const { width: SW } = Dimensions.get('window');
 
-import { Ionicons } from '@expo/vector-icons';
 const MENU = [
-  { key: 'writing', icon: 'create-outline' as const, label: 'AI 写作' },
-  { key: 'sources', icon: 'book-outline' as const, label: '书源管理' },
-  { key: 'shelf', icon: 'library-outline' as const, label: '我的书架' },
-  { key: 'assistant', icon: 'sparkles-outline' as const, label: '找书助手' },
-  { key: 'settings', icon: 'settings-outline' as const, label: '设置' },
+  { key: 'writing', iconName: 'write' as const, label: 'AI 写作' },
+  { key: 'sources', iconName: 'book' as const, label: '书源管理' },
+  { key: 'shelf', iconName: 'book' as const, label: '我的书架' },
+  { key: 'assistant', iconName: 'search' as const, label: '找书助手' },
+  { key: 'settings', iconName: 'settings' as const, label: '设置' },
 ];
 
 import ModelPicker from '../components/ModelPicker';
@@ -186,7 +185,7 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
         {MENU.map(item => (
           <TouchableOpacity key={item.key} style={s.drawerItem} onPress={() => nav(item.key)}>
-            <Ionicons name={item.icon} size={18} color={T.textSecondary} style={{ marginRight: 14, width: 24 }} />
+            {(Icon as any)[item.iconName]({ size: 18, color: T.textSecondary })}
             <Text style={s.drawerLabel}>{item.label}</Text>
           </TouchableOpacity>
         ))}
@@ -267,7 +266,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
               onPress={() => send()}
             >
-              <Icon.arrow size={16} color={T.black} />
+              <Icon.arrow size={20} color={'#111'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -313,9 +312,9 @@ const s: any = {
   modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface2 },
   modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   modelBtnArrow: { color: T.textDim, fontSize: 9 },
-  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 16, paddingRight: 6, paddingVertical: 6, minHeight: 48 },
-  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 14, paddingRight: 8, paddingVertical: 6, minHeight: 50 },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingTop: 10, paddingBottom: 10, lineHeight: 22, minHeight: 24 },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
   sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
   sendIcon: { color: '#111', fontSize: 18, fontWeight: '900' },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },

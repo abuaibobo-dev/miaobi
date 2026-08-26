@@ -4,7 +4,7 @@ import {
   FireIcon, HeartIcon, RoseIcon, BookIcon, PenIcon,
   GearIcon, UserIcon, SearchIcon, SendArrowIcon,
   BackIcon, ForwardIcon, DownIcon, CloseIcon, CheckIcon,
-  PlusIcon, TrashIcon, SaveIcon, BrainIcon,
+  PlusIcon, TrashIcon, SaveIcon, BrainIcon, DotsVerticalIcon,
 } from '../components/icons/AdultIcons';
 
 const C = '#C77D8A';
@@ -50,7 +50,7 @@ export const Icon = {
   copy: make(SaveIcon),
   image: make(HeartIcon),
   menu: make(PlusIcon),
-  more: make(FireIcon),
+  more: make(DotsVerticalIcon),
   down: make(DownIcon),
   up: make(ForwardIcon),
   heart: make(HeartIcon),

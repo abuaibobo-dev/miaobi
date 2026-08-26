@@ -49,6 +49,11 @@ export default function HomeScreen({ navigation }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [userScrolling, setUserScrolling] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showNewBook, setShowNewBook] = useState(false);
+  const [newBookName, setNewBookName] = useState('');
+  const [newBookGenre, setNewBookGenre] = useState('玄幻');
+  const [newBookSynopsis, setNewBookSynopsis] = useState('');
   const scrollRef = useRef<FlatList>(null);
   const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
@@ -201,7 +206,33 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
           <Text style={s.headerTitle}>妙笔</Text>
           {provider ? <Text style={s.headerBadge}>{provider}</Text> : <View style={{ width: 37 }} />}
+          <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
+            <Icon.more size={20} color={T.text} />
+          </TouchableOpacity>
         </View>
+        {showMenu && (
+          <View style={s.headerMenu}>
+            <TouchableOpacity style={s.headerMenuItem} onPress={() => { setShowMenu(false); setShowNewBook(true); }}>
+              <Icon.write size={16} color={T.text} />
+              <Text style={s.headerMenuText}>写新书</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.headerMenuItem} onPress={() => { setShowMenu(false); setMessages([{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }]); }}>
+              <Icon.plus size={16} color={T.text} />
+              <Text style={s.headerMenuText}>新建对话</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.headerMenuItem} onPress={async () => {
+              setShowMenu(false);
+              try {
+                const text = messages.map(m => (m.role === 'user' ? '【我】' : '【AI】') + ': ' + m.content).join('\n\n');
+                const { default: Clipboard } = await import('expo-clipboard');
+                await Clipboard.setStringAsync(text);
+              } catch {}
+            }}>
+              <Icon.save size={16} color={T.text} />
+              <Text style={s.headerMenuText}>导出对话</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <FlatList
           ref={scrollRef}
@@ -271,6 +302,44 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         </View>
         <ModelPicker visible={showModelPicker} selectedId={model} onClose={() => setShowModelPicker(false)} onSelect={(opt) => { setModel(opt.model || 'auto'); setShowModelPicker(false); }} />
+
+        {showNewBook && (
+          <View style={s.modalOverlay}>
+            <View style={s.modalCard}>
+              <Text style={s.modalTitle}>创建新书</Text>
+              <Text style={s.modalLabel}>书名</Text>
+              <TextInput style={s.modalInput} value={newBookName} onChangeText={setNewBookName} placeholder="输入书名..." placeholderTextColor={T.textMuted} />
+              <Text style={s.modalLabel}>类型</Text>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                {['玄幻','言情','悬疑','科幻','历史','武侠','都市','成人'].map(g => (
+                  <TouchableOpacity key={g} style={[s.genreChip, newBookGenre === g && s.genreActive]} onPress={() => setNewBookGenre(g)}>
+                    <Text style={[s.genreText, newBookGenre === g && s.genreActiveText]}>{g}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.modalLabel}>简介</Text>
+              <TextInput style={[s.modalInput, { height: 80 }]} value={newBookSynopsis} onChangeText={setNewBookSynopsis} placeholder="故事简介..." placeholderTextColor={T.textMuted} multiline textAlignVertical="top" />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <TouchableOpacity style={s.modalCancel} onPress={() => setShowNewBook(false)}>
+                  <Text style={s.modalCancelText}>取消</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.modalConfirm} onPress={async () => {
+                  if (!newBookName.trim()) return;
+                  try {
+                    const { saveAiContent } = await import('../lib/library');
+                    const intro = `《${newBookName}》\n类型：${newBookGenre}\n简介：${newBookSynopsis || '暂无'}\n\n--- 开始创作 ---`;
+                    await saveAiContent(newBookName, intro);
+                    setShowNewBook(false);
+                    setNewBookName(''); setNewBookSynopsis(''); setNewBookGenre('玄幻');
+                    setInput(`我正在写一本${newBookGenre}小说《${newBookName}》，${newBookSynopsis ? '简介：' + newBookSynopsis + '。' : ''}请帮我写第一章。`);
+                  } catch {}
+                }}>
+                  <Text style={s.modalConfirmText}>创建并开始写</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -319,4 +388,20 @@ const s: any = {
   sendIcon: { color: '#111', fontSize: 18, fontWeight: '900' },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
+  headerMenu: { backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingBottom: 8 },
+  headerMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
+  headerMenuText: { color: T.text, fontSize: 14, fontWeight: '500' },
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 50, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 360, backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.border, padding: 20 },
+  modalTitle: { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 16, textAlign: 'center' },
+  modalLabel: { color: T.textSecondary, fontSize: 12, marginBottom: 6, marginTop: 10 },
+  modalInput: { backgroundColor: T.surface2, borderRadius: 10, borderWidth: 1, borderColor: T.border, paddingHorizontal: 12, paddingVertical: 10, color: T.text, fontSize: 14, minHeight: 42 },
+  genreChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  genreActive: { backgroundColor: T.white, borderColor: T.white },
+  genreText: { color: T.textSecondary, fontSize: 12, fontWeight: '600' },
+  genreActiveText: { color: T.black },
+  modalCancel: { flex: 1, height: 42, borderRadius: 10, backgroundColor: T.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.border },
+  modalCancelText: { color: T.textMuted, fontSize: 14, fontWeight: '600' },
+  modalConfirm: { flex: 1, height: 42, borderRadius: 10, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center' },
+  modalConfirmText: { color: T.black, fontSize: 14, fontWeight: '700' },
 };

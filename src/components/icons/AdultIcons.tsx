@@ -193,3 +193,12 @@ export const BrainIcon = ({ size = 24, color = C }: { size?: number; color?: str
     <Path d="M8 10 Q10 9 12 10" stroke={color} strokeWidth="0.8" fill="none" opacity="0.3" />
   </Svg>
 );
+
+// ⋮ 三点垂直
+export const DotsVerticalIcon = ({ size = 24, color = C }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Circle cx="12" cy="5" r="1.8" fill={color} />
+    <Circle cx="12" cy="12" r="1.8" fill={color} />
+    <Circle cx="12" cy="19" r="1.8" fill={color} />
+  </Svg>
+);

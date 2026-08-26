@@ -27,6 +27,7 @@
     "react-native": "0.86.2",
     "react-native-safe-area-context": "^5.9.1",
     "react-native-screens": "^4.27.0",
+    "react-native-svg": "^15.15.5",
     "sentiment": "^5.0.2",
     "string-similarity": "^4.0.4",
     "uuid": "^14.0.2"

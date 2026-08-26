@@ -117,6 +117,24 @@ export async function downloadWikisource(book: BookRecord): Promise<string> {
   return uri;
 }
 
+export async function saveAiContent(title: string, body: string): Promise<string> {
+  const id = 'ai_' + Date.now();
+  const uri = await writeLocalText(id, title, body);
+  const book = {
+    id,
+    source: 'local' as const,
+    title,
+    authors: ['AI 创作'],
+    description: body.slice(0, 200),
+    category: 'book' as const,
+    sourceLabel: 'AI 创作',
+    localUri: uri,
+    locallyReadable: true,
+  };
+  await addToShelf(book, 'reading');
+  return id;
+}
+
 export function splitChapters(content: string) {
   const normalized = content.replace(/\r\n/g, '\n').replace(/\n{4,}/g, '\n\n\n');
   const pattern = /^\s*(第\s*[0-9一二三四五六七八九十百千两零〇]+\s*[章回节卷篇部].*|Chapter\s+\d+.*|CHAPTER\s+[IVXLC\d]+.*)$/gmi;

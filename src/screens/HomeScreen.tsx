@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
 import { getLibrary } from '../lib/library';
 
@@ -48,6 +49,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [userScrolling, setUserScrolling] = useState(false);
   const scrollRef = useRef<FlatList>(null);
   const drawerX = useRef(new Animated.Value(-DRAWER_W)).current;
 
@@ -106,7 +108,7 @@ export default function HomeScreen({ navigation }: Props) {
           onContent: (delta) => {
             streamedContent += delta;
             setStreaming(streamedContent);
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
+            if (!userScrolling) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
           },
           onThinking: (delta) => {
             setStreaming(prev => prev || '思考中...');
@@ -123,7 +125,8 @@ export default function HomeScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
       setStreaming('');
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }, 100);
+      setUserScrolling(false);
       setMessages(prev => { AsyncStorage.setItem(CHAT_KEY, JSON.stringify(prev.slice(-50))); return prev; });
       if (msg.length > 1 && !searchHistory.includes(msg)) {
         const newHistory = [msg, ...searchHistory].slice(0, 10);
@@ -147,10 +150,22 @@ export default function HomeScreen({ navigation }: Props) {
         {item.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
         <View style={{ flex: 1 }}>
           <Text style={[s.bubbleText, item.role === 'user' && s.userText]}>{item.content}</Text>
-          {item.role === 'assistant' && (
-            <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(item.content, msgId)}>
-              <Text style={s.copyText}>{isCopied ? '✓ 已复制' : '复制'}</Text>
-            </TouchableOpacity>
+          {item.role === 'assistant' && item.content.length > 20 && (
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+              <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(item.content, msgId)}>
+                <Text style={s.copyText}>{isCopied ? '✓ 已复制' : '复制'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.copyBtn} onPress={async () => {
+                try {
+                  const { saveAiContent } = await import('../lib/library');
+                  await saveAiContent('AI 创作 · ' + new Date().toLocaleDateString(), item.content);
+                  setCopiedId('saved_' + msgId);
+                  setTimeout(() => setCopiedId(null), 2000);
+                } catch (e) { console.log('save error', e); }
+              }}>
+                <Text style={s.copyText}>{copiedId === 'saved_' + msgId ? '✓ 已保存到书架' : '保存到书架'}</Text>
+              </TouchableOpacity>
+            </View>
           )}
           {item.provider ? <Text style={s.msgProvider}>{item.provider}</Text> : null}
         </View>
@@ -195,7 +210,13 @@ export default function HomeScreen({ navigation }: Props) {
           renderItem={renderMsg}
           keyExtractor={(_, i) => String(i)}
           contentContainerStyle={s.chatArea}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          onScrollBeginDrag={() => setUserScrolling(true)}
+          onScrollEndDrag={(e) => {
+            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+            const distFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+            if (distFromBottom < 80) setUserScrolling(false);
+          }}
+          onContentSizeChange={() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }}
           ListFooterComponent={loading ? (
             <View style={[s.bubble, s.aiBubble]}>
               <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>
@@ -246,7 +267,7 @@ export default function HomeScreen({ navigation }: Props) {
               style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
               onPress={() => send()}
             >
-              <Text style={s.sendIcon}>↑</Text>
+              <Icon.arrow size={16} color={T.black} />
             </TouchableOpacity>
           </View>
         </View>
@@ -292,11 +313,11 @@ const s: any = {
   modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface2 },
   modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   modelBtnArrow: { color: T.textDim, fontSize: 9 },
-  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 16, paddingRight: 6, paddingVertical: 4, minHeight: 48 },
-  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 120, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
-  sendBtn: { width: 36, height: 36, borderRadius: 16, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
-  sendDisabled: { opacity: 0.25, backgroundColor: T.surface },
-  sendIcon: { color: T.black, fontSize: 16, fontWeight: '800' },
-  copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 16, paddingRight: 6, paddingVertical: 6, minHeight: 48 },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
+  sendIcon: { color: '#111', fontSize: 18, fontWeight: '900' },
+  copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
 };

@@ -6,6 +6,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { T } from '../lib/theme';
+import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
 import ModelPicker from '../components/ModelPicker';
 
@@ -24,6 +25,7 @@ export default function WritingScreen({ navigation }: any) {
   const [provider, setProvider] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [userScrolling, setUserScrolling] = useState(false);
   const CHAT_KEY = 'miaobi.writingChat';
   const scrollRef = useRef<ScrollView>(null);
 
@@ -60,7 +62,7 @@ export default function WritingScreen({ navigation }: any) {
           onContent: (delta) => {
             streamedContent += delta;
             setStreaming(streamedContent);
-            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
+            if (!userScrolling) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
           },
           onThinking: () => setStreaming(prev => prev || '思考中...'),
         }
@@ -75,7 +77,7 @@ export default function WritingScreen({ navigation }: any) {
     } finally {
       setLoading(false);
       setStreaming('');
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }, 100);
       setMessages(prev => { AsyncStorage.setItem(CHAT_KEY, JSON.stringify(prev.slice(-50))); return prev; });
     }
   };
@@ -90,16 +92,28 @@ export default function WritingScreen({ navigation }: any) {
         <Text style={s.headerTitle}>AI 写作</Text>
         <View style={{ width: 37 }} />
       </View>
-      <ScrollView ref={scrollRef} contentContainerStyle={s.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+      <ScrollView ref={scrollRef} contentContainerStyle={s.messages} onContentSizeChange={() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }}>
         {messages.map((msg, i) => (
           <View key={i} style={[s.bubble, msg.role === 'user' ? s.userBubble : s.aiBubble]}>
             {msg.role === 'assistant' && <View style={s.avatar}><Text style={s.avatarText}>AI</Text></View>}
             <View style={{ flex: 1 }}>
               <Text style={[s.bubbleText, msg.role === 'user' && s.userText]}>{msg.content}</Text>
-              {msg.role === 'assistant' && (
-                <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(msg.content, String(i))}>
-                  <Text style={s.copyText}>{copiedId === String(i) ? '✓ 已复制' : '复制'}</Text>
-                </TouchableOpacity>
+              {msg.role === 'assistant' && msg.content.length > 20 && (
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                  <TouchableOpacity style={s.copyBtn} onPress={() => copyMsg(msg.content, String(i))}>
+                    <Text style={s.copyText}>{copiedId === String(i) ? '✓ 已复制' : '复制'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.copyBtn} onPress={async () => {
+                    try {
+                      const { saveAiContent } = await import('../lib/library');
+                      await saveAiContent('AI 创作 · ' + new Date().toLocaleDateString(), msg.content);
+                      setCopiedId('saved_' + String(i));
+                      setTimeout(() => setCopiedId(null), 2000);
+                    } catch (e) { console.log('save error', e); }
+                  }}>
+                    <Text style={s.copyText}>{copiedId === 'saved_' + String(i) ? '✓ 已保存到书架' : '保存到书架'}</Text>
+                  </TouchableOpacity>
+                </View>
               )}
               {msg.provider ? <Text style={s.msgProvider}>{msg.provider}</Text> : null}
             </View>
@@ -140,7 +154,7 @@ export default function WritingScreen({ navigation }: any) {
             style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]}
             onPress={() => send()}
           >
-            <Text style={s.sendIcon}>↑</Text>
+            <Icon.arrow size={16} color={T.black} />
           </TouchableOpacity>
         </View>
       </View>
@@ -170,10 +184,10 @@ const s: any = {
   modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   modelBtnArrow: { color: T.textDim, fontSize: 9 },
   inputContainer: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: T.surface2, borderRadius: 20, borderWidth: 1, borderColor: T.border, paddingLeft: 16, paddingRight: 6, paddingVertical: 4, minHeight: 48 },
-  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 120, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
-  sendBtn: { width: 36, height: 36, borderRadius: 16, backgroundColor: T.white, alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
-  sendDisabled: { opacity: 0.25, backgroundColor: T.surface },
-  sendIcon: { color: T.black, fontSize: 16, fontWeight: '800' },
+  input: { flex: 1, color: T.text, fontSize: 15, maxHeight: 160, paddingTop: 8, paddingBottom: 8, lineHeight: 20 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center', marginBottom: 1 },
+  sendDisabled: { opacity: 0.3, backgroundColor: T.surface2 },
+  sendIcon: { color: '#111', fontSize: 18, fontWeight: '900' },
   copyBtn: { alignSelf: 'flex-end', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
 };

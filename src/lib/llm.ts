@@ -464,29 +464,6 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     ];
   }
 
-  if (options.providerOverride === 'cloud' && !options.forceLocal) {
-    const overrideModel = options.modelOverride || (intent === 'writing' ? settings.model : settings.chatModel) || 'deepseek-chat';
-    try {
-      const content = await streamDeepSeek(messages, temperature, Math.min(maxTokens, 8192), { ...options, modelOverride: overrideModel }, options);
-      return { content, provider: `cloud:${overrideModel}` };
-    } catch (error) {
-      return { content: '', error: `DeepSeek 调用失败：${(error as Error).message}` };
-    }
-  }
-
-  if (intent === 'image') {
-    try {
-      const prompt = messages[messages.length - 1]?.content || '';
-      const imageUrl = await generateLocalImage(prompt, options.signal);
-      options.onProvider?.('图像 · Pollinations');
-      const markdown = `![AI 生图](${imageUrl})\n\n${prompt}`;
-      options.onContent?.(markdown);
-      return { content: markdown, provider: 'image:pollinations' };
-    } catch (error) {
-      return { content: '', error: (error as Error).message || '图片生成失败。' };
-    }
-  }
-
   // ===== ADULT CONTENT: intercept at the very top, bypass ALL other logic =====
   {
     const lastMsg = String(messages[messages.length - 1]?.content || '');
@@ -546,6 +523,31 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     }
   }
   // ===== END ADULT INTERCEPT =====
+
+  if (options.providerOverride === 'cloud' && !options.forceLocal) {
+    const overrideModel = options.modelOverride || (intent === 'writing' ? settings.model : settings.chatModel) || 'deepseek-chat';
+    try {
+      const content = await streamDeepSeek(messages, temperature, Math.min(maxTokens, 8192), { ...options, modelOverride: overrideModel }, options);
+      return { content, provider: `cloud:${overrideModel}` };
+    } catch (error) {
+      return { content: '', error: `DeepSeek 调用失败：${(error as Error).message}` };
+    }
+  }
+
+  if (intent === 'image') {
+    try {
+      const prompt = messages[messages.length - 1]?.content || '';
+      const imageUrl = await generateLocalImage(prompt, options.signal);
+      options.onProvider?.('图像 · Pollinations');
+      const markdown = `![AI 生图](${imageUrl})\n\n${prompt}`;
+      options.onContent?.(markdown);
+      return { content: markdown, provider: 'image:pollinations' };
+    } catch (error) {
+      return { content: '', error: (error as Error).message || '图片生成失败。' };
+    }
+  }
+
+
 
   if (intent === 'adult') {
     const lastUserMsg = messages[messages.length - 1]?.content || '';

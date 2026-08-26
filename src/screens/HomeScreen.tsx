@@ -202,16 +202,20 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       </Animated.View>
 
-      <KeyboardAvoidingView style={s.main} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={s.main} behavior="height">
         <View style={s.header}>
           <TouchableOpacity onPress={toggleDrawer} style={s.menuBtn}>
             <Text style={s.menuIcon}>☰</Text>
           </TouchableOpacity>
-          <Text style={s.headerTitle}>妙笔</Text>
-          {provider ? <Text style={s.headerBadge}>{provider}</Text> : <View style={{ width: 37 }} />}
-          <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
-            <Icon.more size={20} color={T.text} />
-          </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={s.headerTitle}>妙笔</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {provider ? <Text style={s.headerBadge}>{provider}</Text> : null}
+            <TouchableOpacity onPress={() => setShowMenu(!showMenu)} style={s.menuBtn}>
+              <Icon.more size={20} color={T.text} />
+            </TouchableOpacity>
+          </View>
         </View>
         {showMenu && (
           <View style={s.headerMenu}>
@@ -359,10 +363,10 @@ const s: any = {
   drawerFooter: { position: 'absolute', bottom: 40, left: 20 },
   footerText: { color: T.textDim, fontSize: 10 },
   main: { flex: 1 },
-  header: { paddingTop: 50, paddingBottom: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },
+  header: { paddingTop: 50, paddingBottom: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   menuBtn: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center' },
   menuIcon: { color: T.text, fontSize: 20 },
-  headerTitle: { color: T.text, fontSize: 18, fontWeight: '800', flex: 1, textAlign: 'center' },
+  headerTitle: { color: T.text, fontSize: 18, fontWeight: '800' },
   headerBadge: { color: T.textMuted, fontSize: 9, backgroundColor: T.surface2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   chatArea: { padding: 16, paddingBottom: 8 },
   bubble: { maxWidth: '85%', padding: 12, borderRadius: T.radius, marginBottom: 8, flexDirection: 'row' },
@@ -377,7 +381,7 @@ const s: any = {
   quickRow: { paddingHorizontal: 16, paddingBottom: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   quickChip: { backgroundColor: T.surface2, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: T.border },
   quickText: { color: T.textSecondary, fontSize: 12 },
-  inputWrap: { paddingHorizontal: 12, paddingBottom: Platform.OS === 'ios' ? 16 : 10, paddingTop: 4, backgroundColor: T.bg },
+  inputWrap: { paddingHorizontal: 12, paddingBottom: 8, paddingTop: 4, backgroundColor: T.bg },
   modelBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, maxWidth: '75%', paddingHorizontal: 10, borderRadius: 12, backgroundColor: T.surface },
   modelBtnLabel: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   modelBtnArrow: { color: T.textDim, fontSize: 9 },

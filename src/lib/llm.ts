@@ -501,26 +501,13 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       ...messages,
     ];
 
-    // Use injected key directly - adult content MUST go through DeepSeek
     const adultApiKey = INJECTED_KEYS.deepseek || settings.apiKey;
     if (!adultApiKey) {
       return { content: '', error: '未配置 DeepSeek API Key，无法生成成人内容。请在设置中填写 API Key。' };
     }
 
-    // Method 1: Try streaming first
+    // Direct non-streaming call - most reliable for adult content
     options.onProvider?.('DeepSeek (成人模式)');
-    try {
-      const origKey = settings.apiKey;
-      settings.apiKey = adultApiKey;
-      const streamContent = await streamDeepSeek(adultMessages, temperature, maxTokens, options, options);
-      settings.apiKey = origKey;
-      if (streamContent.trim()) return { content: streamContent, provider: 'cloud:deepseek (成人模式)' };
-    } catch (streamErr) {
-      settings.apiKey = adultApiKey;
-    }
-
-    // Method 2: Direct non-streaming fetch (more reliable)
-    options.onProvider?.('DeepSeek (成人模式·直连)');
     try {
       const baseUrl = settings.baseUrl || 'https://api.deepseek.com';
       const resp = await fetch(`${baseUrl}/chat/completions`, {
@@ -537,14 +524,14 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       });
       const data = await resp.json().catch(() => null);
       if (resp.ok && data?.choices?.[0]?.message?.content) {
-        const directContent = data.choices[0].message.content;
-        options.onContent?.(directContent);
-        return { content: directContent, provider: 'cloud:deepseek (成人模式)' };
+        const adultContent = data.choices[0].message.content;
+        options.onContent?.(adultContent);
+        return { content: adultContent, provider: 'cloud:deepseek (成人模式)' };
       }
       const errMsg = data?.error?.message || `HTTP ${resp.status}`;
       return { content: '', error: `DeepSeek 成人模式失败：${errMsg}` };
-    } catch (directErr) {
-      return { content: '', error: `DeepSeek 成人模式网络错误：${(directErr as Error).message}` };
+    } catch (e) {
+      return { content: '', error: `DeepSeek 成人模式错误：${(e as Error).message}` };
     }
   }
 

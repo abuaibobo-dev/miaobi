@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { INJECTED_KEYS } from '../config/keys';
 import type { NovelProject, Chapter, Character, Foreshadowing, MemoryChunk, MemorySnapshot, NovelSettings, ChatMessage } from '../types/novel';
 
 const PREFIX = 'miaobi.';

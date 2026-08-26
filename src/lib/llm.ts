@@ -457,8 +457,9 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       options.onProvider?.('DeepSeek (成人模式)');
       try {
         let adultContent = '';
+        let adultBuf = '';
         await xhrStream(
-          `${s.baseUrl || 'https://api.deepseek.com'}/chat/completions`,
+          `${s.baseUrl || 'https://api.deepseek.com'}/v1/chat/completions`,
           { Authorization: `Bearer ${key}` },
           {
             model: 'deepseek-chat',
@@ -471,8 +472,10 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
             stream: true,
           },
           (chunk) => {
-            const lines = chunk.split('\n\n');
-            for (const part of lines) {
+            adultBuf += chunk.replace(/\r/g, '');
+            const parts = adultBuf.split('\n\n');
+            adultBuf = parts.pop() || '';
+            for (const part of parts) {
               for (const line of part.split('\n')) {
                 if (!line.startsWith('data:')) continue;
                 const payload = line.slice(5).trim();
@@ -568,8 +571,9 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     try {
       const baseUrl = settings.baseUrl || 'https://api.deepseek.com';
       let adultContent2 = '';
+      let adultBuf2 = '';
       await xhrStream(
-        `${baseUrl}/chat/completions`,
+        `${baseUrl}/v1/chat/completions`,
         { Authorization: `Bearer ${adultApiKey}` },
         {
           model: 'deepseek-chat',
@@ -579,8 +583,10 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
           stream: true,
         },
         (chunk) => {
-          const lines = chunk.split('\n\n');
-          for (const part of lines) {
+          adultBuf2 += chunk.replace(/\r/g, '');
+          const parts = adultBuf2.split('\n\n');
+          adultBuf2 = parts.pop() || '';
+          for (const part of parts) {
             for (const line of part.split('\n')) {
               if (!line.startsWith('data:')) continue;
               const payload = line.slice(5).trim();

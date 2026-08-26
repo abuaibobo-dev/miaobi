@@ -459,7 +459,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
         let adultContent = '';
         await xhrStream(
           `${s.baseUrl || 'https://api.deepseek.com'}/chat/completions`,
-          { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+          { Authorization: `Bearer ${key}` },
           {
             model: 'deepseek-chat',
             messages: [
@@ -570,7 +570,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       let adultContent2 = '';
       await xhrStream(
         `${baseUrl}/chat/completions`,
-        { 'Content-Type': 'application/json', Authorization: `Bearer ${adultApiKey}` },
+        { Authorization: `Bearer ${adultApiKey}` },
         {
           model: 'deepseek-chat',
           messages: adultMessages,

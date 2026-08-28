@@ -21,6 +21,7 @@ interface SourceWithBooks {
 export default function CustomSourcesScreen({ navigation }: Props) {
   const [items, setItems] = useState<SourceWithBooks[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -107,9 +108,9 @@ export default function CustomSourcesScreen({ navigation }: Props) {
               </View>
               <TouchableOpacity
                 style={s.moreButton}
-                onPress={() => navigation.navigate('Home' as any)}
+                onPress={() => setExpandedId(expandedId === item.source.id ? null : item.source.id)}
               >
-                <Text style={s.moreText}>查看全部</Text>
+                <Text style={s.moreText}>{expandedId === item.source.id ? '收起' : '查看全部'}</Text>
                 <Icon.forward size={13} color={T.textSec} />
               </TouchableOpacity>
             </View>
@@ -152,6 +153,22 @@ export default function CustomSourcesScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 )}
               />
+            )}
+
+            {expandedId === item.source.id && item.books.length > 0 && (
+              <View style={s.expandedWrap}>
+                {item.books.map(book => (
+                  <TouchableOpacity
+                    key={book.id}
+                    style={s.expandedRow}
+                    onPress={() => navigation.navigate('BookDetail', { book })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.expandedTitle} numberOfLines={1}>{book.title}</Text>
+                    <Text style={s.expandedAuthor} numberOfLines={1}>{book.authors?.[0] || book.sourceLabel}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
           </View>
         )}

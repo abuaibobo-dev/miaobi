@@ -1,6 +1,7 @@
 import { callBackend } from './backend';
 import { tryFreeProviders } from './freeProviders';
 import { getSettings } from './storage';
+import { parseThinking } from './thinkingParser';
 import { INJECTED_KEYS } from '../config/keys';
 
 export interface LLMMessage {
@@ -60,15 +61,6 @@ function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
   };
 }
 
-
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2, delayMs = 1000): Promise<T> {
-  let lastError: Error | null = null;
-  for (let i = 0; i <= maxRetries; i++) {
-    try { return await fn(); }
-    catch (e) { lastError = e as Error; if (i < maxRetries) await new Promise(r => setTimeout(r, delayMs * (i + 1))); }
-  }
-  throw lastError;
-}
 
 export function detectIntent(text: string, hasImage?: boolean): Intent {
   if (hasImage) return 'vision';
@@ -375,7 +367,7 @@ async function streamOllama(
         options: {
           temperature,
           num_predict: maxTokens,
-          num_ctx: maxTokens <= 256 ? 512 : maxTokens > 1200 ? 2048 : 1024,
+          num_ctx: Math.min(Math.max(maxTokens, 1024), 8192),
           num_thread: 2,
           num_batch: maxTokens <= 256 ? 32 : 128,
         },
@@ -390,10 +382,12 @@ async function streamOllama(
     const reasoning = String(data?.message?.thinking || data?.message?.reasoning || '');
     if (reasoning) callbacks.onThinking?.(reasoning);
 
-    const content = String(data?.message?.content || '');
-    if (content) callbacks.onContent?.(content);
-    if (!content.trim()) throw new Error('本地模型返回为空');
-    return content.trim();
+    const raw = String(data?.message?.content || '');
+    if (!raw.trim()) throw new Error('本地模型返回为空');
+    const { thinking, body } = parseThinking(raw);
+    if (thinking) callbacks.onThinking?.(thinking);
+    callbacks.onContent?.(body);
+    return body.trim();
   } finally {
     clearTimeout(timer);
     options.signal?.removeEventListener('abort', forwardAbort);
@@ -465,6 +459,9 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
   }
 
   if (intent === 'adult') {
+    if (settings.adultContent === false) {
+      return { content: '', error: '成人文学已关闭。可在设置中开启（需年满 18 周岁）。' };
+    }
     const lastUserMsg = messages[messages.length - 1]?.content || '';
     if (UNSAFE_ADULT_PATTERN.test(lastUserMsg)) {
       return { content: '', error: '成人文学仅支持明确成年、双方自愿的虚构角色与情节。' };
@@ -676,7 +673,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
 
 
   try {
-    const content = await streamDeepSeek(messages, temperature, maxTokens, options, options);
+    const content = await streamDeepSeek(messages, temperature, Math.min(maxTokens, 8192), options, options);
     return { content, provider: `cloud:${options.intent === 'writing' ? settings.model || 'deepseek-chat' : settings.chatModel || settings.model || 'deepseek-chat'}` };
   } catch (error) {
     const free = await tryFreeProviders(messages, options.onProvider);
@@ -693,17 +690,22 @@ export async function checkBalance(): Promise<{ balance?: number; currency?: str
   try {
     const settings = await getSettings() as any;
     if (!settings.apiKey) return { error: '未配置 API Key' };
-    const res = await fetch('https://api.deepseek.com/user/balance', {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${settings.apiKey}` },
-      signal: withTimeout(undefined, 12000).signal,
-    });
-    if (!res.ok) return { error: `查询失败（${res.status}）` };
-    const data = await res.json();
-    const item = data.balance_infos?.[0];
-    const balance = Number(item?.total_balance);
-    if (Number.isFinite(balance)) return { balance, currency: item.currency || 'CNY' };
-    return { error: '无法解析余额' };
+    const timeout = withTimeout(undefined, 12000);
+    try {
+      const res = await fetch('https://api.deepseek.com/user/balance', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${settings.apiKey}` },
+        signal: timeout.signal,
+      });
+      if (!res.ok) return { error: `查询失败（${res.status}）` };
+      const data = await res.json();
+      const item = data.balance_infos?.[0];
+      const balance = Number(item?.total_balance);
+      if (Number.isFinite(balance)) return { balance, currency: item.currency || 'CNY' };
+      return { error: '无法解析余额' };
+    } finally {
+      timeout.done();
+    }
   } catch {
     return { error: '查询超时或网络异常' };
   }
@@ -728,15 +730,20 @@ export async function checkApiKey(): Promise<{ valid: boolean; error?: string; p
 
 export async function getEmbedding(text: string): Promise<number[] | null> {
   try {
-    const res = await fetch(`${OLLAMA_BASE}/api/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
-      signal: withTimeout(undefined, 30000).signal,
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.embedding || null;
+    const timeout = withTimeout(undefined, 30000);
+    try {
+      const res = await fetch(`${OLLAMA_BASE}/api/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+        signal: timeout.signal,
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.embedding || null;
+    } finally {
+      timeout.done();
+    }
   } catch {
     return null;
   }
@@ -751,7 +758,9 @@ function cosineSimilarity(a: number[], b: number[]): number {
     normA += value ** 2;
     normB += b[index] ** 2;
   });
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  if (!denom) return 0;
+  return dot / denom;
 }
 
 export async function semanticSearch(query: string, chunks: { text: string; embedding?: number[] }[], topK = 3) {
@@ -759,7 +768,11 @@ export async function semanticSearch(query: string, chunks: { text: string; embe
   if (!queryEmbedding) return chunks.slice(0, topK).map(chunk => ({ text: chunk.text, score: 0 }));
   const scored = [];
   for (const chunk of chunks) {
-    const embedding = chunk.embedding || await getEmbedding(chunk.text) || undefined;
+    let embedding = chunk.embedding;
+    if (!embedding) {
+      embedding = (await getEmbedding(chunk.text)) || undefined;
+      if (embedding) chunk.embedding = embedding;
+    }
     scored.push({ text: chunk.text, score: embedding ? cosineSimilarity(queryEmbedding, embedding) : 0 });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, topK);

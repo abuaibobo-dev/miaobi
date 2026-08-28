@@ -81,6 +81,9 @@ export default function ReaderScreen({ navigation, route }: Props) {
   useEffect(() => () => { Speech.stop(); }, []);
 
   const jump = useCallback((direction: number) => {
+    Speech.stop();
+    setIsSpeaking(false);
+    setIsPaused(false);
     setCurrent(prev => Math.max(0, Math.min(chapters.length - 1, prev + direction)));
   }, [chapters.length]);
 
@@ -92,12 +95,17 @@ export default function ReaderScreen({ navigation, route }: Props) {
     setIsSpeaking(true);
     AsyncStorage.getItem('miaobi.reader.speechRate').then(rateValue => {
       const rate = Number(rateValue) || 1.0;
-      Speech.speak(chapters[current].body.slice(0, 12000), {
-        language: 'zh-CN', rate,
-        onDone: () => setIsSpeaking(false),
-        onError: () => setIsSpeaking(false),
-        onStopped: () => setIsSpeaking(false),
-      });
+      const body = chapters[current].body;
+      const speakPart = (index: number) => {
+        if (index >= body.length) { setIsSpeaking(false); return; }
+        Speech.speak(body.slice(index, index + 12000), {
+          language: 'zh-CN', rate,
+          onDone: () => speakPart(index + 12000),
+          onError: () => setIsSpeaking(false),
+          onStopped: () => setIsSpeaking(false),
+        });
+      };
+      speakPart(0);
     });
   };
 

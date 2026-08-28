@@ -21,14 +21,13 @@ jobs:
         run: |
           mkdir -p src/config
           cat > src/config/keys.ts << 'KEYS'
-          export const INJECTED_KEYS = {
-            deepseek: '${{ secrets.DEEPSEEK_KEY }}',
-            groq: '${{ secrets.GROQ_KEY }}',
-            sambanova: '${{ secrets.SAMBANOVA_KEY }}',
-          };
+          export const INJECTED_KEYS: Record<string, string> = {};
           KEYS
 
       - run: npm install
+
+      - name: Typecheck
+        run: npx tsc --noEmit
 
       - uses: actions/setup-java@v4
         with:

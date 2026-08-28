@@ -8,7 +8,7 @@ export async function exportBackup(): Promise<boolean> {
   const novels = await Store.getNovels();
   const settings = await Store.getSettings();
 
-  const { apiKey, ...safeSettings } = settings;
+  const { apiKey, groqKey, sambanovaKey, cerebrasKey, ...safeSettings } = settings;
   const backup: any = { version: '1.1.0', exportedAt: new Date().toISOString(), settings: safeSettings, novels: [] };
 
   for (const novel of novels) {
@@ -49,7 +49,7 @@ export async function restoreFromBackup(jsonString: string): Promise<{ success: 
     let novelCount = 0, chapterCount = 0;
     if (backup.settings) {
       const current = await Store.getSettings();
-      await Store.saveSettings({ ...current, ...backup.settings, apiKey: current.apiKey });
+      await Store.saveSettings({ ...current, ...backup.settings, apiKey: current.apiKey, groqKey: current.groqKey, sambanovaKey: current.sambanovaKey, cerebrasKey: current.cerebrasKey });
     }
 
     for (const novelData of (Array.isArray(backup.novels) ? backup.novels : [])) {

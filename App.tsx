@@ -69,6 +69,26 @@ export default function App() {
   const navigationRef = useRef<any>(null);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const confirmed = await AsyncStorage.getItem('miaobi.adultConfirmed');
+        if (confirmed !== null) return;
+        const { showAlert } = await import('./src/components/CustomAlert');
+        const show = () => showAlert(
+          '成人内容确认',
+          '本应用包含面向 18 岁以上成年人的成人文学功能。请确认你已年满 18 周岁，且仅浏览合法成人内容。',
+          [
+            { text: '我已年满18岁', style: 'default', onPress: () => { AsyncStorage.setItem('miaobi.adultConfirmed', 'yes'); } },
+            { text: '未满18岁', style: 'cancel', onPress: () => { AsyncStorage.setItem('miaobi.adultConfirmed', 'no'); AsyncStorage.getItem('miaobi.settings').then(raw => { const cur = raw ? JSON.parse(raw) : {}; AsyncStorage.setItem('miaobi.settings', JSON.stringify({ ...cur, adultContent: false })); }); } },
+          ],
+        );
+        show();
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
     let subscription: { remove: () => void } | undefined;
     const handle = async (url?: string | null) => {

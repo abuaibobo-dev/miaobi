@@ -362,7 +362,7 @@ function sourcesForCategory(category: ContentCategory): string[] {
     case 'newspaper': return ['chroniclingamerica', 'internetarchive'];
     case 'story': return ['gutenberg', 'wikisource', 'internetarchive', 'poetrydb'];
     case 'art': return ['metmuseum', 'wikimediacommons'];
-    case 'adult': return ['gutenberg', 'internetarchive', 'openlibrary', 'wikisource'];
+    case 'adult': return ['adult'];
     case 'book': return ['gutenberg', 'openlibrary', 'google', 'internetarchive', 'wolne'];
     default: return ['gutenberg', 'openlibrary', 'google', 'wikisource', 'internetarchive', 'wolne', 'poetrydb'];
   }

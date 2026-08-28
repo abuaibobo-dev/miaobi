@@ -31,4 +31,8 @@ export default StyleSheet.create({
   bookImage: { width: '100%', height: '100%' },
   bookTitle: { marginTop: 5, color: T.text, fontSize: 11, fontWeight: '700', lineHeight: 15 },
   bookAuthor: { marginTop: 2, fontSize: 9, color: T.textMuted },
+  expandedWrap: { marginTop: 10, borderTopWidth: 1, borderTopColor: T.border, paddingTop: 8 },
+  expandedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: T.border },
+  expandedTitle: { flex: 1, color: T.text, fontSize: 12, fontWeight: '600' },
+  expandedAuthor: { marginLeft: 8, fontSize: 10, color: T.textMuted },
 });

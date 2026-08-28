@@ -56,6 +56,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
         max_tokens: 1400,
         messages: [{ role: 'system', content: system }, ...history.slice(-12)],
       }),
+      signal: AbortSignal.timeout(60000),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.error?.message || `请求失败（${response.status}）`);

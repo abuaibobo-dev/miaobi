@@ -101,9 +101,14 @@ export default function HomeScreen({ navigation }: Props) {
             setStreaming(streamedContent);
             if (!userScrolling) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 10);
           },
+          onThinking: (delta) => {
+            streamedThinking += delta;
+            setThinking(streamedThinking);
+          },
         }
       );
       
+      if (ctrl.signal.aborted) return;
       const finalContent = agentResult.reply || streamedContent || '没有回复内容';
       const toolInfo = agentResult.toolsUsed > 0 ? ` [工具×${agentResult.toolsUsed}]` : '';
       setMessages(prev => {
@@ -111,6 +116,7 @@ export default function HomeScreen({ navigation }: Props) {
         return [...filtered, { role: 'assistant', content: finalContent + toolInfo, provider: `agent:${agentResult.steps}步`, thinking: streamedThinking }];
       });
     } catch (e: any) {
+      if (ctrl.signal.aborted) return;
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);
     } finally {
       setLoading(false);

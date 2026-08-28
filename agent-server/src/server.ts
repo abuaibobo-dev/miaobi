@@ -1,18 +1,30 @@
 /**
  * 妙笔 Agent Server
  * 基于 Pi Agent Architecture (earendil-works/pi)
+ * 安全加固：仅监听 127.0.0.1；设置 AGENT_TOKEN 后强制 Bearer 认证。
  */
 
 import express from 'express';
 import cors from 'cors';
-import { AgentLoop } from './agent-loop';
-import { ToolSystem } from './tool-system';
-import { SessionManager } from './session-manager';
+import { AgentLoop } from './agent-loop.ts';
+import { ToolSystem } from './tool-system.ts';
+import { SessionManager } from './session-manager.ts';
 
 const PORT = parseInt(process.env.PORT || '3456');
+const TOKEN = process.env.AGENT_TOKEN || '';
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '2mb' }));
+
+// 认证中间件：未设置 AGENT_TOKEN 时仅依赖 127.0.0.1 绑定
+app.use('/api', (req, res, next) => {
+  if (!TOKEN) return next();
+  const auth = req.headers.authorization || '';
+  if (auth !== `Bearer ${TOKEN}`) {
+    return res.status(401).json({ error: '未授权' });
+  }
+  next();
+});
 
 let agentLoop: AgentLoop | null = null;
 const sessionManager = new SessionManager();
@@ -33,19 +45,24 @@ app.get('/api/tools', (_req, res) => {
 });
 
 app.post('/api/session', (req, res) => {
-  const session = sessionManager.create(req.body.id);
+  const session = sessionManager.create(req.body?.id);
   res.json({ id: session.id, createdAt: session.createdAt });
 });
 
+// 协议对齐前端 backend.ts：收 {messages, intent}，返 {content, provider, intent}
 app.post('/api/chat', async (req, res) => {
   if (!agentLoop) return res.status(400).json({ error: 'Agent未初始化' });
-  const { sessionId, message } = req.body;
-  if (!message) return res.status(400).json({ error: '消息不能为空' });
-  const session = sessionManager.get(sessionId) || sessionManager.create(sessionId);
+  const { messages, intent } = req.body;
+  if (!Array.isArray(messages) || !messages.length) {
+    return res.status(400).json({ error: 'messages 不能为空' });
+  }
   try {
-    const result = await agentLoop.execute(session, message);
-    sessionManager.save(session);
-    res.json(result);
+    const content = await agentLoop.chat(
+      messages
+        .map((m: any) => ({ role: String(m.role || 'user'), content: String(m.content || '') }))
+        .filter((m: any) => m.content),
+    );
+    res.json({ content, provider: 'agent-server', intent: intent || 'chat' });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -98,7 +115,7 @@ app.get('/api/session/:id', (req, res) => {
   res.json({ id: session.id, messages: session.messages.filter((m: any) => m.role !== 'system'), toolsUsed: session.toolsUsed });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🧠 妙笔 Agent Server @ http://0.0.0.0:${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`🧠 妙笔 Agent Server @ http://127.0.0.1:${PORT}${TOKEN ? '（认证已开启）' : '（未设 AGENT_TOKEN，仅本机可访问）'}`);
   console.log(`   Tools: ${ToolSystem.list().map(t => t.name).join(', ')}`);
 });

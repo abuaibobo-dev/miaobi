@@ -28,11 +28,6 @@
             {
               "scheme": "content",
               "host": "*",
-              "mimeType": "text/plain"
-            },
-            {
-              "scheme": "content",
-              "host": "*",
               "mimeType": "application/json"
             },
             {

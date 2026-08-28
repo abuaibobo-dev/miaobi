@@ -24,6 +24,10 @@ export default function SettingsScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState('');
+  const [groqKey, setGroqKey] = useState('');
+  const [sambanovaKey, setSambanovaKey] = useState('');
+  const [cerebrasKey, setCerebrasKey] = useState('');
+  const [adultContent, setAdultContent] = useState(true);
 
 
 
@@ -35,6 +39,12 @@ export default function SettingsScreen({ navigation }: Props) {
       setModel(s.model || 'deepseek-chat');
       setBaseUrl(s.baseUrl || 'https://api.deepseek.com');
       setProvider(s.provider || 'deepseek');
+      setAdultContent(s.adultContent !== false);
+    });
+    getFreeProviderKeys().then(k => {
+      setGroqKey(k.groq || '');
+      setSambanovaKey(k.sambanova || '');
+      setCerebrasKey(k.cerebras || '');
     });
   }, []);
 
@@ -47,7 +57,13 @@ export default function SettingsScreen({ navigation }: Props) {
       provider,
       temperature: 0.7,
       maxTokens: 12000,
+      adultContent,
     } as any);
+    await saveFreeProviderKeys({
+      groq: groqKey.trim(),
+      sambanova: sambanovaKey.trim(),
+      cerebras: cerebrasKey.trim(),
+    });
 
     setSaving(false);
     setNotice('✅ 已保存');
@@ -118,12 +134,51 @@ export default function SettingsScreen({ navigation }: Props) {
           </View>
         )}
 
+        {/* Free provider key config */}
+        {provider === 'groq' && (
+          <View style={s.card}>
+            <Text style={s.fieldLabel}>Groq API Key</Text>
+            <TextInput value={groqKey} onChangeText={setGroqKey} placeholder="gsk_..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+          </View>
+        )}
+        {provider === 'sambanova' && (
+          <View style={s.card}>
+            <Text style={s.fieldLabel}>SambaNova API Key</Text>
+            <TextInput value={sambanovaKey} onChangeText={setSambanovaKey} placeholder="..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+          </View>
+        )}
+        {provider === 'cerebras' && (
+          <View style={s.card}>
+            <Text style={s.fieldLabel}>Cerebras API Key</Text>
+            <TextInput value={cerebrasKey} onChangeText={setCerebrasKey} placeholder="..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+          </View>
+        )}
 
+
+
+        {/* 成人内容开关 */}
+        <View style={s.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fieldLabel}>成人文学</Text>
+              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setAdultContent(v => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultContent ? T.success : T.surface, borderWidth: 1, borderColor: adultContent ? T.success : T.border, padding: 2, justifyContent: 'center' }}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultContent ? T.black : T.textMuted, alignSelf: adultContent ? 'flex-end' : 'flex-start' }} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Actions */}
         <View style={s.btnRow}>
           <TouchableOpacity style={s.primaryBtn} onPress={handleSave} disabled={saving}>
             {saving ? <ActivityIndicator color={T.black} /> : <Text style={s.primaryBtnText}>保存</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={s.testBtn} onPress={handleTest} disabled={testing}>
+            {testing ? <ActivityIndicator color={T.white} /> : <Text style={s.testBtnText}>测试连接</Text>}
           </TouchableOpacity>
         </View>
 
@@ -156,6 +211,8 @@ const s: any = {
   fieldLabel: { color: T.textSecondary, fontSize: 10, marginBottom: 2, marginTop: 6 },
   input: { color: T.text, fontSize: 12, backgroundColor: T.surface, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
   btnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  testBtn: { backgroundColor: T.surface2, borderRadius: 6, paddingVertical: 9, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
+  testBtnText: { color: T.text, fontSize: 13, fontWeight: '600' },
   primaryBtn: { flex: 1, backgroundColor: T.white, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   primaryBtnText: { color: T.black, fontSize: 13, fontWeight: '700' },
   secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },

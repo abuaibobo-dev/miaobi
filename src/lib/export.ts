@@ -4,7 +4,8 @@ import * as Store from './storage';
 import type { Chapter, NovelProject } from '../types/novel';
 
 async function writeAndShare(filename: string, content: string, mimeType: string): Promise<boolean> {
-  const file = new File(Paths.document, filename);
+  const safeName = filename.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/\.{2,}/g, '.').slice(0, 120);
+  const file = new File(Paths.document, safeName);
   await file.write(content, { encoding: EncodingType.UTF8 });
   await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: '导出小说' });
   return true;

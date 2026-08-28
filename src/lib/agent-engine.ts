@@ -153,6 +153,7 @@ export async function agentExecute(
     onStep?: (step: number) => void;
     onToolCall?: (tool: string) => void;
     onContent?: (delta: string) => void;
+    onThinking?: (delta: string) => void;
     signal?: AbortSignal;
   }
 ): Promise<{ reply: string; steps: number; toolsUsed: number }> {
@@ -166,20 +167,22 @@ export async function agentExecute(
 
       
       // Adult + Writing: bypass agent engine, use clean messages
-      const intent = detectIntent(msg);
+      const intent = detectIntent(userMessage);
       let result;
       if (intent === 'adult' || intent === 'writing') {
         const historyClean = session.messages
-          .filter(m => m.role !== 'system' || !m.content.includes('Agent'))
+          .filter(m => m.role !== 'system' || !/Agent/i.test(m.content))
           .slice(-10);
         result = await chatCompletion(
-          [...historyClean, { role: 'user' as const, content: msg }],
-          { intent, onContent: options?.onContent }
+          [...historyClean, { role: 'user' as const, content: userMessage }],
+          { intent, onContent: options?.onContent, onThinking: options?.onThinking },
+          options?.signal,
         );
       } else {
         result = await chatCompletion(
           session.messages.map(m => ({ role: m.role, content: m.content })),
-          { intent, onContent: options?.onContent }
+          { intent, onContent: options?.onContent, onThinking: options?.onThinking },
+          options?.signal,
         );
       }
 

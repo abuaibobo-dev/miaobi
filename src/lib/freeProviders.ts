@@ -24,7 +24,7 @@ async function getInjectedKeys(): Promise<Record<string, string>> {
     const mod = await import('../config/keys');
     _injectedKeys = mod.INJECTED_KEYS || {};
   } catch { _injectedKeys = {}; }
-  return _injectedKeys;
+  return _injectedKeys || {};
 }
 
 export async function getFreeProviderKeys(): Promise<Record<string, string>> {

@@ -158,7 +158,7 @@ export default function SourceManagerScreen({ navigation }: Props) {
     }
     setImportingUrl(true);
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
       if (!response.ok) throw new Error(`下载失败（${response.status}）`);
       let data: any;
       try { data = await response.json(); }

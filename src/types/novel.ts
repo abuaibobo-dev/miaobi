@@ -106,6 +106,7 @@ export interface NovelSettings {
   sambanovaKey?: string;
   cerebrasKey?: string;
   provider?: string;
+  adultContent?: boolean;
 }
 
 export interface AppState {

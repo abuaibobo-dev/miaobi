@@ -44,6 +44,7 @@ export default function WritingScreen({ navigation, route }: any) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const CHAT_KEY = novelId ? `miaobi.writingChat.${novelId}` : 'miaobi.writingChat';
   const scrollRef = useRef<ScrollView>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   React.useEffect(() => {
     AsyncStorage.getItem(CHAT_KEY).then(raw => {
@@ -140,6 +141,8 @@ export default function WritingScreen({ navigation, route }: any) {
     setThinking('');
     let streamedContent = '';
     let streamedThinking = '';
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const intent = detectIntent(text);
       const result = await chatCompletion(
@@ -158,16 +161,20 @@ export default function WritingScreen({ navigation, route }: any) {
             streamedThinking += delta;
             setThinking(streamedThinking);
           },
-        }
+        },
+        controller.signal,
       );
+      if (controller.signal.aborted) return;
       const finalContent = streamedContent || result.content || (result.error ? `错误：${result.error}` : '没有回复内容');
       setMessages(prev => {
         const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
         return [...filtered, { role: 'assistant', content: finalContent, provider: result.provider, thinking: streamedThinking || result.thinking }];
       });
     } catch (e: any) {
+      if (controller.signal.aborted) return;
       setMessages(prev => [...prev, { role: 'assistant', content: `错误：${e.message}` }]);
     } finally {
+      abortRef.current = null;
       setLoading(false);
       setStreaming('');
       setThinking('');
@@ -252,7 +259,7 @@ export default function WritingScreen({ navigation, route }: any) {
               </TouchableOpacity>
               <View style={{ flex: 1 }} />
               {loading ? (
-                <TouchableOpacity style={s.stopBtn} onPress={() => { setLoading(false); setStreaming(''); setThinking(''); }}>
+                <TouchableOpacity style={s.stopBtn} onPress={() => { abortRef.current?.abort(); setLoading(false); setStreaming(''); setThinking(''); }}>
                   <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: T.white }} />
                 </TouchableOpacity>
               ) : (

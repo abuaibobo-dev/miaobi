@@ -4,6 +4,14 @@ import type { NovelProject, Chapter, Character, Foreshadowing, MemoryChunk, Memo
 
 const PREFIX = 'miaobi.';
 
+// 串行化所有读写操作，避免并发 read-modify-write 丢数据
+let storageChain: Promise<unknown> = Promise.resolve();
+async function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = storageChain.then(fn, fn);
+  storageChain = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 // ============================================================
 // 通用存取
 // ============================================================
@@ -32,6 +40,7 @@ export async function getSettings(): Promise<NovelSettings> {
     maxTokens: 12000,
     localThinking: false,
     customPrompt: '',
+    adultContent: true,
   });
   // Fallback: if no key configured, use injected key
   if (!s.apiKey && INJECTED_KEYS.deepseek) {
@@ -53,15 +62,19 @@ export async function getNovels(): Promise<NovelProject[]> {
 }
 
 export async function saveNovel(n: NovelProject): Promise<void> {
-  const list = await getNovels();
-  const idx = list.findIndex(x => x.id === n.id);
-  if (idx >= 0) list[idx] = n; else list.push(n);
-  await save('novels', list);
+  await withLock(async () => {
+    const list = await getNovels();
+    const idx = list.findIndex(x => x.id === n.id);
+    if (idx >= 0) list[idx] = n; else list.push(n);
+    await save('novels', list);
+  });
 }
 
 export async function deleteNovel(id: string): Promise<void> {
-  const novels = await getNovels();
-  await save('novels', novels.filter(item => item.id !== id));
+  await withLock(async () => {
+    const novels = await getNovels();
+    await save('novels', novels.filter(item => item.id !== id));
+  });
   await Promise.all([
     save(`chapters.${id}`, []),
     save(`chars.${id}`, []),
@@ -83,11 +96,13 @@ export async function getChapters(novelId: string): Promise<Chapter[]> {
 }
 
 export async function saveChapter(c: Chapter): Promise<void> {
-  const list = await getChapters(c.novelId);
-  const idx = list.findIndex(x => x.id === c.id);
-  if (idx >= 0) list[idx] = c; else list.push(c);
-  list.sort((a, b) => a.chapterNumber - b.chapterNumber);
-  await save(`chapters.${c.novelId}`, list);
+  await withLock(async () => {
+    const list = await getChapters(c.novelId);
+    const idx = list.findIndex(x => x.id === c.id);
+    if (idx >= 0) list[idx] = c; else list.push(c);
+    list.sort((a, b) => a.chapterNumber - b.chapterNumber);
+    await save(`chapters.${c.novelId}`, list);
+  });
 }
 
 export async function getRecentChapters(novelId: string, count: number = 5): Promise<Chapter[]> {
@@ -104,15 +119,19 @@ export async function getCharacters(novelId: string): Promise<Character[]> {
 }
 
 export async function saveCharacter(c: Character): Promise<void> {
-  const list = await getCharacters(c.novelId);
-  const idx = list.findIndex(x => x.id === c.id);
-  if (idx >= 0) list[idx] = c; else list.push(c);
-  await save(`chars.${c.novelId}`, list);
+  await withLock(async () => {
+    const list = await getCharacters(c.novelId);
+    const idx = list.findIndex(x => x.id === c.id);
+    if (idx >= 0) list[idx] = c; else list.push(c);
+    await save(`chars.${c.novelId}`, list);
+  });
 }
 
 export async function deleteCharacter(novelId: string, id: string): Promise<void> {
-  const list = await getCharacters(novelId);
-  await save(`chars.${novelId}`, list.filter(x => x.id !== id));
+  await withLock(async () => {
+    const list = await getCharacters(novelId);
+    await save(`chars.${novelId}`, list.filter(x => x.id !== id));
+  });
 }
 
 // ============================================================
@@ -124,10 +143,12 @@ export async function getForeshadowing(novelId: string): Promise<Foreshadowing[]
 }
 
 export async function saveForeshadowing(f: Foreshadowing): Promise<void> {
-  const list = await getForeshadowing(f.novelId);
-  const idx = list.findIndex(x => x.id === f.id);
-  if (idx >= 0) list[idx] = f; else list.push(f);
-  await save(`fs.${f.novelId}`, list);
+  await withLock(async () => {
+    const list = await getForeshadowing(f.novelId);
+    const idx = list.findIndex(x => x.id === f.id);
+    if (idx >= 0) list[idx] = f; else list.push(f);
+    await save(`fs.${f.novelId}`, list);
+  });
 }
 
 // ============================================================
@@ -139,9 +160,11 @@ export async function getMemoryChunks(novelId: string): Promise<MemoryChunk[]> {
 }
 
 export async function saveMemoryChunk(c: MemoryChunk): Promise<void> {
-  const list = await getMemoryChunks(c.novelId);
-  list.push(c);
-  await save(`mem.${c.novelId}`, list);
+  await withLock(async () => {
+    const list = await getMemoryChunks(c.novelId);
+    list.push(c);
+    await save(`mem.${c.novelId}`, list);
+  });
 }
 
 // ============================================================
@@ -153,9 +176,11 @@ export async function getSnapshots(novelId: string): Promise<MemorySnapshot[]> {
 }
 
 export async function saveSnapshot(s: MemorySnapshot): Promise<void> {
-  const list = await getSnapshots(s.novelId);
-  list.push(s);
-  await save(`snap.${s.novelId}`, list);
+  await withLock(async () => {
+    const list = await getSnapshots(s.novelId);
+    list.push(s);
+    await save(`snap.${s.novelId}`, list);
+  });
 }
 
 
@@ -164,13 +189,14 @@ export async function saveSnapshot(s: MemorySnapshot): Promise<void> {
 // ============================================================
 
 export async function createMemorySnapshot(novelId: string, label: string, chapterNumber: number, volumeNumber: number): Promise<MemorySnapshot> {
+  const chunks = await getMemoryChunks(novelId);
   const snap: MemorySnapshot = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
     novelId,
     label,
     chapterNumber,
     volumeNumber,
-    data: JSON.stringify({ timestamp: new Date().toISOString() }),
+    data: JSON.stringify({ timestamp: new Date().toISOString(), chunks }),
     createdAt: new Date().toISOString(),
   };
   await saveSnapshot(snap);
@@ -186,9 +212,11 @@ export async function getChatHistory(channel: string): Promise<ChatMessage[]> {
 }
 
 export async function appendChatMessage(channel: string, msg: ChatMessage): Promise<void> {
-  const list = await getChatHistory(channel);
-  list.push(msg);
-  await save(`chat.${channel}`, list);
+  await withLock(async () => {
+    const list = await getChatHistory(channel);
+    list.push(msg);
+    await save(`chat.${channel}`, list);
+  });
 }
 
 export async function clearChatHistory(channel: string): Promise<void> {

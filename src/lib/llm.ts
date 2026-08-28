@@ -39,6 +39,7 @@ const MAX_LOCAL_TEXT_MODEL_BYTES = 1024 ** 3;
 const EXCLUDED_LOCAL_TEXT_MODEL = /(qwen|embed|embedding|nomic|moondream|llava|vision)/i;
 const ADULT_WRITING_PATTERN = /(成人|情欲|激情|床戏|性爱|做爱|上床|缠绵|云雨|鱼水之欢|亲密|裸露|肌肤|抚摸|挑逗|诱惑|翻云覆雨|脱衣|高潮|呻吟|喘息|亲热|赤裸|裸体|深入|插入|娇喘|湿润|紧密结合|律动|抽送|阴茎|阴道|阴唇|爱液|口交|射精|精液|乳房|色情|情色|限制级|18+|露骨|做爱场景|性爱描写|ML|nsfw|SM|BDSM|调教|捆绑|鞭打|肛交|后入|骑乘|女上位|男上位|自慰|手淫|淫荡|发骚|浪叫|肉欲|交媾|交配|兽交|多人|3P|肛门|菊花|后庭|前列腺|乳交|足交|颜射|口爆|吞精|潮吹|喷水|失禁|露出|偷窥|偷拍|情趣|玩具|跳蛋|震动|按摩棒|丝袜|吊带袜|制服|护士|女仆|教师|学生|秘书|空姐|紧身|露点|走光|春药|催情|迷药|调情|前戏|后戏|爱抚|指交|舔阴|舔肛|深喉|窒息|缺氧|偷情|毛片|小电影|黄片|AV|女优|男优|打飞机|撸|约炮|一夜情|炮友|约妹|撩妹|撩汉|骚逼|骚货|荡妇|鸡巴|大屌|肉棒|屌|逼|骚屄|小穴|肉穴|骚穴|淫水|骚水|奶子|波霸|巨乳|爆乳|贫乳|平胸|美腿|黑丝|白丝|丁字裤|情趣内衣|蕾丝|透视|肉文|黄文|H文|小黄文|同人|耽美|百合|GL|BL|18禁|R18|全肉|无码|有码|步兵|骑兵|番号|暗黑|出道|素人|企划|女教师|女护士|女仆|空姐|OL秘书|人妻|熟女|御姐|萝莉|正太|SM|捆绑|调教|露出|偷拍|痴汉|轮奸|迷奸|药奸|强奸|援交|坐台|出台|包养|情妇|情夫|小三|二奶|劈腿|出轨|不伦|乱伦|兄妹|姐弟|父女|母子|成人文学|成人小说|成人向|亲密场景|性爱描写|口交|性交)/i;
 export const UNSAFE_ADULT_PATTERN = /(未成年|未满\s*18|儿童|幼女|幼童|萝莉|正太|高中生|初中生|小学生|中学生|在校生|师生|强奸|迷奸|药奸|轮奸|强迫|非自愿|不情愿|胁迫|乱伦|父女|母子|姐弟|兽交|偷拍|偷窥|下药|灌醉|迷晕|熟睡|昏迷|(?<![0-9])(?:[1-9]|1[0-7])\s*岁)/i;
+export const ADULT_REFUSAL_PATTERN = /(不能协助|不能提供|无法帮助|无法提供|无法回答|无法创作|无法继续|不能创作|我不提供|不会提供|拒绝|抱歉|对不起|爱莫能助|无能为力|帮不了|不合适|不适合|不恰当|不当内容|敏感内容|违反|政策|规定不允许|色情|露骨|限制级|不建议|请通过|我建议|如果你愿意|我能帮你|我可以帮你|希望我)/i;
 const PREFERRED_MODELS: Record<Intent, string[]> = {
   writing: [LOCAL_TEXT_MODEL],
   adult: [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
@@ -515,7 +516,9 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
           },
           options.signal,
         );
-        if (adultContent2) return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
+        if (adultContent2 && !ADULT_REFUSAL_PATTERN.test(adultContent2)) {
+          return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
+        }
       } catch (e) {
         // DeepSeek 失败或拒绝，落入本地无审查 fallback
       }
@@ -544,7 +547,10 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       }
     }
 
-    return { content: '', error: 'DeepSeek 成人内容生成失败或被拒绝，且无可用本地模型。可尝试：①检查/充值 DeepSeek Key ②启动 Ollama 并安装本地模型。' };
+    return {
+      content: '',
+      error: 'DeepSeek 平台拒绝生成露骨成人内容（平台政策，无法绕过）。已自动尝试本地模型，但 Ollama 未运行或无模型。解决办法：安装本地模型后即可无审查创作——Termux 里执行 ollama pull gemma3:1b（或 qwen2.5:7b）并启动 ollama serve。',
+    };
   }
 
 

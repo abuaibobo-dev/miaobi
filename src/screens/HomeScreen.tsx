@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform, ScrollView, StyleSheet,
   StatusBar, Text, TextInput, TouchableOpacity, View, Pressable,
@@ -50,6 +50,14 @@ export default function HomeScreen({ navigation }: Props) {
   const agentSessionRef = useRef(createAgentSession());
 
   const CHAT_KEY = 'miaobi.homeChat';
+
+  useEffect(() => {
+    if (!messages.length) return;
+    const withoutSystem = messages.filter(m => m.role !== 'system');
+    const SYSTEM_MSG: Msg = { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' };
+    const toSave = [SYSTEM_MSG, ...withoutSystem].slice(-50);
+    AsyncStorage.setItem(CHAT_KEY, JSON.stringify(toSave));
+  }, [messages]);
 
   useFocusEffect(useCallback(() => {
     AsyncStorage.getItem('miaobi.searchHistory').then(raw => { if (raw) try { setSearchHistory(JSON.parse(raw).slice(0, 10)); } catch {} });
@@ -124,13 +132,6 @@ export default function HomeScreen({ navigation }: Props) {
       setThinking('');
       setTimeout(() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }, 100);
       setUserScrolling(false);
-      setMessages(prev => {
-            const withoutSystem = prev.filter(m => m.role !== 'system');
-            const SYSTEM_MSG: Msg = { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' };
-            const toSave = [SYSTEM_MSG, ...withoutSystem].slice(-50);
-            AsyncStorage.setItem(CHAT_KEY, JSON.stringify(toSave));
-            return prev;
-          });
       if (msg.length > 1 && !searchHistory.includes(msg)) {
         const newHistory = [msg, ...searchHistory].slice(0, 10);
         setSearchHistory(newHistory);

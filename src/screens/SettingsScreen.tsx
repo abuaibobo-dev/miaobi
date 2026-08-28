@@ -6,6 +6,7 @@ import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
 
 import { getFreeProviderKeys, saveFreeProviderKeys } from '../lib/freeProviders';
+import pkg from '../../package.json';
 
 type Props = any;
 
@@ -184,7 +185,7 @@ export default function SettingsScreen({ navigation }: Props) {
 
         {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: T.success } : { color: T.error }]}>{notice}</Text> : null}
 
-        <Text style={s.about}>妙笔 v2.5.32 · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
+        <Text style={s.about}>妙笔 v{pkg.version} · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
       </ScrollView>
     </View>
   );

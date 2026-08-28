@@ -407,6 +407,7 @@ async function streamDeepSeek(
   callbacks.onProvider?.(`云端 · ${model}`);
 
   let content = '';
+  let thinkingBuf = '';
   let buffer = '';
   await xhrStream(
     `${settings.baseUrl}/v1/chat/completions`,
@@ -426,6 +427,7 @@ async function streamDeepSeek(
             const delta = data.choices?.[0]?.delta || {};
             const reasoning = delta.reasoning_content || delta.reasoning || '';
             if (reasoning) {
+              thinkingBuf += reasoning;
               options.onThinking?.(reasoning);
             }
             if (delta.content) {
@@ -438,7 +440,7 @@ async function streamDeepSeek(
     },
     options.signal,
   );
-  return content;
+  return content || thinkingBuf;
 }
 
 export async function streamChatCompletion(messages: LLMMessage[], options: StreamOptions = {}): Promise<LLMResponse> {

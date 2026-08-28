@@ -97,7 +97,7 @@ export async function prepareReadableFile(book: BookRecord & { localUri?: string
   if (book.source === 'chroniclingamerica' && !url) url = book.readUrl;
   if (!url) throw new Error('该来源没有可直接下载的正文文件');
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(60000) });
   if (!response.ok) throw new Error(`下载失败（${response.status}）`);
   const content = await response.text();
   if (!content.trim()) throw new Error('下载内容为空');
@@ -170,7 +170,8 @@ export async function importLocalBook(): Promise<{ ok: boolean; message: string 
   const lower = name.toLowerCase();
 
   if (lower.endsWith('.json')) {
-    const data = JSON.parse(content);
+    let data: any;
+    try { data = JSON.parse(content); } catch { return { ok: false, message: 'JSON 解析失败：文件格式无效' }; }
     const books = data.books || data;
     if (!Array.isArray(books)) return { ok: false, message: 'JSON 书单格式无效' };
     const list = await getLibrary();
@@ -235,7 +236,8 @@ export async function importExternalFile(uri: string, fileName?: string): Promis
 
   if (lower.endsWith('.json')) {
     const content = await file.text();
-    const data = JSON.parse(content);
+    let data: any;
+    try { data = JSON.parse(content); } catch { return { ok: false, message: 'JSON 解析失败：文件格式无效' }; }
     const books = data.books || data;
     if (!Array.isArray(books)) return { ok: false, message: 'JSON 书单格式无效' };
     const list = await getLibrary();
@@ -340,6 +342,7 @@ function xmlTag(xml: string, tag: string) {
 }
 
 export function extractEpubText(bytes: Uint8Array) {
+  if (bytes.byteLength > 200 * 1024 * 1024) throw new Error('EPUB 文件过大（最大 200 MB）');
   const files = unzipSync(bytes);
   const entries = Object.entries(files);
   if (entries.length > 5000) throw new Error('EPUB 文件条目过多');
@@ -394,7 +397,7 @@ export async function readBookContent(bookId: string): Promise<string> {
     return await resolveWikisourceText(title);
   }
   if (!book.downloadUrl && !book.readUrl) throw new Error('请先在详情页下载正文');
-  const response = await fetch(book.downloadUrl || book.readUrl!);
+  const response = await fetch(book.downloadUrl || book.readUrl!, { signal: AbortSignal.timeout(60000) });
   if (!response.ok) throw new Error(`读取失败（${response.status}）`);
   const content = await response.text();
   if (/^\uFEFF%PDF-|^\ufffd%PDF-/i.test(content)) throw new Error('暂不支持直接阅读 PDF 扫描件');

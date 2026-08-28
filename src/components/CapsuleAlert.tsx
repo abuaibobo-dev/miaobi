@@ -16,7 +16,7 @@ interface Props {
 
 export default function CapsuleAlert({ children, visible, title, message, cancelText = '取消', confirmText = '确定', danger, onCancel, onConfirm }: Props) {
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <Text style={styles.title}>{title}</Text>

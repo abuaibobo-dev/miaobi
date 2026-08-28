@@ -52,10 +52,14 @@ export default function ShelfScreen({ navigation }: Props) {
           onPress={async () => {
             try {
               const result = await importLocalBook();
-              if (result.message) setNotice(result.message);
+              if (result.message) {
+                setNotice(result.message);
+                setTimeout(() => setNotice(''), 4000);
+              }
               refresh();
             } catch (error: any) {
               setNotice(error.message || '导入失败');
+              setTimeout(() => setNotice(''), 4000);
             }
           }}
         >

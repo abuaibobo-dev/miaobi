@@ -161,7 +161,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
             <TouchableOpacity onPress={() => setShowSearch(v => !v)} style={[s.toolButton, { borderColor: colors.border }]}>
               <Icon.search size={14} color={colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={toggleSpeech} style={[s.toolButton, { borderColor: isSpeaking ? T.grey : colors.border }]}>
+            <TouchableOpacity accessibilityLabel={isSpeaking ? '停止朗读' : '朗读'} onPress={toggleSpeech} style={[s.toolButton, { borderColor: isSpeaking ? T.grey : colors.border }]}>
               <Icon.tts size={15} color={isSpeaking ? T.grey : colors.text} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowSettings(v => !v)} style={[s.iconButton, { borderColor: colors.border }]}><Text style={[s.fontLabel, { color: colors.text }]}>Aa</Text></TouchableOpacity>

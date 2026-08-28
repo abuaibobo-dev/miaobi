@@ -24,6 +24,8 @@ export interface Chapter {
   status: 'drafting' | 'completed' | 'frozen';
   wordCount: number;
   createdAt: string;
+  updatedAt?: string;
+  revisions?: Array<{ content: string; title: string; savedAt: string }>;
 }
 
 export interface Character {
@@ -108,6 +110,7 @@ export interface NovelSettings {
   provider?: string;
   adultContent?: boolean;
   useLocalModels?: boolean;
+  privacyMode?: boolean;
 }
 
 export interface AppState {

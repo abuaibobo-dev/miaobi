@@ -10,6 +10,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
 import SourceManagerScreen from './src/screens/SourceManagerScreen';
 import CustomSourcesScreen from './src/screens/CustomSourcesScreen';
+import WritingScreen from './src/screens/WritingScreen';
 import { importExternalFile } from './src/lib/library';
 import { T } from './src/lib/theme';
 import { AlertProvider } from './src/components/CustomAlert';
@@ -41,7 +42,7 @@ function HomeTabs() {
         name="Chat"
         component={HomeScreen}
         options={{
-          tabBarLabel: '聊天',
+          tabBarLabel: '创作',
           tabBarIcon: ({ color, size }) => <Icon.chat size={size} color={color} />,
         }}
       />
@@ -129,6 +130,7 @@ export default function App() {
           <Stack.Screen name="Reader" component={ReaderScreen} />
           <Stack.Screen name="Sources" component={SourceManagerScreen} />
           <Stack.Screen name="CustomSources" component={CustomSourcesScreen} />
+          <Stack.Screen name="Writing" component={WritingScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       </View>

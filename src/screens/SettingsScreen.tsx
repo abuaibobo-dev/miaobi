@@ -30,6 +30,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const [cerebrasKey, setCerebrasKey] = useState('');
   const [adultContent, setAdultContent] = useState(true);
   const [useLocalModels, setUseLocalModels] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState(false);
 
 
 
@@ -43,6 +44,7 @@ export default function SettingsScreen({ navigation }: Props) {
       setProvider(s.provider || 'deepseek');
       setAdultContent(s.adultContent !== false);
       setUseLocalModels(s.useLocalModels === true);
+      setPrivacyMode(s.privacyMode === true);
     });
     getFreeProviderKeys().then(k => {
       setGroqKey(k.groq || '');
@@ -62,6 +64,7 @@ export default function SettingsScreen({ navigation }: Props) {
       maxTokens: 12000,
       adultContent,
       useLocalModels,
+      privacyMode,
     } as any);
     await saveFreeProviderKeys({
       groq: groqKey.trim(),
@@ -110,7 +113,7 @@ export default function SettingsScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={s.content}>
         {/* Model Selection */}
         <View style={s.divider} />
-        <Text style={s.sectionTitle}>AI 模型</Text>
+        <Text style={s.sectionTitle}>模型与密钥</Text>
         <Text style={s.hint}>选择用于写作和找书的模型。免费模型无需 API Key。</Text>
         {PROVIDERS.map(p => (
           <TouchableOpacity key={p.id} style={[s.providerCard, provider === p.id && s.providerActive]} onPress={() => setProvider(p.id)}>
@@ -161,17 +164,35 @@ export default function SettingsScreen({ navigation }: Props) {
 
 
         {/* 成人内容开关 */}
+        <View style={s.divider} />
+        <Text style={s.sectionTitle}>隐私与内容</Text>
         <View style={s.card}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={s.fieldLabel}>成人文学</Text>
-              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）</Text>
+              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）。注意：内容会发送至 DeepSeek 云端</Text>
             </View>
             <TouchableOpacity
               onPress={() => setAdultContent(v => !v)}
               style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultContent ? T.success : T.surface, borderWidth: 1, borderColor: adultContent ? T.success : T.border, padding: 2, justifyContent: 'center' }}
             >
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultContent ? T.black : T.textMuted, alignSelf: adultContent ? 'flex-end' : 'flex-start' }} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 隐私模式 */}
+        <View style={s.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fieldLabel}>私密模式</Text>
+              <Text style={s.hint}>隐藏书架与创作列表中的标题预览，防止他人窥屏</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setPrivacyMode(v => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: privacyMode ? T.success : T.surface, borderWidth: 1, borderColor: privacyMode ? T.success : T.border, padding: 2, justifyContent: 'center' }}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: privacyMode ? T.black : T.textMuted, alignSelf: privacyMode ? 'flex-end' : 'flex-start' }} />
             </TouchableOpacity>
           </View>
         </View>

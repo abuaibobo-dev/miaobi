@@ -10,7 +10,7 @@ import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
-import { getChapters, getNovels, saveChapter, saveNovel } from '../lib/storage';
+import { getCharacters, getChapters, getNovels, saveChapter, saveNovel } from '../lib/storage';
 import type { Chapter, NovelProject } from '../types/novel';
 
 type Msg = { role: 'user' | 'assistant'; content: string; provider?: string; thinking?: string };
@@ -39,6 +39,7 @@ export default function WritingScreen({ navigation, route }: any) {
   const [provider, setProvider] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [workflowCollapsed, setWorkflowCollapsed] = useState(false);
   const [userScrolling, setUserScrolling] = useState(false);
   const [novel, setNovel] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -129,6 +130,19 @@ export default function WritingScreen({ navigation, route }: any) {
     }
   };
 
+  const buildNovelContext = async () => {
+    if (!novel) return null;
+    const chars = await getCharacters(novel.id);
+    const charLines = chars.slice(0, 8).map(c => `· ${c.name}：${(c.traits || c.backstory || '').slice(0, 120)}`).join('\n');
+    const recent = chapters.slice(-3).map(ch => `第${ch.chapterNumber}章《${ch.title}》：${ch.summary || ch.body.slice(0, 160)}`).join('\n');
+    return [
+      `【作品设定】类型：${novel.genre}；简介：${novel.synopsis || '暂无'}`,
+      charLines ? `【主要人物】\n${charLines}` : '',
+      recent ? `【前文摘要】\n${recent}` : '',
+      '请在创作中与以上设定、人物和前文保持一致。',
+    ].filter(Boolean).join('\n\n');
+  };
+
   const send = async (raw?: string) => {
     const text = (raw ?? input).trim();
     if (!text || loading) return;
@@ -145,8 +159,10 @@ export default function WritingScreen({ navigation, route }: any) {
     abortRef.current = controller;
     try {
       const intent = detectIntent(text);
+      const ctx = await buildNovelContext();
+      const ctxMsgs: Array<{ role: 'system'; content: string }> = ctx ? [{ role: 'system', content: ctx }] : [];
       const result = await chatCompletion(
-        history.map(m => ({ role: m.role, content: m.content })),
+        [...ctxMsgs, ...history.map(m => ({ role: m.role, content: m.content }))],
         {
           intent,
           providerOverride: model.startsWith('local:') ? 'local' : model.startsWith('cloud:') ? 'cloud' : undefined,
@@ -202,9 +218,20 @@ export default function WritingScreen({ navigation, route }: any) {
           <Text style={{ color: T.textMuted, fontSize: 12 }}>新对话</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.workflowRow} keyboardShouldPersistTaps="handled">
-        {WORKFLOW.map(item => <TouchableOpacity key={item.key} style={s.workflowBtn} onPress={() => useWorkflow(item.key)}><Text style={s.workflowText}>{item.label}</Text></TouchableOpacity>)}
-      </ScrollView>
+      {workflowCollapsed ? (
+        <TouchableOpacity style={s.workflowToggle} onPress={() => setWorkflowCollapsed(false)}>
+          <Text style={s.workflowToggleText}>⋯ 工作流</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.workflowRow} keyboardShouldPersistTaps="handled">
+            {WORKFLOW.map(item => <TouchableOpacity key={item.key} style={s.workflowBtn} onPress={() => useWorkflow(item.key)}><Text style={s.workflowText}>{item.label}</Text></TouchableOpacity>)}
+          </ScrollView>
+          <TouchableOpacity onPress={() => setWorkflowCollapsed(true)} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Text style={{ color: T.textMuted, fontSize: 10 }}>▲收起</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <ScrollView ref={scrollRef} contentContainerStyle={s.messages} onContentSizeChange={() => { if (!userScrolling) scrollRef.current?.scrollToEnd({ animated: true }); }}>
         {messages.map((msg, i) => (
           <View key={i} style={[s.bubble, msg.role === 'user' ? s.userBubble : s.aiBubble]}>
@@ -283,6 +310,8 @@ const s: any = {
   headerTitle: { color: T.text, fontSize: 18, fontWeight: '700', flex: 1, textAlign: 'center' },
   projectMeta: { color: T.textMuted, fontSize: 9, marginTop: 2 },
   workflowRow: { paddingHorizontal: 12, paddingVertical: 8, gap: 7 },
+  workflowToggle: { alignSelf: 'flex-start', margin: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  workflowToggleText: { color: T.textMuted, fontSize: 12, fontWeight: '600' },
   workflowBtn: { height: 30, paddingHorizontal: 12, borderRadius: 15, justifyContent: 'center', backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   workflowText: { color: T.textSecondary, fontSize: 11, fontWeight: '600' },
   messages: { padding: 16, paddingBottom: 8 },

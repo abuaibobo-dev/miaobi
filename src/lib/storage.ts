@@ -42,6 +42,7 @@ export async function getSettings(): Promise<NovelSettings> {
     customPrompt: '',
     adultContent: true,
     useLocalModels: false,
+    privacyMode: false,
   });
   // Fallback: if no key configured, use injected key
   if (!s.apiKey && INJECTED_KEYS.deepseek) {
@@ -100,7 +101,16 @@ export async function saveChapter(c: Chapter): Promise<void> {
   await withLock(async () => {
     const list = await getChapters(c.novelId);
     const idx = list.findIndex(x => x.id === c.id);
-    if (idx >= 0) list[idx] = c; else list.push(c);
+    if (idx >= 0) {
+      // 版本历史：保存上一版到 revisions（最多 10 份）
+      const prev = list[idx];
+      const revisions = Array.isArray(prev.revisions) ? prev.revisions : [];
+      revisions.push({ content: prev.body, title: prev.title, savedAt: prev.updatedAt || prev.createdAt });
+      c = { ...c, revisions: revisions.slice(-10) };
+      list[idx] = c;
+    } else {
+      list.push(c);
+    }
     list.sort((a, b) => a.chapterNumber - b.chapterNumber);
     await save(`chapters.${c.novelId}`, list);
   });

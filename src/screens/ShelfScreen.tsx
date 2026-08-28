@@ -22,9 +22,11 @@ export default function ShelfScreen({ navigation }: Props) {
   const [tab, setTab] = useState<ShelfStatus | 'all'>('all');
   const [notice, setNotice] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [privacy, setPrivacy] = useState(false);
 
   useFocusEffect(useCallback(() => {
     import('../lib/library').then(({ getLibrary }) => getLibrary().then(setBooks));
+    import('../lib/storage').then(({ getSettings }) => getSettings().then((s: any) => setPrivacy(s.privacyMode === true)));
   }, []));
 
   const filtered = tab === 'all' ? books : books.filter(book => book.status === tab);
@@ -47,24 +49,32 @@ export default function ShelfScreen({ navigation }: Props) {
       
       <View style={s.topBar}>
         <Text style={s.topTitle}>我的书架</Text>
-        <TouchableOpacity
-          style={s.importButton}
-          onPress={async () => {
-            try {
-              const result = await importLocalBook();
-              if (result.message) {
-                setNotice(result.message);
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          <TouchableOpacity
+            style={s.importButton}
+            onPress={() => navigation.navigate('Writing' as any)}
+          >
+            <Text style={s.importText}>AI 写作</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.importButton}
+            onPress={async () => {
+              try {
+                const result = await importLocalBook();
+                if (result.message) {
+                  setNotice(result.message);
+                  setTimeout(() => setNotice(''), 4000);
+                }
+                refresh();
+              } catch (error: any) {
+                setNotice(error.message || '导入失败');
                 setTimeout(() => setNotice(''), 4000);
               }
-              refresh();
-            } catch (error: any) {
-              setNotice(error.message || '导入失败');
-              setTimeout(() => setNotice(''), 4000);
-            }
-          }}
-        >
-          <Text style={s.importText}>导入TXT/书单</Text>
-        </TouchableOpacity>
+            }}
+          >
+            <Text style={s.importText}>导入</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={s.tabs}>
@@ -95,8 +105,8 @@ export default function ShelfScreen({ navigation }: Props) {
                   {item.coverUrl ? <Image source={{ uri: item.coverUrl }} style={s.coverImage} onError={() => {}} /> : <Icon.book size={20} color={T.grey} />}
                 </View>
                 <View style={s.body}>
-                  <Text style={s.title} numberOfLines={2}>{item.title}</Text>
-                  <Text style={s.meta} numberOfLines={1}>{item.sourceLabel}</Text>
+                  <Text style={s.title} numberOfLines={2}>{privacy ? '🔒 私密内容' : item.title}</Text>
+                  <Text style={s.meta} numberOfLines={1}>{privacy ? '已隐藏' : item.sourceLabel}</Text>
                   <Text style={s.status}>{TABS.find(tabItem => tabItem.id === item.status)?.label || '想看'}{item.localUri ? ' · 已下载' : ''}</Text>
                 </View>
               </TouchableOpacity>

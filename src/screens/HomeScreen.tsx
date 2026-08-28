@@ -186,6 +186,17 @@ export default function HomeScreen({ navigation }: Props) {
             <Text style={s.saveOutsideText}>{isSaved ? '✓ 已保存到书架' : '生成正文'}</Text>
           </TouchableOpacity>
         )}
+        {item.role === 'assistant' && item.content.startsWith('错误：') && (
+          <TouchableOpacity
+            style={s.retryBtn}
+            onPress={() => {
+              const lastUser = [...messages].reverse().find(m => m.role === 'user');
+              if (lastUser) send(lastUser.content);
+            }}
+          >
+            <Text style={s.retryText}>↻ 重试</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -243,6 +254,24 @@ export default function HomeScreen({ navigation }: Props) {
           keyExtractor={(_, i) => String(i)}
           style={{ flex: 1 }}
           contentContainerStyle={[s.chatArea, { paddingBottom: 16 }]}
+          ListHeaderComponent={messages.filter(m => m.role === 'user').length === 0 ? (
+            <View style={s.emptyWrap}>
+              <Text style={s.emptyTitle}>开始创作</Text>
+              <Text style={s.emptyHint}>试试这些开场：</Text>
+              <View style={s.chipRow}>
+                {[
+                  '写一部都市小说的第一章',
+                  '生成一个悬疑故事大纲',
+                  '帮我设计小说人物小传',
+                  '描写一段成年情侣的亲密场景',
+                ].map(c => (
+                  <TouchableOpacity key={c} style={s.emptyChip} onPress={() => send(c)}>
+                    <Text style={s.emptyChipText}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : null}
           onScrollBeginDrag={() => setUserScrolling(true)}
           onScrollEndDrag={(e) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
@@ -324,7 +353,7 @@ export default function HomeScreen({ navigation }: Props) {
                   <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: T.white }} />
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
+                <TouchableOpacity accessibilityLabel="发送" disabled={!input.trim()} style={[s.sendBtn, !input.trim() && s.sendDisabled]} onPress={() => send()}>
                   <Icon.send size={18} color={'#111'} />
                 </TouchableOpacity>
               )}
@@ -389,6 +418,14 @@ const s: any = {
   ctxText: { color: T.text, fontSize: 14, fontWeight: '500' },
   saveOutsideBtn: { alignSelf: 'flex-start', marginLeft: 32, marginTop: 2, marginBottom: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   saveOutsideText: { color: T.textMuted, fontSize: 11, fontWeight: '500' },
+  retryBtn: { alignSelf: 'flex-start', marginLeft: 32, marginTop: 2, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.error },
+  retryText: { color: T.error, fontSize: 12, fontWeight: '700' },
+  emptyWrap: { paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' },
+  emptyTitle: { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
+  emptyHint: { color: T.textMuted, fontSize: 13, marginBottom: 16 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  emptyChip: { backgroundColor: T.surface2, borderRadius: 16, borderWidth: 1, borderColor: T.border, paddingHorizontal: 14, paddingVertical: 8 },
+  emptyChipText: { color: T.text, fontSize: 12, fontWeight: '600' },
   copyBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   copyText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
   headerMenu: { backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingBottom: 8 },

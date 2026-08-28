@@ -9,7 +9,6 @@ import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
-import { chatCompletion, detectIntent } from '../lib/llm';
 import { createAgentSession, agentExecute } from '../lib/agent-engine';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
@@ -27,11 +26,21 @@ const QUICK = [
   '给一个爱情故事的灵感',
 ];
 
-export default function HomeScreen({ navigation }: Props) {
+export default function HomeScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
     { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
   ]);
+
+  // 处理 BookDetail "AI 解读" 跳转携带的 prompt
+  const pendingAiPrompt = route?.params?.aiPrompt as string | undefined;
+  useEffect(() => {
+    if (pendingAiPrompt) {
+      setInput(pendingAiPrompt);
+      setTimeout(() => send(pendingAiPrompt), 120);
+      navigation.setParams({ aiPrompt: undefined });
+    }
+  }, []);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState('');
@@ -93,7 +102,6 @@ export default function HomeScreen({ navigation }: Props) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      const intent = detectIntent(msg);
       
       // 使用 Agent 引擎（支持工具调用）
       const agentResult = await agentExecute(
@@ -137,17 +145,6 @@ export default function HomeScreen({ navigation }: Props) {
         setSearchHistory(newHistory);
         AsyncStorage.setItem('miaobi.searchHistory', JSON.stringify(newHistory));
       }
-    }
-  };
-
-  const copyMsg = async (text: string, id: string) => {
-    try {
-      await Clipboard.setStringAsync(text);
-      setCopiedId(id);
-    } catch {
-      setCopiedId(`error_${id}`);
-    } finally {
-      setTimeout(() => setCopiedId(null), 1800);
     }
   };
 

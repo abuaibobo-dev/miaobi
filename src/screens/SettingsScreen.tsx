@@ -12,9 +12,9 @@ type Props = any;
 
 const PROVIDERS = [
   { id: 'deepseek', label: 'DeepSeek', desc: '最强中文能力，需 API Key', needsKey: true },
-  { id: 'groq', label: 'Groq (Llama 3)', desc: '免费，速度快，无内容限制', needsKey: false },
-  { id: 'sambanova', label: 'SambaNova', desc: '免费，Llama 3，无限制', needsKey: false },
-  { id: 'cerebras', label: 'Cerebras', desc: '免费，Llama 3，无限制', needsKey: false },
+  { id: 'groq', label: 'Groq (Llama 3)', desc: '免费额度，需自行配置 Key', needsKey: true },
+  { id: 'sambanova', label: 'SambaNova', desc: '免费额度，需自行配置 Key', needsKey: true },
+  { id: 'cerebras', label: 'Cerebras', desc: '免费额度，需自行配置 Key', needsKey: true },
 ] as const;
 
 export default function SettingsScreen({ navigation }: Props) {

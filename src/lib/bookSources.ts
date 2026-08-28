@@ -380,11 +380,24 @@ export const BUILTIN_SOURCE_NAMES: Record<string, string> = {
   wolne: 'Wolne Lektury',
 };
 
+const ENABLED_BUILTINS_KEY = 'miaobi.enabledSources.v1';
+
+async function getEnabledBuiltinSources(): Promise<string[] | null> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const raw = await AsyncStorage.getItem(ENABLED_BUILTINS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch { return null; }
+}
+
 export async function searchAllSources(queries: string[], category: ContentCategory = 'all', enabledBuiltins?: string[]): Promise<BookSearchResult> {
   const terms = queries.filter(Boolean).slice(0, 3);
   if (!terms.length) return { books: [], errors: [] };
   const available = sourcesForCategory(category);
-  const enabled = enabledBuiltins ? available.filter(source => enabledBuiltins.includes(source)) : available;
+  const stored = enabledBuiltins ?? await getEnabledBuiltinSources();
+  const enabled = stored ? available.filter(source => stored.includes(source)) : available;
   const tasks: Array<{ name: string; promise: Promise<BookRecord[]> }> = [];
 
   terms.forEach(term => {

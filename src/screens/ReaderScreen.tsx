@@ -83,14 +83,11 @@ export default function ReaderScreen({ navigation, route }: Props) {
   const jump = useCallback((direction: number) => {
     Speech.stop();
     setIsSpeaking(false);
-    setIsPaused(false);
     setCurrent(prev => Math.max(0, Math.min(chapters.length - 1, prev + direction)));
   }, [chapters.length]);
 
-  const [isPaused, setIsPaused] = useState(false);
-
   const toggleSpeech = () => {
-    if (isSpeaking) { Speech.stop(); setIsSpeaking(false); setIsPaused(false); return; }
+    if (isSpeaking) { Speech.stop(); setIsSpeaking(false); return; }
     if (!chapters[current]?.body) return;
     setIsSpeaking(true);
     AsyncStorage.getItem('miaobi.reader.speechRate').then(rateValue => {

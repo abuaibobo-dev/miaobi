@@ -142,7 +142,7 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
       <View style={s.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={s.back}><Icon.back size={19} color={T.text} /></TouchableOpacity>
         <Text style={s.title}>AI 找书助手</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Settings')}><Text style={s.settings}>设置</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Main', { screen: 'SettingsTab' })}><Text style={s.settings}>设置</Text></TouchableOpacity>
       </View>
 
       <FlatList

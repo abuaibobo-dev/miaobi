@@ -40,6 +40,26 @@ export default function WritingScreen({ navigation, route }: any) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [workflowCollapsed, setWorkflowCollapsed] = useState(false);
+  const [createTitle, setCreateTitle] = useState('');
+  const [createGenre, setCreateGenre] = useState('');
+  const [createSynopsis, setCreateSynopsis] = useState('');
+
+  const createNovel = async () => {
+    const title = createTitle.trim();
+    if (!title) return;
+    const id = `novel_${Date.now()}`;
+    const now = new Date().toISOString();
+    const project: NovelProject = {
+      id, title, genre: createGenre.trim() || '都市', synopsis: createSynopsis.trim(),
+      styleGuide: '', totalVolumes: 1, currentVolume: 1, totalChapters: 0, createdAt: now, updatedAt: now,
+    };
+    await saveNovel(project);
+    setNovel(project);
+    setChapters([]);
+    navigation.setParams({ novelId: id });
+    setCreateTitle(''); setCreateGenre(''); setCreateSynopsis('');
+    setMessages([{ role: 'assistant', content: `《${title}》已创建。建议从「人物小传」或「故事大纲」开始，或直接让我写第一章。` }]);
+  };
   const [userScrolling, setUserScrolling] = useState(false);
   const [novel, setNovel] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -74,9 +94,16 @@ export default function WritingScreen({ navigation, route }: any) {
 
   const useWorkflow = async (key: typeof WORKFLOW[number]['key']) => {
     if (key === 'export') {
-      if (!novel || !chapters.length) return;
+      if (!novel || !chapters.length) {
+        setInput('请先创建小说项目并写出章节，再导出成书。');
+        return;
+      }
       const { exportAsTxt } = await import('../lib/export');
-      await exportAsTxt(novel.id);
+      try {
+        await exportAsTxt(novel.id);
+      } catch (e) {
+        setInput(`导出失败：${(e as Error).message}`);
+      }
       return;
     }
     if (!novel) {
@@ -218,6 +245,17 @@ export default function WritingScreen({ navigation, route }: any) {
           <Text style={{ color: T.textMuted, fontSize: 12 }}>新对话</Text>
         </TouchableOpacity>
       </View>
+      {!novel && (
+        <View style={s.createCard}>
+          <Text style={s.createTitle}>创建小说项目</Text>
+          <TextInput value={createTitle} onChangeText={setCreateTitle} placeholder="作品名（必填）" placeholderTextColor={T.textDim} style={s.createInput} />
+          <TextInput value={createGenre} onChangeText={setCreateGenre} placeholder="类型：都市 / 悬疑 / 玄幻…" placeholderTextColor={T.textDim} style={s.createInput} />
+          <TextInput value={createSynopsis} onChangeText={setCreateSynopsis} placeholder="一句话简介" placeholderTextColor={T.textDim} style={[s.createInput, { minHeight: 56, textAlignVertical: 'top' }]} multiline />
+          <TouchableOpacity style={s.createBtn} onPress={createNovel}>
+            <Text style={s.createBtnText}>创建并开始创作</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {workflowCollapsed ? (
         <TouchableOpacity style={s.workflowToggle} onPress={() => setWorkflowCollapsed(false)}>
           <Text style={s.workflowToggleText}>⋯ 工作流</Text>
@@ -312,6 +350,11 @@ const s: any = {
   workflowRow: { paddingHorizontal: 12, paddingVertical: 8, gap: 7 },
   workflowToggle: { alignSelf: 'flex-start', margin: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   workflowToggleText: { color: T.textMuted, fontSize: 12, fontWeight: '600' },
+  createCard: { margin: 10, padding: 14, borderRadius: 12, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, gap: 8 },
+  createTitle: { color: T.text, fontSize: 15, fontWeight: '800', marginBottom: 2 },
+  createInput: { color: T.text, fontSize: 13, backgroundColor: T.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: T.border },
+  createBtn: { backgroundColor: T.white, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 2 },
+  createBtnText: { color: T.black, fontSize: 13, fontWeight: '700' },
   workflowBtn: { height: 30, paddingHorizontal: 12, borderRadius: 15, justifyContent: 'center', backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   workflowText: { color: T.textSecondary, fontSize: 11, fontWeight: '600' },
   messages: { padding: 16, paddingBottom: 8 },

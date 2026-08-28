@@ -41,11 +41,11 @@ const ADULT_WRITING_PATTERN = /(成人|情欲|激情|床戏|性爱|做爱|上床
 export const UNSAFE_ADULT_PATTERN = /(未成年|未满\s*18|儿童|幼女|幼童|萝莉|正太|高中生|初中生|小学生|中学生|在校生|师生|强奸|迷奸|药奸|轮奸|强迫|非自愿|不情愿|胁迫|乱伦|父女|母子|姐弟|兽交|偷拍|偷窥|下药|灌醉|迷晕|熟睡|昏迷|(?<![0-9])(?:[1-9]|1[0-7])\s*岁)/i;
 export const ADULT_REFUSAL_PATTERN = /(不能协助|不能提供|无法帮助|无法提供|无法回答|无法创作|无法继续|不能创作|我不提供|不会提供|拒绝|抱歉|对不起|爱莫能助|无能为力|帮不了|不合适|不适合|不恰当|不当内容|敏感内容|违反|政策|规定不允许|色情|露骨|限制级|不建议|请通过|我建议|如果你愿意|我能帮你|我可以帮你|希望我)/i;
 const PREFERRED_MODELS: Record<Intent, string[]> = {
-  writing: [LOCAL_TEXT_MODEL],
-  adult: [LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
+  writing: ['qwen2.5:3b', LOCAL_TEXT_MODEL],
+  adult: ['qwen2.5:3b', LOCAL_TEXT_MODEL, FALLBACK_TEXT_MODEL],
   vision: ['moondream', 'llava'],
   image: ['moondream', 'llava'],
-  chat: [FAST_TEXT_MODEL, FALLBACK_TEXT_MODEL],
+  chat: ['qwen2.5:3b', FAST_TEXT_MODEL, FALLBACK_TEXT_MODEL],
 };
 
 function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {

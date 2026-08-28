@@ -107,6 +107,7 @@ export interface NovelSettings {
   cerebrasKey?: string;
   provider?: string;
   adultContent?: boolean;
+  useLocalModels?: boolean;
 }
 
 export interface AppState {

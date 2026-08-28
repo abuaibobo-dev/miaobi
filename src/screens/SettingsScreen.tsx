@@ -29,6 +29,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const [sambanovaKey, setSambanovaKey] = useState('');
   const [cerebrasKey, setCerebrasKey] = useState('');
   const [adultContent, setAdultContent] = useState(true);
+  const [useLocalModels, setUseLocalModels] = useState(false);
 
 
 
@@ -41,6 +42,7 @@ export default function SettingsScreen({ navigation }: Props) {
       setBaseUrl(s.baseUrl || 'https://api.deepseek.com');
       setProvider(s.provider || 'deepseek');
       setAdultContent(s.adultContent !== false);
+      setUseLocalModels(s.useLocalModels === true);
     });
     getFreeProviderKeys().then(k => {
       setGroqKey(k.groq || '');
@@ -59,6 +61,7 @@ export default function SettingsScreen({ navigation }: Props) {
       temperature: 0.7,
       maxTokens: 12000,
       adultContent,
+      useLocalModels,
     } as any);
     await saveFreeProviderKeys({
       groq: groqKey.trim(),
@@ -169,6 +172,22 @@ export default function SettingsScreen({ navigation }: Props) {
               style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultContent ? T.success : T.surface, borderWidth: 1, borderColor: adultContent ? T.success : T.border, padding: 2, justifyContent: 'center' }}
             >
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultContent ? T.black : T.textMuted, alignSelf: adultContent ? 'flex-end' : 'flex-start' }} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 本地模型开关 */}
+        <View style={s.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fieldLabel}>本地模型</Text>
+              <Text style={s.hint}>默认关闭（完全使用 DeepSeek 云端）。开启后可选本地模型，用于无审查或离线场景</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setUseLocalModels(v => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: useLocalModels ? T.success : T.surface, borderWidth: 1, borderColor: useLocalModels ? T.success : T.border, padding: 2, justifyContent: 'center' }}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: useLocalModels ? T.black : T.textMuted, alignSelf: useLocalModels ? 'flex-end' : 'flex-start' }} />
             </TouchableOpacity>
           </View>
         </View>

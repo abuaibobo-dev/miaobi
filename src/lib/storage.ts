@@ -41,6 +41,7 @@ export async function getSettings(): Promise<NovelSettings> {
     localThinking: false,
     customPrompt: '',
     adultContent: true,
+    useLocalModels: false,
   });
   // Fallback: if no key configured, use injected key
   if (!s.apiKey && INJECTED_KEYS.deepseek) {

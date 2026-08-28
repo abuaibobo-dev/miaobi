@@ -525,32 +525,34 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       }
     }
 
-    // Priority 2: 本地 Ollama（无云端审查，真正的"毫无禁忌"）
-    const local = await getOllamaStatus();
-    if (local.available) {
-      const model = selectOllamaModel('adult', local.models);
-      if (model) {
-        try {
-          const content = await streamOllama(
-            model,
-            adultMessages,
-            0.9,
-            Math.min(maxTokens, 4096),
-            undefined,
-            options,
-            options,
-            settings.localThinking === true,
-          );
-          if (content.trim()) return { content, provider: `local:${model} (成人模式)` };
-        } catch (e) {
-          return { content: '', error: `本地模型失败：${(e as Error).message}`, provider: `local:${model}` };
+    // Priority 2: 本地 Ollama（仅当用户开启本地模型时作为兜底）
+    if (settings.useLocalModels === true) {
+      const local = await getOllamaStatus();
+      if (local.available) {
+        const model = selectOllamaModel('adult', local.models);
+        if (model) {
+          try {
+            const content = await streamOllama(
+              model,
+              adultMessages,
+              0.9,
+              Math.min(maxTokens, 4096),
+              undefined,
+              options,
+              options,
+              settings.localThinking === true,
+            );
+            if (content.trim()) return { content, provider: `local:${model} (成人模式)` };
+          } catch (e) {
+            return { content: '', error: `本地模型失败：${(e as Error).message}`, provider: `local:${model}` };
+          }
         }
       }
     }
 
     return {
       content: '',
-      error: 'DeepSeek 平台拒绝生成露骨成人内容（平台政策，无法绕过）。已自动尝试本地模型，但 Ollama 未运行或无模型。解决办法：安装本地模型后即可无审查创作——Termux 里执行 ollama pull gemma3:1b（或 qwen2.5:7b）并启动 ollama serve。',
+      error: 'DeepSeek 平台拒绝生成露骨成人内容（平台政策，无法绕过）。已尝试所有云端路径。若需更直白内容，可在设置开启本地模型。',
     };
   }
 
@@ -581,6 +583,8 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
 
 
 
+  const useLocalModels = settings.useLocalModels === true || options.forceLocal === true;
+  if (useLocalModels) {
   const local = await getOllamaStatus();
   if (local.available) {
     let model = selectOllamaModel(intent, local.models);
@@ -651,8 +655,9 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     if (options.forceLocal) {
       return { content: '', error: '本地模型不可用。成人文学内容只在本机处理，不会发送到云端。', provider: model ? `local:${model}` : undefined };
     }
-  } else if (options.forceLocal) {
-    return { content: '', error: 'Ollama 未运行。成人文学内容只在本机处理，请先启动本地模型。' };
+    } else if (options.forceLocal) {
+      return { content: '', error: 'Ollama 未运行。成人文学内容只在本机处理，请先启动本地模型。' };
+    }
   }
 
   // Try backend first
@@ -676,9 +681,9 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       const free = await tryFreeProviders(messages, options.onProvider);
       if (free) return { content: free.content, provider: `free:${free.provider}` };
     }
-    return { content: '', error: '本地模型不可用，且未配置 DeepSeek API Key。' };
+    return { content: '', error: '未配置 DeepSeek API Key，请在设置中填写后使用。' };
   }
-  if (intent === 'vision') return { content: '', error: '识图需要本地视觉模型，例如 moondream 或 llava。' };
+  if (intent === 'vision') return { content: '', error: '识图需要本地视觉模型（需在设置开启本地模型），例如 moondream 或 llava。' };
 
 
   try {

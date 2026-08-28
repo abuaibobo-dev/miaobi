@@ -362,13 +362,15 @@ export default function WritingScreen({ navigation, route }: any) {
         ) : null}
       </ScrollView>
       <View style={s.inputWrap}>
+        <View style={s.toolbarRow}>
+          <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
+            <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能' : model.replace(/^local:/, '本·').replace(/^cloud:/, '云·')}</Text>
+            <Text style={s.modelBtnArrow}>▾</Text>
+          </TouchableOpacity>
+        </View>
         <View style={s.inputContainer}>
           <View style={s.inputBody}>
             <TextInput value={input} onChangeText={setInput} placeholder="描述剧情、人物或粘贴待润色正文..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
-            <TouchableOpacity style={s.modelBtn} onPress={() => setShowModelPicker(true)}>
-                <Text style={s.modelBtnLabel} numberOfLines={1}>{model === 'auto' ? '智能' : model.replace(/^local:/, '本·').replace(/^cloud:/, '云·')}</Text>
-                <Text style={s.modelBtnArrow}>▾</Text>
-              </TouchableOpacity>
               <View style={{ flex: 1 }} />
               {loading ? (
                 <TouchableOpacity style={s.stopBtn} onPress={() => { abortRef.current?.abort(); setLoading(false); setStreaming(''); setThinking(''); }}>
@@ -421,6 +423,7 @@ const s: any = {
   userText: { color: T.text },
   msgProvider: { color: T.textDim, fontSize: 9, marginTop: 4 },
   inputWrap: { paddingHorizontal: 12, paddingBottom: Platform.OS === 'ios' ? 16 : 10, paddingTop: 4, backgroundColor: T.bg },
+  toolbarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   modelBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 22, paddingHorizontal: 8, borderRadius: 10, backgroundColor: T.surface },
   modelBtnLabel: { color: T.textMuted, fontSize: 10, fontWeight: '600' },
   modelBtnArrow: { color: T.textDim, fontSize: 8 },

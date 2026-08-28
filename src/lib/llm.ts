@@ -525,8 +525,8 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
       }
     }
 
-    // Priority 2: 本地 Ollama（仅当用户开启本地模型时作为兜底）
-    if (settings.useLocalModels === true) {
+    // Priority 2: 本地 Ollama（开启本地模型或显式选择 local 时兜底）
+    if (settings.useLocalModels === true || options.providerOverride === 'local') {
       const local = await getOllamaStatus();
       if (local.available) {
         const model = selectOllamaModel('adult', local.models);
@@ -583,7 +583,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
 
 
 
-  const useLocalModels = settings.useLocalModels === true || options.forceLocal === true;
+  const useLocalModels = settings.useLocalModels === true || options.forceLocal === true || options.providerOverride === 'local';
   if (useLocalModels) {
   const local = await getOllamaStatus();
   if (local.available) {

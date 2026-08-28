@@ -19,13 +19,6 @@ import type { NovelProject } from '../types/novel';
 type Props = any;
 type Msg = { role: 'user' | 'assistant' | 'system'; content: string; provider?: string; thinking?: string };
 
-const QUICK = [
-  '帮我写一个科幻故事的开头',
-  '续写这段文字...',
-  '润色这段描写',
-  '给一个爱情故事的灵感',
-];
-
 export default function HomeScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
@@ -40,7 +33,7 @@ export default function HomeScreen({ navigation, route }: Props) {
       setTimeout(() => send(pendingAiPrompt), 120);
       navigation.setParams({ aiPrompt: undefined });
     }
-  }, []);
+  }, [pendingAiPrompt]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState('');
@@ -109,6 +102,8 @@ export default function HomeScreen({ navigation, route }: Props) {
         msg,
         {
           signal: ctrl.signal,
+          providerOverride: model.startsWith('local:') ? 'local' : model.startsWith('cloud:') ? 'cloud' : undefined,
+          modelOverride: model === 'auto' ? undefined : model.replace(/^(?:local|cloud):/, ''),
           onToolCall: (tool) => {
             setStreaming(`🔧 正在调用 ${tool}...`);
           },
@@ -149,6 +144,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   };
 
   const renderMsg = ({ item, index }: { item: Msg; index: number }) => {
+    if (item.role === 'system') return null;
     const msgId = `${index}`;
     const isSaved = copiedId === 'saved_' + msgId;
     return (
@@ -298,16 +294,6 @@ export default function HomeScreen({ navigation, route }: Props) {
             </View>
           ) : null}
         />
-
-        {messages.length <= 1 && (
-          <View style={s.quickRow}>
-            {QUICK.map((p, i) => (
-              <TouchableOpacity key={i} style={s.quickChip} onPress={() => send(p)}>
-                <Text style={s.quickText}>{p}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
 
         {ctxMenu && (
           <>

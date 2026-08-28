@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
 
 import { getFreeProviderKeys, saveFreeProviderKeys } from '../lib/freeProviders';
+import { showAlert } from '../components/CustomAlert';
 import pkg from '../../package.json';
 
 type Props = any;
@@ -31,6 +33,7 @@ export default function SettingsScreen({ navigation }: Props) {
   const [adultContent, setAdultContent] = useState(true);
   const [useLocalModels, setUseLocalModels] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
 
@@ -55,13 +58,16 @@ export default function SettingsScreen({ navigation }: Props) {
 
   const handleSave = async () => {
     setSaving(true);
+    clearTimeout((noticeTimer.current as any));
+    const existing = await getSettings() as any;
     await saveSettings({
+      ...existing,
       apiKey: apiKey.trim(),
       baseUrl: baseUrl.trim() || 'https://api.deepseek.com',
       model: model.trim() || 'deepseek-chat',
       provider,
-      temperature: 0.7,
-      maxTokens: 12000,
+      temperature: existing.temperature ?? 0.7,
+      maxTokens: existing.maxTokens ?? 12000,
       adultContent,
       useLocalModels,
       privacyMode,
@@ -74,12 +80,13 @@ export default function SettingsScreen({ navigation }: Props) {
 
     setSaving(false);
     setNotice('✅ 已保存');
-    setTimeout(() => setNotice(''), 2000);
+    noticeTimer.current = setTimeout(() => setNotice(''), 2000);
   };
 
   const handleTest = async () => {
     setTesting(true);
     setNotice('');
+    clearTimeout((noticeTimer.current as any));
     try {
       await handleSave();
       if (provider === 'deepseek') {
@@ -173,7 +180,17 @@ export default function SettingsScreen({ navigation }: Props) {
               <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）。注意：内容会发送至 DeepSeek 云端</Text>
             </View>
             <TouchableOpacity
-              onPress={() => setAdultContent(v => !v)}
+              onPress={() => {
+                if (adultContent) { setAdultContent(false); return; }
+                showAlert(
+                  '成人内容确认',
+                  '开启前请确认你已年满 18 周岁，且仅浏览合法成人内容。',
+                  [
+                    { text: '取消', style: 'cancel' },
+                    { text: '我已年满18岁', style: 'default', onPress: () => { AsyncStorage.setItem('miaobi.adultConfirmed', 'yes'); setAdultContent(true); } },
+                  ],
+                );
+              }}
               style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultContent ? T.success : T.surface, borderWidth: 1, borderColor: adultContent ? T.success : T.border, padding: 2, justifyContent: 'center' }}
             >
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultContent ? T.black : T.textMuted, alignSelf: adultContent ? 'flex-end' : 'flex-start' }} />

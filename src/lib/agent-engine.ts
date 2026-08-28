@@ -155,6 +155,8 @@ export async function agentExecute(
     onContent?: (delta: string) => void;
     onThinking?: (delta: string) => void;
     signal?: AbortSignal;
+    providerOverride?: 'local' | 'cloud';
+    modelOverride?: string;
   }
 ): Promise<{ reply: string; steps: number; toolsUsed: number }> {
   session.messages.push({ role: 'user', content: userMessage });
@@ -174,14 +176,14 @@ export async function agentExecute(
           .filter(m => m.role !== 'system' || !/Agent/i.test(m.content))
           .slice(-10);
         result = await chatCompletion(
-          [...historyClean, { role: 'user' as const, content: userMessage }],
-          { intent, onContent: options?.onContent, onThinking: options?.onThinking },
+          historyClean,
+          { intent, onContent: options?.onContent, onThinking: options?.onThinking, providerOverride: options?.providerOverride, modelOverride: options?.modelOverride },
           options?.signal,
         );
       } else {
         result = await chatCompletion(
           session.messages.map(m => ({ role: m.role, content: m.content })),
-          { intent, onContent: options?.onContent, onThinking: options?.onThinking },
+          { intent, onContent: options?.onContent, onThinking: options?.onThinking, providerOverride: options?.providerOverride, modelOverride: options?.modelOverride },
           options?.signal,
         );
       }

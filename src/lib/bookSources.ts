@@ -397,7 +397,7 @@ export async function searchAllSources(queries: string[], category: ContentCateg
   if (!terms.length) return { books: [], errors: [] };
   const available = sourcesForCategory(category);
   const stored = enabledBuiltins ?? await getEnabledBuiltinSources();
-  const enabled = stored ? available.filter(source => stored.includes(source)) : available;
+  const enabled = stored ? available.filter(source => stored.includes(source) || source === 'adult') : available;
   const tasks: Array<{ name: string; promise: Promise<BookRecord[]> }> = [];
 
   terms.forEach(term => {

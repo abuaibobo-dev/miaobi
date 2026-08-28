@@ -43,6 +43,24 @@ export default function WritingScreen({ navigation, route }: any) {
   const [createTitle, setCreateTitle] = useState('');
   const [createGenre, setCreateGenre] = useState('');
   const [createSynopsis, setCreateSynopsis] = useState('');
+  const [showChapters, setShowChapters] = useState(false);
+  const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
+  const [editBody, setEditBody] = useState('');
+
+  const saveChapterEdit = async () => {
+    if (!editingChapter) return;
+    const updated: Chapter = {
+      ...editingChapter,
+      body: editBody,
+      summary: editBody.slice(0, 220),
+      wordCount: editBody.replace(/\s/g, '').length,
+      updatedAt: new Date().toISOString(),
+    };
+    await saveChapter(updated);
+    setChapters(prev => prev.map(ch => ch.id === updated.id ? updated : ch));
+    setEditingChapter(null);
+    setMessages(prev => [...prev, { role: 'assistant', content: `已保存第${updated.chapterNumber}章《${updated.title}》的修改（上一版本已自动存档）。` }]);
+  };
 
   const createNovel = async () => {
     const title = createTitle.trim();
@@ -207,7 +225,10 @@ export default function WritingScreen({ navigation, route }: any) {
         },
         controller.signal,
       );
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '（已停止）' }]);
+        return;
+      }
       const finalContent = streamedContent || result.content || (result.error ? `错误：${result.error}` : '没有回复内容');
       setMessages(prev => {
         const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
@@ -254,6 +275,32 @@ export default function WritingScreen({ navigation, route }: any) {
           <TouchableOpacity style={s.createBtn} onPress={createNovel}>
             <Text style={s.createBtnText}>创建并开始创作</Text>
           </TouchableOpacity>
+        </View>
+      )}
+      {novel && chapters.length > 0 && (
+        <View style={s.chapterBar}>
+          <TouchableOpacity onPress={() => setShowChapters(v => !v)}>
+            <Text style={s.chapterBarText}>📚 章节（{chapters.length}）{showChapters ? ' ▲' : ' ▼'}</Text>
+          </TouchableOpacity>
+          {showChapters && (
+            <View style={s.chapterList}>
+              {chapters.map(ch => (
+                <TouchableOpacity key={ch.id} style={s.chapterRow} onPress={() => { setEditingChapter(ch); setEditBody(ch.body); setShowChapters(false); }}>
+                  <Text style={s.chapterRowText} numberOfLines={1}>第{ch.chapterNumber}章 {ch.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+      {editingChapter && (
+        <View style={s.editCard}>
+          <Text style={s.editTitle}>编辑：第{editingChapter.chapterNumber}章 {editingChapter.title}</Text>
+          <TextInput value={editBody} onChangeText={setEditBody} multiline placeholder="正文…" placeholderTextColor={T.textDim} style={[s.createInput, { minHeight: 120, textAlignVertical: 'top' }]} />
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+            <TouchableOpacity style={[s.createBtn, { flex: 1 }]} onPress={saveChapterEdit}><Text style={s.createBtnText}>保存修改</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.createBtn, { flex: 1, backgroundColor: T.surface }]} onPress={() => setEditingChapter(null)}><Text style={[s.createBtnText, { color: T.text }]}>取消</Text></TouchableOpacity>
+          </View>
         </View>
       )}
       {workflowCollapsed ? (
@@ -355,6 +402,13 @@ const s: any = {
   createInput: { color: T.text, fontSize: 13, backgroundColor: T.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: T.border },
   createBtn: { backgroundColor: T.white, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 2 },
   createBtnText: { color: T.black, fontSize: 13, fontWeight: '700' },
+  chapterBar: { marginHorizontal: 10, marginBottom: 4 },
+  chapterBarText: { color: T.textSecondary, fontSize: 13, fontWeight: '700', paddingVertical: 8, paddingHorizontal: 2 },
+  chapterList: { backgroundColor: T.surface2, borderRadius: 10, borderWidth: 1, borderColor: T.border, padding: 6, gap: 2 },
+  chapterRow: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 6 },
+  chapterRowText: { color: T.text, fontSize: 12 },
+  editCard: { margin: 10, padding: 14, borderRadius: 12, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border, gap: 8 },
+  editTitle: { color: T.text, fontSize: 13, fontWeight: '700' },
   workflowBtn: { height: 30, paddingHorizontal: 12, borderRadius: 15, justifyContent: 'center', backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
   workflowText: { color: T.textSecondary, fontSize: 11, fontWeight: '600' },
   messages: { padding: 16, paddingBottom: 8 },

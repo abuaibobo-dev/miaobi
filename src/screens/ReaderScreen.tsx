@@ -95,7 +95,7 @@ export default function ReaderScreen({ navigation, route }: Props) {
       const body = chapters[current].body;
       const speakPart = (index: number) => {
         if (index >= body.length) { setIsSpeaking(false); return; }
-        Speech.speak(body.slice(index, index + 12000), {
+        Speech.speak(body.slice(index, index + 3000), {
           language: 'zh-CN', rate,
           onDone: () => speakPart(index + 12000),
           onError: () => setIsSpeaking(false),

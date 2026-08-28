@@ -119,7 +119,10 @@ export default function HomeScreen({ navigation, route }: Props) {
         }
       );
       
-      if (ctrl.signal.aborted) return;
+      if (ctrl.signal.aborted) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '（已停止）' }]);
+        return;
+      }
       const finalContent = agentResult.reply || streamedContent || '没有回复内容';
       const toolInfo = agentResult.toolsUsed > 0 ? ` [工具×${agentResult.toolsUsed}]` : '';
       setMessages(prev => {

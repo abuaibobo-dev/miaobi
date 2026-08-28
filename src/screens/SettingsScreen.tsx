@@ -242,6 +242,15 @@ export default function SettingsScreen({ navigation }: Props) {
 
         {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: T.success } : { color: T.error }]}>{notice}</Text> : null}
 
+        <TouchableOpacity style={s.navCard} onPress={() => navigation.navigate('Sources' as any)}>
+          <Text style={s.navLabel}>书源管理</Text>
+          <Text style={{ color: T.textMuted, fontSize: 11 }}>导入/启用在线书源 →</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.navCard} onPress={() => navigation.navigate('CustomSources' as any)}>
+          <Text style={s.navLabel}>自定义书源</Text>
+          <Text style={{ color: T.textMuted, fontSize: 11 }}>管理自定义 JSON 书源 →</Text>
+        </TouchableOpacity>
+
         <Text style={s.about}>妙笔 v{pkg.version} · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
       </ScrollView>
     </View>

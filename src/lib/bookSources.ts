@@ -449,10 +449,27 @@ export async function resolveArchiveText(identifier: string): Promise<string | u
 }
 
 export async function resolveWikisourceText(title: string): Promise<string> {
-  const url = `https://zh.wikisource.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
+  const url = `https://zh.wikisource.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&titles=${encodeURIComponent(title)}&format=json&origin=*`;
   const data = await getJson(url);
   const pages = Object.values(data.query?.pages || {}) as any[];
-  return pages[0]?.extract || '';
+  const wikitext = pages[0]?.revisions?.[0]?.slots?.main?.content || '';
+  return cleanWikitext(wikitext);
+}
+
+function cleanWikitext(source: string): string {
+  return source
+    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, '')
+    .replace(/<ref[^>]*\/>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{\{[\s\S]*?\}\}/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2')
+    .replace(/\[(http[^\s\]]+)\s+([^\]]*)\]/g, '$2')
+    .replace(/\[{1,2}[^\]]*\]{1,2}/g, '')
+    .replace(/^[=#*:;!\s]+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '')
+    .trim();
 }
 
 function readPath(value: any, path?: string) {

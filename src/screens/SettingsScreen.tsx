@@ -12,13 +12,6 @@ import pkg from '../../package.json';
 
 type Props = any;
 
-const PROVIDERS = [
-  { id: 'deepseek', label: 'DeepSeek', desc: '最强中文能力，需 API Key', needsKey: true },
-  { id: 'groq', label: 'Groq (Llama 3)', desc: '免费额度，需自行配置 Key', needsKey: true },
-  { id: 'sambanova', label: 'SambaNova', desc: '免费额度，需自行配置 Key', needsKey: true },
-  { id: 'cerebras', label: 'Cerebras', desc: '免费额度，需自行配置 Key', needsKey: true },
-] as const;
-
 export default function SettingsScreen({ navigation }: Props) {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('deepseek-chat');
@@ -89,21 +82,19 @@ export default function SettingsScreen({ navigation }: Props) {
     clearTimeout((noticeTimer.current as any));
     try {
       await handleSave();
-      if (provider === 'deepseek') {
-        const res = await fetch(`${baseUrl.trim()}/models`, { headers: { Authorization: `Bearer ${apiKey.trim()}` } });
-        if (res.ok) setNotice('✅ 连接正常');
-        else { const d = await res.json().catch(() => null); setNotice(d?.error?.message || `❌ 失败（${res.status}）`); }
-      } else {
-        const p = PROVIDERS.find(p => p.id === provider)!;
-        const providerKey = p.id === 'groq' ? groqKey : p.id === 'sambanova' ? sambanovaKey : cerebrasKey;
-        if (!providerKey.trim()) throw new Error(`请先填写 ${p.label} API Key`);
-        const res = await fetch(`${p.id === 'groq' ? 'https://api.groq.com/openai' : p.id === 'sambanova' ? 'https://api.sambanova.ai' : 'https://api.cerebras.ai'}/v1/models`, {
-          headers: { Authorization: `Bearer ${providerKey.trim()}` },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (res.ok) setNotice('✅ 连接正常');
-        else setNotice(`❌ 测试失败（${res.status}）`);
+      let ok = 0;
+      const res = await fetch(`${baseUrl.trim()}/models`, { headers: { Authorization: `Bearer ${apiKey.trim()}` } });
+      if (res.ok) ok++;
+      const backupTests: Array<[string, string]> = [
+        ['Groq', groqKey.trim()], ['SambaNova', sambanovaKey.trim()], ['Cerebras', cerebrasKey.trim()],
+      ];
+      for (const [name, key] of backupTests) {
+        if (!key) continue;
+        const url = name === 'Groq' ? 'https://api.groq.com/openai' : name === 'SambaNova' ? 'https://api.sambanova.ai' : 'https://api.cerebras.ai';
+        const r = await fetch(`${url}/v1/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) });
+        if (r.ok) ok++;
       }
+      setNotice(ok >= 1 ? `${ok} 个引擎连接正常` : '❌ 全部连接失败');
     } catch (e: any) { setNotice(`❌ ${e.message}`); }
     finally { setTesting(false); }
   };
@@ -122,51 +113,32 @@ export default function SettingsScreen({ navigation }: Props) {
         <View style={s.divider} />
         <Text style={s.sectionTitle}>模型与密钥</Text>
         <Text style={s.hint}>选择用于写作和找书的模型。免费模型无需 API Key。</Text>
-        {PROVIDERS.map(p => (
-          <TouchableOpacity key={p.id} style={[s.providerCard, provider === p.id && s.providerActive]} onPress={() => setProvider(p.id)}>
-            <View style={s.radio}>
-              <View style={[s.radioDot, provider === p.id && s.radioActive]} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.providerLabel}>{p.label}</Text>
-              <Text style={s.providerDesc}>{p.desc}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        {/* 主引擎：DeepSeek（固定，其余为备用兜底） */}
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>主引擎 · DeepSeek</Text>
+          <Text style={s.hint}>中文创作首选，始终生效（写作/找书/成人文学均走此引擎）</Text>
+          <Text style={s.fieldLabel}>API Key</Text>
+          <TextInput value={apiKey} onChangeText={setApiKey} placeholder="sk-..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+          <Text style={s.fieldLabel}>模型</Text>
+          <TextInput value={model} onChangeText={setModel} placeholder="deepseek-chat" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" />
+          <Text style={s.fieldLabel}>Base URL</Text>
+          <TextInput value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.deepseek.com" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" keyboardType="url" />
+        </View>
 
-
-
-        {/* DeepSeek Config */}
-        {provider === 'deepseek' && (
-          <View style={s.card}>
-            <Text style={s.fieldLabel}>API Key</Text>
-            <TextInput value={apiKey} onChangeText={setApiKey} placeholder="sk-..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
-            <Text style={s.fieldLabel}>模型</Text>
-            <TextInput value={model} onChangeText={setModel} placeholder="deepseek-chat" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" />
-            <Text style={s.fieldLabel}>Base URL</Text>
-            <TextInput value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.deepseek.com" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" keyboardType="url" />
-          </View>
-        )}
-
-        {/* Free provider key config */}
-        {provider === 'groq' && (
-          <View style={s.card}>
-            <Text style={s.fieldLabel}>Groq API Key</Text>
-            <TextInput value={groqKey} onChangeText={setGroqKey} placeholder="gsk_..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
-          </View>
-        )}
-        {provider === 'sambanova' && (
-          <View style={s.card}>
-            <Text style={s.fieldLabel}>SambaNova API Key</Text>
-            <TextInput value={sambanovaKey} onChangeText={setSambanovaKey} placeholder="..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
-          </View>
-        )}
-        {provider === 'cerebras' && (
-          <View style={s.card}>
-            <Text style={s.fieldLabel}>Cerebras API Key</Text>
-            <TextInput value={cerebrasKey} onChangeText={setCerebrasKey} placeholder="..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
-          </View>
-        )}
+        <Text style={s.sectionTitle}>备用免费引擎</Text>
+        <Text style={s.hint}>当 DeepSeek 无 Key 或调用失败时自动启用，不会作为主引擎切换</Text>
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>Groq API Key</Text>
+          <TextInput value={groqKey} onChangeText={setGroqKey} placeholder="gsk_...（备用）" placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+        </View>
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>SambaNova API Key</Text>
+          <TextInput value={sambanovaKey} onChangeText={setSambanovaKey} placeholder="备用 Key" placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+        </View>
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>Cerebras API Key</Text>
+          <TextInput value={cerebrasKey} onChangeText={setCerebrasKey} placeholder="备用 Key" placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+        </View>
 
 
 

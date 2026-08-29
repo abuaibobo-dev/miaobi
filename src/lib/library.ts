@@ -148,7 +148,8 @@ export function splitChapters(content: string) {
     const start = match.index! + match[0].length;
     const end = index + 1 < matches.length ? matches[index + 1].index! : normalized.length;
     return { title: cleanTitle(match[0]), body: normalized.slice(start, end).trim(), index };
-  }).filter(chapter => chapter.body.length > 20 || chapter.index === 0);
+  }).filter(chapter => chapter.body.length > 20 || chapter.index === 0)
+    .map((chapter, i) => ({ ...chapter, index: i }));
 }
 
 function cleanTitle(value: string) {

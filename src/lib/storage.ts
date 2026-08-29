@@ -72,23 +72,6 @@ export async function saveNovel(n: NovelProject): Promise<void> {
   });
 }
 
-export async function deleteNovel(id: string): Promise<void> {
-  await withLock(async () => {
-    const novels = await getNovels();
-    await save('novels', novels.filter(item => item.id !== id));
-  });
-  await Promise.all([
-    save(`chapters.${id}`, []),
-    save(`chars.${id}`, []),
-    save(`fs.${id}`, []),
-    save(`mem.${id}`, []),
-    save(`snap.${id}`, []),
-    AsyncStorage.removeItem(`${PREFIX}chat.${id}`),
-    AsyncStorage.removeItem(`${PREFIX}chat.free:${id}`),
-    AsyncStorage.removeItem(`miaobi.ideas.${id}`),
-  ]);
-}
-
 // ============================================================
 // 章节
 // ============================================================
@@ -114,11 +97,6 @@ export async function saveChapter(c: Chapter): Promise<void> {
     list.sort((a, b) => a.chapterNumber - b.chapterNumber);
     await save(`chapters.${c.novelId}`, list);
   });
-}
-
-export async function getRecentChapters(novelId: string, count: number = 5): Promise<Chapter[]> {
-  const all = await getChapters(novelId);
-  return all.slice(-count);
 }
 
 // ============================================================
@@ -199,21 +177,6 @@ export async function saveSnapshot(s: MemorySnapshot): Promise<void> {
 // 快照创建（便捷函数）
 // ============================================================
 
-export async function createMemorySnapshot(novelId: string, label: string, chapterNumber: number, volumeNumber: number): Promise<MemorySnapshot> {
-  const chunks = await getMemoryChunks(novelId);
-  const snap: MemorySnapshot = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-    novelId,
-    label,
-    chapterNumber,
-    volumeNumber,
-    data: JSON.stringify({ timestamp: new Date().toISOString(), chunks }),
-    createdAt: new Date().toISOString(),
-  };
-  await saveSnapshot(snap);
-  return snap;
-}
-
 // ============================================================
 // 对话历史（per novel）
 // ============================================================
@@ -228,8 +191,4 @@ export async function appendChatMessage(channel: string, msg: ChatMessage): Prom
     list.push(msg);
     await save(`chat.${channel}`, list);
   });
-}
-
-export async function clearChatHistory(channel: string): Promise<void> {
-  await save(`chat.${channel}`, []);
 }

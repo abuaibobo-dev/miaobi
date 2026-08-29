@@ -112,8 +112,11 @@ export default function AIAssistantScreen({ navigation, route }: Props) {
       const target = availableResults.find(book => book.title.toLowerCase().includes(String(action.title).toLowerCase()))
         || library.find(book => book.title.toLowerCase().includes(String(action.title).toLowerCase()));
       if (!target) return availableResults;
-      if (action.type === 'saveBook') await addToShelf(target);
-      navigation.navigate('BookDetail', { book: target });
+      if (action.type === 'saveBook') {
+        await addToShelf(target);
+      } else {
+        navigation.navigate('BookDetail', { book: target });
+      }
     }
     return availableResults;
   };

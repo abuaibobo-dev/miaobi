@@ -371,7 +371,6 @@ export default function WritingScreen({ navigation, route }: any) {
         <View style={s.inputContainer}>
           <View style={s.inputBody}>
             <TextInput value={input} onChangeText={setInput} placeholder="描述剧情、人物或粘贴待润色正文..." placeholderTextColor={T.textMuted} multiline maxLength={12000} scrollEnabled blurOnSubmit={false} keyboardAppearance="dark" style={s.input} textAlignVertical="top" />
-              <View style={{ flex: 1 }} />
               {loading ? (
                 <TouchableOpacity style={s.stopBtn} onPress={() => { abortRef.current?.abort(); setLoading(false); setStreaming(''); setThinking(''); }}>
                   <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: T.white }} />

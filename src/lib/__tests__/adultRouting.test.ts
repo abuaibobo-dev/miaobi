@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSettings } from '../storage';
-import { getOllamaModels, isAdultContentUsable, resolveAdultRoute } from '../llm';
+import { getAdultGatewayModels, getOllamaModels, isAdultContentUsable, resolveAdultRoute } from '../llm';
 
 describe('resolveAdultRoute', () => {
   it('成人模式默认本地优先且允许云端回退', () => {
@@ -53,6 +53,23 @@ describe('isAdultContentUsable', () => {
   });
 });
 
+describe('getAdultGatewayModels', () => {
+  it('返回默认成人模型白名单顺序', () => {
+    expect(getAdultGatewayModels({} as any)).toEqual([
+      'gryphe/mythomax-l2-13b',
+      'sao10k/l3-lunaris-8b',
+      'anthracite-org/magnum-v4-72b',
+    ]);
+  });
+
+  it('支持用户自定义模型顺序', () => {
+    expect(getAdultGatewayModels({ adultGatewayModels: ['foo/bar', 'baz/qux'] } as any)).toEqual([
+      'foo/bar',
+      'baz/qux',
+    ]);
+  });
+});
+
 describe('getSettings adult local defaults', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
@@ -64,6 +81,24 @@ describe('getSettings adult local defaults', () => {
     expect(settings.adultLocalFallbackToCloud).toBe(true);
     expect(settings.adultLocalBaseUrl).toBe('http://127.0.0.1:11434');
     expect(settings.adultLocalProvider).toBe('ollama');
+    expect(settings.adultGatewayEnabled).toBe(true);
+    expect(settings.freeLlmApiBaseUrl).toBe('');
+    expect(settings.freeLlmApiKey).toBe('');
+  });
+
+  it('新成人网关配置优先于旧 openRouter 字段', async () => {
+    await AsyncStorage.setItem('miaobi.settings', JSON.stringify({
+      adultGatewayEnabled: true,
+      adultGatewayModels: ['new/model'],
+      freeLlmApiKey: 'free-key',
+      adultOpenRouterEnabled: false,
+      adultOpenRouterModels: ['old/model'],
+      openRouterApiKey: 'old-key',
+    }));
+    const settings = await getSettings();
+    expect(settings.adultGatewayEnabled).toBe(true);
+    expect(settings.adultGatewayModels).toEqual(['new/model']);
+    expect(settings.freeLlmApiKey).toBe('free-key');
   });
 
   it('保留 qwen 本地文本模型', async () => {

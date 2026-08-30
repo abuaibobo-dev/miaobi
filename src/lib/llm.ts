@@ -47,6 +47,11 @@ const PREFERRED_MODELS: Record<Intent, string[]> = {
   image: ['moondream', 'llava'],
   chat: ['qwen2.5:0.5b', 'qwen2.5:1.5b', FAST_TEXT_MODEL, FALLBACK_TEXT_MODEL],
 };
+const DEFAULT_ADULT_GATEWAY_MODELS = [
+  'gryphe/mythomax-l2-13b',
+  'sao10k/l3-lunaris-8b',
+  'anthracite-org/magnum-v4-72b',
+];
 
 type LocalProvider = 'ollama' | 'openai';
 
@@ -83,6 +88,26 @@ export function resolveAdultRoute(settings: any, options: Pick<StreamOptions, 'p
 
 export function isAdultContentUsable(content: string): boolean {
   return !!content.trim() && !ADULT_REFUSAL_PATTERN.test(content);
+}
+
+export function getAdultGatewayModels(settings: any): string[] {
+  const configured: string[] = Array.isArray(settings.adultGatewayModels)
+    ? settings.adultGatewayModels.map((item: unknown) => String(item || '').trim()).filter((item: string) => Boolean(item))
+    : [];
+  return configured.length ? [...new Set(configured)] : [...DEFAULT_ADULT_GATEWAY_MODELS];
+}
+
+function normalizeGatewayBaseUrl(input: string | undefined): string {
+  const normalized = String(input || '').trim().replace(/\/+$/, '');
+  if (!normalized) return '';
+  return /\/v1$/i.test(normalized) ? normalized : `${normalized}/v1`;
+}
+
+function getFreeLlmApiConfig(settings: any): { baseUrl: string; apiKey: string } {
+  return {
+    baseUrl: normalizeGatewayBaseUrl(settings.freeLlmApiBaseUrl || settings.openRouterBaseUrl || ''),
+    apiKey: String(settings.freeLlmApiKey || settings.openRouterApiKey || INJECTED_KEYS.openrouter || '').trim(),
+  };
 }
 
 function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
@@ -554,6 +579,114 @@ async function streamAdultLocal(
   }
 }
 
+async function requestGatewayAdult(
+  model: string,
+  messages: LLMMessage[],
+  maxTokens: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  const settings = await getSettings() as any;
+  const { baseUrl, apiKey } = getFreeLlmApiConfig(settings);
+  if (!baseUrl || !apiKey) throw new Error('未配置 freellmapi 地址或 API Key');
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    signal: signal || AbortSignal.timeout(60000),
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.9,
+      max_tokens: Math.min(maxTokens, 1200),
+    }),
+  });
+  const data = await response.json().catch(() => null as any);
+  if (!response.ok) {
+    throw new Error(String(data?.error?.message || `HTTP ${response.status}`));
+  }
+  return String(data?.choices?.[0]?.message?.content || '').replace(/<(?:think|thinking)>[\s\S]*?(?:<\/(?:think|thinking)>|$)/gi, '').trim();
+}
+
+async function streamAdultGateway(
+  settings: any,
+  messages: LLMMessage[],
+  maxTokens: number,
+  options: StreamOptions,
+): Promise<{ content: string; provider: string } | { error: string; provider?: string }> {
+  if (settings.adultGatewayEnabled === false) return { error: 'freellmapi 成人模型池已关闭。' };
+  const { baseUrl, apiKey } = getFreeLlmApiConfig(settings);
+  if (!baseUrl || !apiKey) return { error: '未配置 freellmapi 地址或 API Key。' };
+
+  const preferred = options.providerOverride === 'cloud' && options.modelOverride ? [options.modelOverride] : [];
+  const models = [...new Set([...preferred, ...getAdultGatewayModels(settings)])];
+  let lastError = 'freellmapi 成人模型池未返回可用内容。';
+
+  for (const model of models) {
+    try {
+      options.onProvider?.(`freellmapi · ${model}`);
+      const content = await requestGatewayAdult(model, messages, maxTokens, options.signal);
+      if (isAdultContentUsable(content)) {
+        options.onContent?.(content);
+        return { content, provider: `freellmapi:${model} (成人模式)` };
+      }
+      lastError = `freellmapi 模型 ${model} 拒答。`;
+    } catch (error) {
+      lastError = `freellmapi 模型 ${model} 失败：${(error as Error).message}`;
+    }
+  }
+
+  return { error: lastError };
+}
+
+async function streamAdultDeepSeek(
+  settings: any,
+  messages: LLMMessage[],
+  maxTokens: number,
+  options: StreamOptions,
+): Promise<{ content: string; provider: string } | null> {
+  const adultApiKey = INJECTED_KEYS.deepseek || settings.apiKey;
+  if (!adultApiKey) return null;
+  options.onProvider?.('DeepSeek (成人模式)');
+  try {
+    const baseUrl = String(settings.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '').replace(/\/v1$/, '');
+    let content = '';
+    let buffer = '';
+    await xhrStream(
+      `${baseUrl}/v1/chat/completions`,
+      { Authorization: `Bearer ${adultApiKey}` },
+      {
+        model: 'deepseek-chat',
+        messages,
+        temperature: 0.9,
+        max_tokens: Math.min(maxTokens, 8192),
+        stream: true,
+      },
+      chunk => {
+        buffer += chunk.replace(/\r/g, '');
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (const part of parts) {
+          for (const line of part.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            try {
+              const data = JSON.parse(payload);
+              const delta = data.choices?.[0]?.delta?.content;
+              if (delta) content += delta;
+            } catch {}
+          }
+        }
+      },
+      options.signal,
+    );
+    if (isAdultContentUsable(content)) return { content, provider: 'cloud:deepseek (成人模式)' };
+  } catch {}
+  return null;
+}
+
 async function streamDeepSeek(
   messages: LLMMessage[],
   temperature: number,
@@ -637,89 +770,28 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     ];
 
     const adultRoute = resolveAdultRoute(settings, options);
-    if (adultRoute.preferLocal) {
-      const localResult = await streamAdultLocal(adultRoute, adultMessages, maxTokens, options, settings);
-      if ('content' in localResult) return localResult;
-      if (!adultRoute.allowCloudFallback) {
-        return {
-          content: '',
-          error: localResult.error,
-          provider: localResult.provider,
-        };
+    if (options.providerOverride !== 'local') {
+      const gatewayResult = await streamAdultGateway(settings, adultMessages, maxTokens, options);
+      if ('content' in gatewayResult) return gatewayResult;
+      if (!adultRoute.preferLocal) {
+        return { content: '', error: gatewayResult.error, provider: 'freellmapi' };
       }
-      if (localResult.provider) {
-        options.onProvider?.(`${localResult.provider} 失败，切换云端`);
-      }
+      options.onProvider?.(`${gatewayResult.error}，尝试本地模型`);
     }
 
-    // Priority 1: DeepSeek（本地失败后云端回退）
-    const adultApiKey = INJECTED_KEYS.deepseek || settings.apiKey;
-    if (adultApiKey) {
-      options.onProvider?.('DeepSeek (成人模式)');
-      try {
-        const baseUrl = String(settings.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '').replace(/\/v1$/, '');
-        let adultContent2 = '';
-        let adultBuf2 = '';
-        await xhrStream(
-          `${baseUrl}/v1/chat/completions`,
-          { Authorization: `Bearer ${adultApiKey}` },
-          {
-            model: 'deepseek-chat',
-            messages: adultMessages,
-            temperature: 0.9,
-            max_tokens: Math.min(maxTokens, 8192),
-            stream: true,
-          },
-          (chunk) => {
-            adultBuf2 += chunk.replace(/\r/g, '');
-            const parts = adultBuf2.split('\n\n');
-            adultBuf2 = parts.pop() || '';
-            for (const part of parts) {
-              for (const line of part.split('\n')) {
-                if (!line.startsWith('data:')) continue;
-                const payload = line.slice(5).trim();
-                if (!payload || payload === '[DONE]') continue;
-                try {
-                  const data = JSON.parse(payload);
-                  const delta = data.choices?.[0]?.delta?.content;
-                  if (delta) {
-                    adultContent2 += delta;
-                    options.onContent?.(delta);
-                  }
-                } catch {}
-              }
-            }
-          },
-          options.signal,
-        );
-        if (adultContent2 && !ADULT_REFUSAL_PATTERN.test(adultContent2)) {
-          return { content: adultContent2, provider: 'cloud:deepseek (成人模式)' };
-        }
-      } catch (e) {
-        // DeepSeek 失败或拒绝，落入本地无审查 fallback
-      }
-    }
+    const localResult = await streamAdultLocal(adultRoute, adultMessages, maxTokens, options, settings);
+    if ('content' in localResult) return localResult;
 
-    // Priority 2: 用户显式选择 local，但前面未走本地优先时补一次本地尝试
-    if (!adultRoute.preferLocal && (settings.useLocalModels === true || options.providerOverride === 'local')) {
-      const localResult = await streamAdultLocal(adultRoute, adultMessages, maxTokens, options, settings);
-      if ('content' in localResult) return localResult;
-      if (!adultRoute.allowCloudFallback) {
-        return {
-          content: '',
-          error: localResult.error,
-          provider: localResult.provider,
-        };
-      }
-    }
+    const deepSeekResult = await streamAdultDeepSeek(settings, adultMessages, maxTokens, options);
+    if (deepSeekResult) return deepSeekResult;
 
-    // Priority 3: 免费备用 provider（Groq/SambaNova/Cerebras，对成人内容限制更少）
     const free = await tryFreeProviders(adultMessages, options.onProvider);
-    if (free) return { content: free.content, provider: `free:${free.provider} (成人模式)` };
+    if (free && isAdultContentUsable(free.content)) return { content: free.content, provider: `free:${free.provider} (成人模式)` };
 
     return {
       content: '',
-      error: '成人内容生成失败：本地模型不可用，且所有云端引擎均未返回可用结果。可在设置检查本地成人模型地址、模型名与回退策略。',
+      error: localResult.error || '成人内容生成失败：freellmapi 成人模型池与本地模型都不可用。',
+      provider: localResult.provider,
     };
   }
 

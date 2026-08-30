@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Image, Linking, ScrollView, StatusBar,
+  ActivityIndicator, Image, ScrollView, StatusBar,
   Text, TouchableOpacity, View,
 } from 'react-native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
-import { officialSearchLinks } from '../lib/bookSources';
 import { addToShelf, downloadWikisource, findLibraryBook, prepareReadableFile } from '../lib/library';
 import type { BookRecord } from '../types/book';
 
@@ -16,6 +15,7 @@ export default function BookDetailScreen({ navigation, route }: Props) {
   const [book, setBook] = useState<BookRecord>(initial);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState('');
+  const canFetchRemote = !!book.downloadUrl || !!book.readUrl || book.source === 'wikisource' || book.source === 'internetarchive' || book.source === 'chroniclingamerica';
 
   useEffect(() => {
     findLibraryBook(initial.id).then(saved => { if (saved) setBook(saved); });
@@ -32,6 +32,10 @@ export default function BookDetailScreen({ navigation, route }: Props) {
     if (book.localUri || book.source === 'local') {
       const saved = await ensureSaved();
       navigation.navigate('Reader', { bookId: saved.id });
+      return;
+    }
+    if (!canFetchRemote) {
+      setNotice('这本作品当前没有可直接获取的正文文件。可先加入书架或使用 AI 解读。');
       return;
     }
     try {
@@ -96,8 +100,8 @@ export default function BookDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={startReading} disabled={!!busy}>
-          {busy ? <ActivityIndicator color={T.black} /> : <Text style={s.primaryText}>{book.localUri ? '继续阅读' : '下载并阅读'}</Text>}
+        <TouchableOpacity style={[s.primaryButton, (busy || (!book.localUri && book.source !== 'local' && !canFetchRemote)) && s.buttonDisabled]} onPress={startReading} disabled={!!busy || (!book.localUri && book.source !== 'local' && !canFetchRemote)}>
+          {busy ? <ActivityIndicator color={T.black} /> : <Text style={s.primaryText}>{book.localUri ? '继续阅读' : canFetchRemote ? '下载并阅读' : '暂无正文可读'}</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity style={s.secondaryButton} onPress={async () => { await addToShelf(book); setNotice('已加入书架'); }}>
@@ -109,14 +113,6 @@ export default function BookDetailScreen({ navigation, route }: Props) {
         </TouchableOpacity>
 
         {!!notice && <Text style={s.notice}>{notice}</Text>}
-
-        <View style={s.linksWrap}>
-          {officialSearchLinks(book.title, book.authors[0]).map(link => (
-            <TouchableOpacity key={link.name} style={s.linkButton} onPress={() => Linking.openURL(link.url)}>
-              <Text style={s.linkText}>{link.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
       </ScrollView>
     </View>
   );

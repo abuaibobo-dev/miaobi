@@ -52,12 +52,6 @@ export default function ShelfScreen({ navigation }: Props) {
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <TouchableOpacity
             style={s.importButton}
-            onPress={() => navigation.navigate('AIAssistant' as any)}
-          >
-            <Text style={s.importText}>找书</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.importButton}
             onPress={() => navigation.navigate('Writing' as any)}
           >
             <Text style={s.importText}>AI 写作</Text>

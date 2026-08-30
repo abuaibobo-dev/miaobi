@@ -48,7 +48,14 @@ export async function getSettings(): Promise<NovelSettings> {
     adultLocalBaseUrl: 'http://127.0.0.1:11434',
     adultLocalModel: '',
     adultLocalProvider: 'ollama',
+    freeLlmApiBaseUrl: '',
+    freeLlmApiKey: '',
+    adultGatewayEnabled: true,
+    adultGatewayModels: ['gryphe/mythomax-l2-13b', 'sao10k/l3-lunaris-8b', 'anthracite-org/magnum-v4-72b'],
   });
+  if (!s.freeLlmApiKey && (s as any).openRouterApiKey) s.freeLlmApiKey = (s as any).openRouterApiKey;
+  if (!s.adultGatewayModels?.length && Array.isArray((s as any).adultOpenRouterModels)) s.adultGatewayModels = (s as any).adultOpenRouterModels;
+  if (s.adultGatewayEnabled === undefined && (s as any).adultOpenRouterEnabled !== undefined) s.adultGatewayEnabled = (s as any).adultOpenRouterEnabled;
   // Fallback: if no key configured, use injected key
   if (!s.apiKey && INJECTED_KEYS.deepseek) {
     s.apiKey = INJECTED_KEYS.deepseek;

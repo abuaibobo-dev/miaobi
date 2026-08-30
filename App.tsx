@@ -8,10 +8,7 @@ import BookDetailScreen from './src/screens/BookDetailScreen';
 import ShelfScreen from './src/screens/ShelfScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
-import SourceManagerScreen from './src/screens/SourceManagerScreen';
-import CustomSourcesScreen from './src/screens/CustomSourcesScreen';
 import WritingScreen from './src/screens/WritingScreen';
-import AIAssistantScreen from './src/screens/AIAssistantScreen';
 import { importExternalFile } from './src/lib/library';
 import { T } from './src/lib/theme';
 import { AlertProvider } from './src/components/CustomAlert';
@@ -129,10 +126,7 @@ export default function App() {
           <Stack.Screen name="Main" component={HomeTabs} />
           <Stack.Screen name="BookDetail" component={BookDetailScreen} />
           <Stack.Screen name="Reader" component={ReaderScreen} />
-          <Stack.Screen name="Sources" component={SourceManagerScreen} />
-          <Stack.Screen name="CustomSources" component={CustomSourcesScreen} />
           <Stack.Screen name="Writing" component={WritingScreen} />
-          <Stack.Screen name="AIAssistant" component={AIAssistantScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       </View>

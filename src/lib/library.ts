@@ -3,24 +3,9 @@ import { Paths, File } from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import { unzipSync, strFromU8 } from 'fflate';
 import { resolveArchiveText, resolveWikisourceText } from './bookSources';
-import type { BookRecord, CustomBookSource, LibraryBook, ShelfStatus } from '../types/book';
+import type { BookRecord, LibraryBook, ShelfStatus } from '../types/book';
 
 const LIBRARY_KEY = 'miaobi.library.v1';
-const SOURCES_KEY = 'miaobi.customSources.v1';
-
-export async function getCustomSources(): Promise<CustomBookSource[]> {
-  const raw = await AsyncStorage.getItem(SOURCES_KEY);
-  const parsed = raw ? JSON.parse(raw) : [];
-  return Array.isArray(parsed) ? parsed : [];
-}
-
-export async function saveCustomSources(list: CustomBookSource[]): Promise<void> {
-  await AsyncStorage.setItem(SOURCES_KEY, JSON.stringify(list));
-}
-
-export async function removeCustomSource(id: string): Promise<void> {
-  await saveCustomSources((await getCustomSources()).filter(item => item.id !== id));
-}
 
 function safeName(value: string) {
   return value.replace(/[^\w\u4e00-\u9fa5.-]+/g, '_').slice(0, 70) || 'book';

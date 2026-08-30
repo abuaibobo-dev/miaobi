@@ -31,6 +31,10 @@ export default function SettingsScreen({ navigation }: Props) {
   const [adultLocalBaseUrl, setAdultLocalBaseUrl] = useState('http://127.0.0.1:11434');
   const [adultLocalModel, setAdultLocalModel] = useState('');
   const [adultLocalProvider, setAdultLocalProvider] = useState<'ollama' | 'openai'>('ollama');
+  const [freeLlmApiBaseUrl, setFreeLlmApiBaseUrl] = useState('');
+  const [freeLlmApiKey, setFreeLlmApiKey] = useState('');
+  const [adultGatewayEnabled, setAdultGatewayEnabled] = useState(true);
+  const [adultGatewayModelsText, setAdultGatewayModelsText] = useState('gryphe/mythomax-l2-13b\nsao10k/l3-lunaris-8b\nanthracite-org/magnum-v4-72b');
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -51,6 +55,10 @@ export default function SettingsScreen({ navigation }: Props) {
       setAdultLocalBaseUrl(s.adultLocalBaseUrl || 'http://127.0.0.1:11434');
       setAdultLocalModel(s.adultLocalModel || '');
       setAdultLocalProvider(s.adultLocalProvider === 'openai' ? 'openai' : 'ollama');
+      setFreeLlmApiBaseUrl(s.freeLlmApiBaseUrl || '');
+      setFreeLlmApiKey(s.freeLlmApiKey || s.openRouterApiKey || '');
+      setAdultGatewayEnabled(s.adultGatewayEnabled !== undefined ? s.adultGatewayEnabled !== false : s.adultOpenRouterEnabled !== false);
+      setAdultGatewayModelsText(Array.isArray(s.adultGatewayModels) && s.adultGatewayModels.length ? s.adultGatewayModels.join('\n') : Array.isArray(s.adultOpenRouterModels) && s.adultOpenRouterModels.length ? s.adultOpenRouterModels.join('\n') : 'gryphe/mythomax-l2-13b\nsao10k/l3-lunaris-8b\nanthracite-org/magnum-v4-72b');
     });
     getFreeProviderKeys().then(k => {
       setGroqKey(k.groq || '');
@@ -79,6 +87,10 @@ export default function SettingsScreen({ navigation }: Props) {
       adultLocalBaseUrl: adultLocalBaseUrl.trim() || 'http://127.0.0.1:11434',
       adultLocalModel: adultLocalModel.trim(),
       adultLocalProvider,
+      freeLlmApiBaseUrl: freeLlmApiBaseUrl.trim(),
+      freeLlmApiKey: freeLlmApiKey.trim(),
+      adultGatewayEnabled,
+      adultGatewayModels: adultGatewayModelsText.split(/[\n,]+/).map(item => item.trim()).filter(Boolean),
     } as any);
     await saveFreeProviderKeys({
       groq: groqKey.trim(),
@@ -100,6 +112,11 @@ export default function SettingsScreen({ navigation }: Props) {
       let ok = 0;
       const res = await fetch(`${baseUrl.trim()}/models`, { headers: { Authorization: `Bearer ${apiKey.trim()}` } });
       if (res.ok) ok++;
+      if (freeLlmApiBaseUrl.trim() && freeLlmApiKey.trim()) {
+        const baseUrl = freeLlmApiBaseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/, '');
+        const gatewayRes = await fetch(`${baseUrl}/v1/models`, { headers: { Authorization: `Bearer ${freeLlmApiKey.trim()}` }, signal: AbortSignal.timeout(8000) });
+        if (gatewayRes.ok) ok++;
+      }
       const backupTests: Array<[string, string]> = [
         ['Groq', groqKey.trim()], ['SambaNova', sambanovaKey.trim()], ['Cerebras', cerebrasKey.trim()],
       ];
@@ -127,11 +144,11 @@ export default function SettingsScreen({ navigation }: Props) {
         {/* Model Selection */}
         <View style={s.divider} />
         <Text style={s.sectionTitle}>模型与密钥</Text>
-        <Text style={s.hint}>选择用于写作和找书的模型。免费模型无需 API Key。</Text>
+        <Text style={s.hint}>选择用于写作的模型。免费模型无需 API Key。</Text>
         {/* 主引擎：DeepSeek（固定，其余为备用兜底） */}
         <View style={s.card}>
           <Text style={s.fieldLabel}>主引擎 · DeepSeek</Text>
-          <Text style={s.hint}>中文创作首选，始终生效（写作/找书/成人文学均走此引擎）</Text>
+          <Text style={s.hint}>中文创作主引擎。普通写作默认走这里；成人文学已独立走 freellmapi 成人模型池。</Text>
           <Text style={s.fieldLabel}>API Key</Text>
           <TextInput value={apiKey} onChangeText={setApiKey} placeholder="sk-..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
           <Text style={s.fieldLabel}>模型</Text>
@@ -142,6 +159,12 @@ export default function SettingsScreen({ navigation }: Props) {
 
         <Text style={s.sectionTitle}>备用免费引擎</Text>
         <Text style={s.hint}>当 DeepSeek 无 Key 或调用失败时自动启用，不会作为主引擎切换</Text>
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>freellmapi Base URL</Text>
+          <TextInput value={freeLlmApiBaseUrl} onChangeText={setFreeLlmApiBaseUrl} placeholder="http://192.168.1.2:3001/v1" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" keyboardType="url" />
+          <Text style={s.fieldLabel}>freellmapi API Key</Text>
+          <TextInput value={freeLlmApiKey} onChangeText={setFreeLlmApiKey} placeholder="freellmapi-..." placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
+        </View>
         <View style={s.card}>
           <Text style={s.fieldLabel}>Groq API Key</Text>
           <TextInput value={groqKey} onChangeText={setGroqKey} placeholder="gsk_...（备用）" placeholderTextColor={T.textDim} style={s.input} secureTextEntry autoCapitalize="none" />
@@ -164,7 +187,7 @@ export default function SettingsScreen({ navigation }: Props) {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={s.fieldLabel}>成人文学</Text>
-              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）。默认优先走本地模型；本地不可用时可按设置回退云端。</Text>
+              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）。默认优先走 freellmapi 成人模型池，本地模型做最终兜底。</Text>
             </View>
             <TouchableOpacity
               onPress={() => {
@@ -187,29 +210,32 @@ export default function SettingsScreen({ navigation }: Props) {
 
         <View style={s.card}>
           <Text style={s.fieldLabel}>成人文学本地模型</Text>
-          <Text style={s.hint}>默认本地优先。适合更少限制场景；本地不可用时可自动回退云端，保证打开就能写。</Text>
+          <Text style={s.hint}>freellmapi 做成人文学主云端入口，本地模型只做最后兜底。</Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
             <View style={{ flex: 1 }}>
-              <Text style={s.fieldLabel}>本地优先</Text>
+              <Text style={s.fieldLabel}>启用 freellmapi 成人池</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setAdultGatewayEnabled(v => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultGatewayEnabled ? T.success : T.surface, borderWidth: 1, borderColor: adultGatewayEnabled ? T.success : T.border, padding: 2, justifyContent: 'center' }}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultGatewayEnabled ? T.black : T.textMuted, alignSelf: adultGatewayEnabled ? 'flex-end' : 'flex-start' }} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={s.fieldLabel}>freellmapi 成人模型池</Text>
+          <TextInput value={adultGatewayModelsText} onChangeText={setAdultGatewayModelsText} placeholder="每行一个模型" placeholderTextColor={T.textDim} style={[s.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline autoCapitalize="none" />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fieldLabel}>保留本地兜底</Text>
             </View>
             <TouchableOpacity
               onPress={() => setAdultLocalPreferred(v => !v)}
               style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultLocalPreferred ? T.success : T.surface, borderWidth: 1, borderColor: adultLocalPreferred ? T.success : T.border, padding: 2, justifyContent: 'center' }}
             >
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultLocalPreferred ? T.black : T.textMuted, alignSelf: adultLocalPreferred ? 'flex-end' : 'flex-start' }} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.fieldLabel}>失败回退云端</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setAdultLocalFallbackToCloud(v => !v)}
-              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultLocalFallbackToCloud ? T.success : T.surface, borderWidth: 1, borderColor: adultLocalFallbackToCloud ? T.success : T.border, padding: 2, justifyContent: 'center' }}
-            >
-              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultLocalFallbackToCloud ? T.black : T.textMuted, alignSelf: adultLocalFallbackToCloud ? 'flex-end' : 'flex-start' }} />
             </TouchableOpacity>
           </View>
 
@@ -244,7 +270,7 @@ export default function SettingsScreen({ navigation }: Props) {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={s.fieldLabel}>本地模型</Text>
-              <Text style={s.hint}>默认关闭（完全使用 DeepSeek 云端）。开启后可选本地模型，用于无审查或离线场景</Text>
+              <Text style={s.hint}>普通写作是否允许用本地模型。成人文学已独立走 freellmapi 成人池 + 本地兜底。</Text>
             </View>
             <TouchableOpacity
               onPress={() => setUseLocalModels(v => !v)}
@@ -267,16 +293,7 @@ export default function SettingsScreen({ navigation }: Props) {
 
         {notice ? <Text style={[s.notice, notice.startsWith('✅') ? { color: T.success } : { color: T.error }]}>{notice}</Text> : null}
 
-        <TouchableOpacity style={s.navCard} onPress={() => navigation.navigate('Sources' as any)}>
-          <Text style={s.navLabel}>书源管理</Text>
-          <Text style={{ color: T.textMuted, fontSize: 11 }}>导入/启用在线书源 →</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.navCard} onPress={() => navigation.navigate('CustomSources' as any)}>
-          <Text style={s.navLabel}>自定义书源</Text>
-          <Text style={{ color: T.textMuted, fontSize: 11 }}>管理自定义 JSON 书源 →</Text>
-        </TouchableOpacity>
-
-        <Text style={s.about}>妙笔 v{pkg.version} · 黑白灰 · AI写作 + 找书 + 阅读 + 成人文学</Text>
+        <Text style={s.about}>妙笔 v{pkg.version} · 黑白灰 · AI写作 + 阅读 + 成人文学</Text>
       </ScrollView>
     </View>
   );
@@ -310,7 +327,5 @@ const s: any = {
   secondaryBtn: { flex: 1, backgroundColor: T.surface2, borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: T.border },
   secondaryBtnText: { color: T.text, fontSize: 13, fontWeight: '600' },
   notice: { textAlign: 'center', marginTop: 8, fontSize: 12 },
-  navCard: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: T.border, marginBottom: 6 },
-  navLabel: { flex: 1, color: T.text, fontSize: 13, fontWeight: '600' },
   about: { color: T.textDim, fontSize: 10, textAlign: 'center', marginTop: 24 },
 };

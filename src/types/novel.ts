@@ -116,6 +116,10 @@ export interface NovelSettings {
   adultLocalBaseUrl?: string;
   adultLocalModel?: string;
   adultLocalProvider?: 'ollama' | 'openai';
+  freeLlmApiBaseUrl?: string;
+  freeLlmApiKey?: string;
+  adultGatewayEnabled?: boolean;
+  adultGatewayModels?: string[];
 }
 
 export interface AppState {

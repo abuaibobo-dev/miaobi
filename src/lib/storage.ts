@@ -43,6 +43,11 @@ export async function getSettings(): Promise<NovelSettings> {
     adultContent: true,
     useLocalModels: false,
     privacyMode: false,
+    adultLocalPreferred: true,
+    adultLocalFallbackToCloud: true,
+    adultLocalBaseUrl: 'http://127.0.0.1:11434',
+    adultLocalModel: '',
+    adultLocalProvider: 'ollama',
   });
   // Fallback: if no key configured, use injected key
   if (!s.apiKey && INJECTED_KEYS.deepseek) {

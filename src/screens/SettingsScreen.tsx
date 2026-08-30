@@ -26,6 +26,11 @@ export default function SettingsScreen({ navigation }: Props) {
   const [adultContent, setAdultContent] = useState(true);
   const [useLocalModels, setUseLocalModels] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
+  const [adultLocalPreferred, setAdultLocalPreferred] = useState(true);
+  const [adultLocalFallbackToCloud, setAdultLocalFallbackToCloud] = useState(true);
+  const [adultLocalBaseUrl, setAdultLocalBaseUrl] = useState('http://127.0.0.1:11434');
+  const [adultLocalModel, setAdultLocalModel] = useState('');
+  const [adultLocalProvider, setAdultLocalProvider] = useState<'ollama' | 'openai'>('ollama');
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -41,6 +46,11 @@ export default function SettingsScreen({ navigation }: Props) {
       setAdultContent(s.adultContent !== false);
       setUseLocalModels(s.useLocalModels === true);
       setPrivacyMode(s.privacyMode === true);
+      setAdultLocalPreferred(s.adultLocalPreferred !== false);
+      setAdultLocalFallbackToCloud(s.adultLocalFallbackToCloud !== false);
+      setAdultLocalBaseUrl(s.adultLocalBaseUrl || 'http://127.0.0.1:11434');
+      setAdultLocalModel(s.adultLocalModel || '');
+      setAdultLocalProvider(s.adultLocalProvider === 'openai' ? 'openai' : 'ollama');
     });
     getFreeProviderKeys().then(k => {
       setGroqKey(k.groq || '');
@@ -64,6 +74,11 @@ export default function SettingsScreen({ navigation }: Props) {
       adultContent,
       useLocalModels,
       privacyMode,
+      adultLocalPreferred,
+      adultLocalFallbackToCloud,
+      adultLocalBaseUrl: adultLocalBaseUrl.trim() || 'http://127.0.0.1:11434',
+      adultLocalModel: adultLocalModel.trim(),
+      adultLocalProvider,
     } as any);
     await saveFreeProviderKeys({
       groq: groqKey.trim(),
@@ -149,7 +164,7 @@ export default function SettingsScreen({ navigation }: Props) {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={s.fieldLabel}>成人文学</Text>
-              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）。注意：内容会发送至 DeepSeek 云端</Text>
+              <Text style={s.hint}>开启后支持 R 级成人文学创作（仅限成年、双方自愿的虚构角色与情节）。默认优先走本地模型；本地不可用时可按设置回退云端。</Text>
             </View>
             <TouchableOpacity
               onPress={() => {
@@ -168,6 +183,44 @@ export default function SettingsScreen({ navigation }: Props) {
               <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultContent ? T.black : T.textMuted, alignSelf: adultContent ? 'flex-end' : 'flex-start' }} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        <View style={s.card}>
+          <Text style={s.fieldLabel}>成人文学本地模型</Text>
+          <Text style={s.hint}>默认本地优先。适合更少限制场景；本地不可用时可自动回退云端，保证打开就能写。</Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fieldLabel}>本地优先</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setAdultLocalPreferred(v => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultLocalPreferred ? T.success : T.surface, borderWidth: 1, borderColor: adultLocalPreferred ? T.success : T.border, padding: 2, justifyContent: 'center' }}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultLocalPreferred ? T.black : T.textMuted, alignSelf: adultLocalPreferred ? 'flex-end' : 'flex-start' }} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.fieldLabel}>失败回退云端</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setAdultLocalFallbackToCloud(v => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: adultLocalFallbackToCloud ? T.success : T.surface, borderWidth: 1, borderColor: adultLocalFallbackToCloud ? T.success : T.border, padding: 2, justifyContent: 'center' }}
+            >
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: adultLocalFallbackToCloud ? T.black : T.textMuted, alignSelf: adultLocalFallbackToCloud ? 'flex-end' : 'flex-start' }} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={s.fieldLabel}>本地 Provider</Text>
+          <TextInput value={adultLocalProvider} onChangeText={(value) => setAdultLocalProvider(value.trim() === 'openai' ? 'openai' : 'ollama')} placeholder="ollama 或 openai" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" />
+
+          <Text style={s.fieldLabel}>本地 Base URL</Text>
+          <TextInput value={adultLocalBaseUrl} onChangeText={setAdultLocalBaseUrl} placeholder="http://127.0.0.1:11434" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" keyboardType="url" />
+
+          <Text style={s.fieldLabel}>本地模型名</Text>
+          <TextInput value={adultLocalModel} onChangeText={setAdultLocalModel} placeholder="留空自动选择，如 qwen2.5:7b" placeholderTextColor={T.textDim} style={s.input} autoCapitalize="none" />
         </View>
 
         {/* 隐私模式 */}

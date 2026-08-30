@@ -111,6 +111,11 @@ export interface NovelSettings {
   adultContent?: boolean;
   useLocalModels?: boolean;
   privacyMode?: boolean;
+  adultLocalPreferred?: boolean;
+  adultLocalFallbackToCloud?: boolean;
+  adultLocalBaseUrl?: string;
+  adultLocalModel?: string;
+  adultLocalProvider?: 'ollama' | 'openai';
 }
 
 export interface AppState {

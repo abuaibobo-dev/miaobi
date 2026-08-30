@@ -158,7 +158,7 @@ export async function agentExecute(
     providerOverride?: 'local' | 'cloud';
     modelOverride?: string;
   }
-): Promise<{ reply: string; steps: number; toolsUsed: number }> {
+): Promise<{ reply: string; steps: number; toolsUsed: number; provider?: string }> {
   session.messages.push({ role: 'user', content: userMessage });
   session.stepCount = 0;
 
@@ -202,7 +202,7 @@ export async function agentExecute(
     }
 
     session.messages.push({ role: 'assistant', content });
-    return { reply: content, steps: session.stepCount, toolsUsed: session.toolsUsed.length };
+    return { reply: content, steps: session.stepCount, toolsUsed: session.toolsUsed.length, provider: result.provider };
   }
 
   return { reply: '任务执行步数已达上限', steps: session.stepCount, toolsUsed: session.toolsUsed.length };

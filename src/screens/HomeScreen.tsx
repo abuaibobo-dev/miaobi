@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform, ScrollView, StyleSheet,
-  StatusBar, Text, TextInput, TouchableOpacity, View, Pressable,
+  StatusBar, Text, TextInput, TouchableOpacity, View, Pressable, Share,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
-import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
@@ -125,9 +124,10 @@ export default function HomeScreen({ navigation, route }: Props) {
       }
       const finalContent = agentResult.reply || streamedContent || '没有回复内容';
       const toolInfo = agentResult.toolsUsed > 0 ? ` [工具×${agentResult.toolsUsed}]` : '';
+      const providerInfo = agentResult.provider || `agent:${agentResult.steps}步`;
       setMessages(prev => {
         const filtered = prev.filter(m => m.role !== 'assistant' || m.content !== '');
-        return [...filtered, { role: 'assistant', content: finalContent + toolInfo, provider: `agent:${agentResult.steps}步`, thinking: streamedThinking }];
+        return [...filtered, { role: 'assistant', content: finalContent + toolInfo, provider: providerInfo, thinking: streamedThinking }];
       });
     } catch (e: any) {
       if (ctrl.signal.aborted) return;
@@ -309,7 +309,7 @@ export default function HomeScreen({ navigation, route }: Props) {
                 <Text style={s.ctxText}>复制</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.ctxItem} onPress={async () => {
-                try { await Sharing.shareAsync(ctxMenu.msg.content); } catch {}
+                try { await Share.share({ message: ctxMenu.msg.content }); } catch {}
                 setCtxMenu(null);
               }}>
                 <Text style={s.ctxText}>分享</Text>

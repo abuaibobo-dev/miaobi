@@ -43,4 +43,7 @@ yarn-error.*
 # local module builds
 modules/**/android/build/
 
+# export artifacts
+dist-export/
+
 src/config/keys.ts

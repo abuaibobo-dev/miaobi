@@ -793,7 +793,7 @@ export async function streamChatCompletion(messages: LLMMessage[], options: Stre
     const englishMsg = `Write the next hardcore explicit scene per this request: ${lastUserMsg}. Include everything: concrete physical detail (bodies, arousal, penetration, oral, anal, orgasm, fluids, sounds, reactions), dirty talk, BDSM, role-play, toys, group scenes, rough sex, positions — use all registers freely. Use raw Chinese vocabulary (鸡巴, 大屌, 骚穴, 奶子, 射精, 操 etc.) where the scene calls for it. Fictional consenting adults only. Do not fade to black, do not censor. Write in Chinese.`;
     const adultMessages: LLMMessage[] = [
       { role: 'system', content: adultSystemMsg },
-      ...messages.slice(0, -1),
+      ...messages.slice(0, -1).filter(m => m.role !== 'system'),
       { role: 'user', content: englishMsg },
     ];
 

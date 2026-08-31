@@ -129,13 +129,14 @@ export default function WritingScreen({ navigation, route }: any) {
       setInput(key === 'polish' ? '请润色下面这段文字：\n' : '请先帮我构思一部小说。');
       return;
     }
+    const latestChapters = await getChapters(novel.id);
     const base = `小说《${novel.title}》，类型：${novel.genre}，简介：${novel.synopsis || '暂无'}。`;
-    const recent = chapters.slice(-3).map(ch => `第${ch.chapterNumber}章《${ch.title}》摘要：${ch.summary || ch.body.slice(0, 160)}`).join('\n');
+    const recent = latestChapters.slice(-3).map(ch => `第${ch.chapterNumber}章《${ch.title}》摘要：${ch.summary || ch.body.slice(0, 160)}`).join('\n');
     const prompts = {
       setting: `${base}\n请建立可持续长篇创作的世界设定，包括时代背景、规则、地点、势力和核心冲突。`,
       characters: `${base}\n请设计主要人物小传，包括目标、动机、缺陷、关系、成长弧线和说话特点。`,
       outline: `${base}\n请给出完整故事大纲，按卷和章节列出关键事件、转折、伏笔与高潮。`,
-      chapter: `${base}\n${recent ? `已有章节：\n${recent}\n` : ''}请创作第${chapters.length + 1}章，保持前文一致，输出章节标题和正文。`,
+      chapter: `${base}\n${recent ? `已有章节：\n${recent}\n` : ''}请创作第${latestChapters.length + 1}章，保持前文一致，输出章节标题和正文。`,
       polish: '请在保留剧情、人物口吻和信息的前提下润色下面文字，提升节奏、画面和语言质感：\n',
     };
     setInput(prompts[key]);
@@ -144,7 +145,8 @@ export default function WritingScreen({ navigation, route }: any) {
   const saveAsChapter = async (content: string) => {
     if (!novel || !content.trim() || content.startsWith('错误：')) return;
     const firstLine = content.trim().split('\n')[0].replace(/^#+\s*/, '').trim();
-    const chapterNumber = chapters.length + 1;
+    const latestChapters = await getChapters(novel.id);
+    const chapterNumber = latestChapters.length + 1;
     const now = new Date().toISOString();
     const chapter: Chapter = {
       id: `chapter_${novel.id}_${Date.now()}`,
@@ -188,9 +190,9 @@ export default function WritingScreen({ navigation, route }: any) {
 
   const buildNovelContext = async () => {
     if (!novel) return null;
-    const chars = await getCharacters(novel.id);
+    const [chars, latestChapters] = await Promise.all([getCharacters(novel.id), getChapters(novel.id)]);
     const charLines = chars.slice(0, 8).map(c => `· ${c.name}：${(c.traits || c.backstory || '').slice(0, 120)}`).join('\n');
-    const recent = chapters.slice(-3).map(ch => `第${ch.chapterNumber}章《${ch.title}》：${ch.summary || ch.body.slice(0, 160)}`).join('\n');
+    const recent = latestChapters.slice(-3).map(ch => `第${ch.chapterNumber}章《${ch.title}》：${ch.summary || ch.body.slice(0, 160)}`).join('\n');
     return [
       `【作品设定】类型：${novel.genre}；简介：${novel.synopsis || '暂无'}`,
       charLines ? `【主要人物】\n${charLines}` : '',

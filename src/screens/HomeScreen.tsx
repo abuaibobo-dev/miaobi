@@ -9,6 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { createAgentSession, agentExecute } from '../lib/agent-engine';
+import { resolveWritingModeIntent, type WritingMode } from '../lib/llm';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
 import { saveNovel } from '../lib/storage';
@@ -52,6 +53,16 @@ export default function HomeScreen({ navigation, route }: Props) {
 
   const CHAT_KEY = 'miaobi.homeChat';
 
+  const [writingMode, setWritingMode] = useState<WritingMode>('general');
+
+  const MODE_OPTIONS: Array<{ key: WritingMode; label: string }> = [
+    { key: 'general', label: '通用' },
+    { key: 'novel', label: '写小说' },
+    { key: 'adult', label: '成人' },
+    { key: 'polish', label: '润色' },
+    { key: 'outline', label: '大纲' },
+  ];
+
   useEffect(() => {
     if (!messages.length) return;
     const withoutSystem = messages.filter(m => m.role !== 'system');
@@ -61,6 +72,12 @@ export default function HomeScreen({ navigation, route }: Props) {
   }, [messages]);
 
   useFocusEffect(useCallback(() => {
+    AsyncStorage.getItem('miaobi.homeMode').then(raw => {
+      if (raw) {
+        const valid = ['general', 'novel', 'adult', 'polish', 'outline'];
+        if (valid.includes(raw)) setWritingMode(raw as WritingMode);
+      }
+    });
     AsyncStorage.getItem('miaobi.searchHistory').then(raw => { if (raw) try { setSearchHistory(JSON.parse(raw).slice(0, 10)); } catch {} });
     AsyncStorage.getItem(CHAT_KEY).then(raw => {
       if (raw) {
@@ -101,6 +118,7 @@ export default function HomeScreen({ navigation, route }: Props) {
         msg,
         {
           signal: ctrl.signal,
+          intent: resolveWritingModeIntent(writingMode, msg),
           providerOverride: model.startsWith('local:') ? 'local' : model.startsWith('cloud:') ? 'cloud' : undefined,
           modelOverride: model === 'auto' ? undefined : model.replace(/^(?:local|cloud):/, ''),
           onToolCall: (tool) => {
@@ -242,6 +260,20 @@ export default function HomeScreen({ navigation, route }: Props) {
           </>
         )}
 
+        <View style={s.modeRow}>
+          {MODE_OPTIONS.map(opt => (
+            <TouchableOpacity
+              key={opt.key}
+              style={[s.modeChip, writingMode === opt.key && s.modeChipActive]}
+              onPress={() => {
+                setWritingMode(opt.key);
+                AsyncStorage.setItem('miaobi.homeMode', opt.key);
+              }}
+            >
+              <Text style={[s.modeChipText, writingMode === opt.key && s.modeChipTextActive]}>{opt.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <FlatList
           ref={scrollRef}
@@ -417,6 +449,11 @@ const s: any = {
   headerMenu: { backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border, paddingHorizontal: 16, paddingBottom: 8 },
   headerMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 },
   headerMenuText: { color: T.text, fontSize: 14, fontWeight: '500' },
+  modeRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 6, flexWrap: 'wrap' },
+  modeChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  modeChipActive: { backgroundColor: T.white, borderColor: T.white },
+  modeChipText: { color: T.textMuted, fontSize: 11, fontWeight: '600' },
+  modeChipTextActive: { color: T.black },
   modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 50, alignItems: 'center', justifyContent: 'center', padding: 24 },
   modalCard: { width: '100%', maxWidth: 360, backgroundColor: T.surface, borderRadius: 16, borderWidth: 1, borderColor: T.border, padding: 20 },
   modalTitle: { color: T.text, fontSize: 18, fontWeight: '800', marginBottom: 16, textAlign: 'center' },

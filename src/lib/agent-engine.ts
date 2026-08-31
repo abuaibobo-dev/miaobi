@@ -157,6 +157,7 @@ export async function agentExecute(
     signal?: AbortSignal;
     providerOverride?: 'local' | 'cloud';
     modelOverride?: string;
+    intent?: 'writing' | 'vision' | 'chat' | 'adult' | 'image';
   }
 ): Promise<{ reply: string; steps: number; toolsUsed: number; provider?: string }> {
   session.messages.push({ role: 'user', content: userMessage });
@@ -169,7 +170,7 @@ export async function agentExecute(
 
       
       // Adult + Writing: bypass agent engine, use clean messages
-      const intent = detectIntent(userMessage);
+      const intent = options?.intent || detectIntent(userMessage);
       let result;
       if (intent === 'adult' || intent === 'writing') {
         const historyClean = session.messages

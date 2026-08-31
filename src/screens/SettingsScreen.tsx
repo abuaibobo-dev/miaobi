@@ -5,6 +5,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
 import { getSettings, saveSettings } from '../lib/storage';
+import { testAdultGatewayModels } from '../lib/llm';
 
 import { getFreeProviderKeys, saveFreeProviderKeys } from '../lib/freeProviders';
 import { showAlert } from '../components/CustomAlert';
@@ -35,6 +36,8 @@ export default function SettingsScreen({ navigation }: Props) {
   const [freeLlmApiKey, setFreeLlmApiKey] = useState('');
   const [adultGatewayEnabled, setAdultGatewayEnabled] = useState(true);
   const [adultGatewayModelsText, setAdultGatewayModelsText] = useState('gryphe/mythomax-l2-13b\nsao10k/l3-lunaris-8b\nanthracite-org/magnum-v4-72b');
+  const [gatewayTestResults, setGatewayTestResults] = useState<Array<{ model: string; ok: boolean; reason: string }> | null>(null);
+  const [gatewayTesting, setGatewayTesting] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
@@ -226,6 +229,40 @@ export default function SettingsScreen({ navigation }: Props) {
 
           <Text style={s.fieldLabel}>freellmapi 成人模型池</Text>
           <TextInput value={adultGatewayModelsText} onChangeText={setAdultGatewayModelsText} placeholder="每行一个模型" placeholderTextColor={T.textDim} style={[s.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline autoCapitalize="none" />
+
+          <TouchableOpacity
+            style={{ marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, alignItems: 'center' }}
+            disabled={gatewayTesting}
+            onPress={async () => {
+              setGatewayTesting(true);
+              setGatewayTestResults(null);
+              try { await handleSave(); } catch {}
+              try {
+                const results = await testAdultGatewayModels();
+                setGatewayTestResults(results);
+              } catch (e: any) {
+                setGatewayTestResults([{ model: '?', ok: false, reason: e.message }]);
+              } finally {
+                setGatewayTesting(false);
+              }
+            }}
+          >
+            <Text style={{ color: T.text, fontSize: 12, fontWeight: '600' }}>
+              {gatewayTesting ? '测试中...' : '🧪 测试成人池'}
+            </Text>
+          </TouchableOpacity>
+
+          {gatewayTestResults && (
+            <View style={{ marginTop: 6, gap: 4 }}>
+              {gatewayTestResults.map((r, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 12 }}>{r.ok ? '✅' : '❌'}</Text>
+                  <Text style={{ color: T.textSecondary, fontSize: 10, flex: 1 }} numberOfLines={1}>{r.model}</Text>
+                  <Text style={{ color: r.ok ? T.success : T.error, fontSize: 10, fontWeight: '500' }}>{r.ok ? '可用' : r.reason.slice(0, 20)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
             <View style={{ flex: 1 }}>

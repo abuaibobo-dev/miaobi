@@ -125,6 +125,14 @@ function withTimeout(signal: AbortSignal | undefined, milliseconds: number) {
 }
 
 
+export type WritingMode = 'general' | 'novel' | 'adult' | 'polish' | 'outline';
+
+export function resolveWritingModeIntent(mode: WritingMode, text: string): Intent {
+  if (mode === 'adult') return 'adult';
+  if (mode === 'outline' || mode === 'novel' || mode === 'polish') return 'writing';
+  return detectIntent(text);
+}
+
 export function detectIntent(text: string, hasImage?: boolean): Intent {
   if (hasImage) return 'vision';
   if (/生图|生成图|画一[张幅]|画个|绘图|插画/.test(text)) return 'image';
@@ -607,6 +615,26 @@ async function requestGatewayAdult(
     throw new Error(String(data?.error?.message || `HTTP ${response.status}`));
   }
   return String(data?.choices?.[0]?.message?.content || '').replace(/<(?:think|thinking)>[\s\S]*?(?:<\/(?:think|thinking)>|$)/gi, '').trim();
+}
+
+const SAMPLE_ADULT_TEST_MESSAGES: LLMMessage[] = [
+  { role: 'user', content: '写一段简短的成人亲密场景，50字以内。' },
+];
+
+export async function testAdultGatewayModels(): Promise<Array<{ model: string; ok: boolean; reason: string }>> {
+  const settings = await getSettings() as any;
+  const models = getAdultGatewayModels(settings);
+  const rows: Array<{ model: string; ok: boolean; reason: string }> = [];
+  for (const model of models) {
+    try {
+      const content = await requestGatewayAdult(model, SAMPLE_ADULT_TEST_MESSAGES, 180, AbortSignal.timeout(12000));
+      const usable = isAdultContentUsable(content);
+      rows.push({ model, ok: usable, reason: usable ? 'ok' : 'refused' });
+    } catch (error) {
+      rows.push({ model, ok: false, reason: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return rows;
 }
 
 async function streamAdultGateway(

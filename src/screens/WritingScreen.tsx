@@ -8,6 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
+import { classifyWritingOutput } from '../lib/storage';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
 import { getCharacters, getChapters, getNovels, saveChapter, saveNovel } from '../lib/storage';
@@ -162,6 +163,16 @@ export default function WritingScreen({ navigation, route }: any) {
     await saveNovel(nextNovel);
     setNovel(nextNovel);
     setChapters(prev => [...prev, chapter]);
+  };
+
+  const saveAsSection = async (content: string) => {
+    if (!novel || !content.trim() || content.startsWith('错误：')) return;
+    const sectionType = classifyWritingOutput(content);
+    const heading = { chapter: '章节', character: '人物', outline: '大纲', setting: '设定' }[sectionType];
+    const tagged = `\n\n## ${heading}（${new Date().toLocaleDateString()}）\n${content.trim()}`;
+    const nextNovel = { ...novel, styleGuide: (novel.styleGuide || '') + tagged, updatedAt: new Date().toISOString() };
+    await saveNovel(nextNovel);
+    setNovel(nextNovel);
   };
 
   const copyMsg = async (text: string, id: string) => {
@@ -337,7 +348,8 @@ export default function WritingScreen({ navigation, route }: any) {
                   </TouchableOpacity>
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} onPress={async () => {
                     try {
-                      if (novel) await saveAsChapter(msg.content);
+                      if (novel && classifyWritingOutput(msg.content) === 'chapter') await saveAsChapter(msg.content);
+                      else if (novel) await saveAsSection(msg.content);
                       else {
                         const { saveAiContent } = await import('../lib/library');
                         await saveAiContent('AI 创作 · ' + new Date().toLocaleDateString(), msg.content);
@@ -346,7 +358,11 @@ export default function WritingScreen({ navigation, route }: any) {
                       setTimeout(() => setCopiedId(null), 2000);
                     } catch (e) { /* silent */ }
                   }}>
-                    <Text style={{ color: T.textMuted, fontSize: 9 }}>{copiedId === 'saved_' + String(i) ? '✓ 已生成' : '生成正文'}</Text>
+                    <Text style={{ color: T.textMuted, fontSize: 9 }}>
+                      {copiedId === 'saved_' + String(i)
+                        ? '✓ 已保存'
+                        : (novel ? (classifyWritingOutput(msg.content) === 'chapter' ? '存为章节' : '存为设定') : '生成正文')}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}

@@ -4,6 +4,15 @@ import type { NovelProject, Chapter, Character, Foreshadowing, MemoryChunk, Memo
 
 const PREFIX = 'miaobi.';
 
+export type WritingSectionType = 'chapter' | 'character' | 'outline' | 'setting';
+
+export function classifyWritingOutput(content: string): WritingSectionType {
+  if (/^\s*第.{0,12}[章回节卷]/m.test(content)) return 'chapter';
+  if (/角色|人物小传|人物设定/.test(content)) return 'character';
+  if (/大纲|三幕|故事结构/.test(content)) return 'outline';
+  return 'setting';
+}
+
 // 串行化所有读写操作，避免并发 read-modify-write 丢数据
 let storageChain: Promise<unknown> = Promise.resolve();
 async function withLock<T>(fn: () => Promise<T>): Promise<T> {

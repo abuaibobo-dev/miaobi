@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Keyboard, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { T } from '../lib/theme';
@@ -73,37 +73,41 @@ export default function SettingsScreen({ navigation }: Props) {
   const handleSave = async () => {
     setSaving(true);
     clearTimeout((noticeTimer.current as any));
-    const existing = await getSettings() as any;
-    await saveSettings({
-      ...existing,
-      apiKey: apiKey.trim(),
-      baseUrl: baseUrl.trim() || 'https://api.deepseek.com',
-      model: model.trim() || 'deepseek-chat',
-      provider,
-      temperature: existing.temperature ?? 0.7,
-      maxTokens: existing.maxTokens ?? 12000,
-      adultContent,
-      useLocalModels,
-      privacyMode,
-      adultLocalPreferred,
-      adultLocalFallbackToCloud,
-      adultLocalBaseUrl: adultLocalBaseUrl.trim() || 'http://127.0.0.1:11434',
-      adultLocalModel: adultLocalModel.trim(),
-      adultLocalProvider,
-      freeLlmApiBaseUrl: freeLlmApiBaseUrl.trim(),
-      freeLlmApiKey: freeLlmApiKey.trim(),
-      adultGatewayEnabled,
-      adultGatewayModels: adultGatewayModelsText.split(/[\n,]+/).map(item => item.trim()).filter(Boolean),
-    } as any);
-    await saveFreeProviderKeys({
-      groq: groqKey.trim(),
-      sambanova: sambanovaKey.trim(),
-      cerebras: cerebrasKey.trim(),
-    });
-
-    setSaving(false);
-    setNotice('✅ 已保存');
-    noticeTimer.current = setTimeout(() => setNotice(''), 2000);
+    try {
+      const existing = await getSettings() as any;
+      await saveSettings({
+        ...existing,
+        apiKey: apiKey.trim(),
+        baseUrl: baseUrl.trim() || 'https://api.deepseek.com',
+        model: model.trim() || 'deepseek-chat',
+        provider,
+        temperature: existing.temperature ?? 0.7,
+        maxTokens: existing.maxTokens ?? 12000,
+        adultContent,
+        useLocalModels,
+        privacyMode,
+        adultLocalPreferred,
+        adultLocalFallbackToCloud,
+        adultLocalBaseUrl: adultLocalBaseUrl.trim() || 'http://127.0.0.1:11434',
+        adultLocalModel: adultLocalModel.trim(),
+        adultLocalProvider,
+        freeLlmApiBaseUrl: freeLlmApiBaseUrl.trim(),
+        freeLlmApiKey: freeLlmApiKey.trim(),
+        adultGatewayEnabled,
+        adultGatewayModels: adultGatewayModelsText.split(/[\n,]+/).map(item => item.trim()).filter(Boolean),
+      } as any);
+      await saveFreeProviderKeys({
+        groq: groqKey.trim(),
+        sambanova: sambanovaKey.trim(),
+        cerebras: cerebrasKey.trim(),
+      });
+      setNotice('✅ 已保存');
+    } catch (e: any) {
+      setNotice(`❌ 保存失败：${e.message}`);
+    } finally {
+      setSaving(false);
+      noticeTimer.current = setTimeout(() => setNotice(''), 3000);
+    }
   };
 
   const handleTest = async () => {
@@ -138,7 +142,7 @@ export default function SettingsScreen({ navigation }: Props) {
     <View style={s.container}>
       
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}><Text style={s.backText}>←</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => { Keyboard.dismiss(); navigation.goBack(); }} style={s.backBtn}><Text style={s.backText}>←</Text></TouchableOpacity>
         <View style={{ flex: 1 }} />
         <Text style={s.headerTitle}>设置</Text>
         <View style={{ flex: 1 }} />

@@ -9,6 +9,7 @@ import { T } from '../lib/theme';
 import { Icon } from '../lib/icons';
 import { chatCompletion, detectIntent } from '../lib/llm';
 import { classifyWritingOutput } from '../lib/storage';
+import { showAlert } from '../components/CustomAlert';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
 import { getCharacters, getChapters, getNovels, saveChapter, saveNovel } from '../lib/storage';
@@ -263,7 +264,7 @@ export default function WritingScreen({ navigation, route }: any) {
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+        <TouchableOpacity onPress={() => { Keyboard.dismiss(); navigation.goBack(); }} style={s.backBtn}>
           <Text style={s.backText}>←</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
@@ -271,10 +272,20 @@ export default function WritingScreen({ navigation, route }: any) {
           {novel ? <Text style={s.projectMeta}>{novel.genre} · 已保存 {chapters.length} 章</Text> : null}
         </View>
         <TouchableOpacity onPress={() => {
-          const initial: Msg[] = [{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }];
-          setMessages(initial);
-          setStreaming('');
-          AsyncStorage.setItem(CHAT_KEY, JSON.stringify(initial));
+          const doNew = () => {
+            const initial: Msg[] = [{ role: 'assistant', content: '你好！我是 AI 写作助手。告诉我你想写什么。' }];
+            setMessages(initial);
+            setStreaming('');
+            AsyncStorage.setItem(CHAT_KEY, JSON.stringify(initial));
+          };
+          if (messages.length > 1) {
+            showAlert('新建对话', '当前对话将被清空，确定继续？', [
+              { text: '取消', style: 'cancel' },
+              { text: '确定', style: 'destructive', onPress: doNew },
+            ]);
+          } else {
+            doNew();
+          }
         }} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
           <Text style={{ color: T.textMuted, fontSize: 12 }}>新对话</Text>
         </TouchableOpacity>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, FlatList, KeyboardAvoidingView, Keyboard, Platform, ScrollView, StyleSheet,
+  FlatList, KeyboardAvoidingView, Keyboard, Platform,
   StatusBar, Text, TextInput, TouchableOpacity, View, Pressable, Share,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,16 +12,17 @@ import { createAgentSession, agentExecute } from '../lib/agent-engine';
 import { resolveWritingModeIntent, type WritingMode } from '../lib/llm';
 import ModelPicker from '../components/ModelPicker';
 import { GenerationDots, ThinkingPanel } from '../components/ChatIndicators';
-import { saveNovel } from '../lib/storage';
-import type { NovelProject } from '../types/novel';
+import { showAlert } from '../components/CustomAlert';
 
 
 type Props = any;
 type Msg = { role: 'user' | 'assistant' | 'system'; content: string; provider?: string; thinking?: string };
 
+const SYSTEM_PROMPT = '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。';
+
 export default function HomeScreen({ navigation, route }: Props) {
   const [messages, setMessages] = useState<Msg[]>([
-    { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
+    { role: 'system', content: SYSTEM_PROMPT },
     { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
   ]);
 
@@ -66,7 +67,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!messages.length) return;
     const withoutSystem = messages.filter(m => m.role !== 'system');
-    const SYSTEM_MSG: Msg = { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' };
+    const SYSTEM_MSG: Msg = { role: 'system', content: SYSTEM_PROMPT };
     const toSave = [SYSTEM_MSG, ...withoutSystem].slice(-50);
     AsyncStorage.setItem(CHAT_KEY, JSON.stringify(toSave));
   }, [messages]);
@@ -84,7 +85,7 @@ export default function HomeScreen({ navigation, route }: Props) {
         try {
           const saved = JSON.parse(raw);
           if (Array.isArray(saved) && saved.length) {
-            const SYSTEM_MSG: Msg = { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' };
+    const SYSTEM_MSG: Msg = { role: 'system', content: SYSTEM_PROMPT };
             const hasSystem = saved[0]?.role === 'system';
             setMessages(hasSystem ? saved : [SYSTEM_MSG, ...saved]);
           }
@@ -234,14 +235,24 @@ export default function HomeScreen({ navigation, route }: Props) {
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} onPress={() => setShowMenu(false)} />
           <View style={[s.headerMenu, { zIndex: 31 }]}>
             <TouchableOpacity style={s.headerMenuItem} onPress={() => {
-              const initial: Msg[] = [
-                { role: 'system', content: '你是妙笔AI写作助手。你拥有完整的对话记忆，能记住用户说过的每一句话。你擅长小说创作、文案写作、故事构思。回答时要：1）记住上下文，不要重复问用户已经说过的信息；2）主动思考，给出有深度的建议而不是简单回复；3）如果用户在创作中，主动推进剧情发展；4）用简体中文直接回答，不要解释规则。' },
-                { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
-              ];
-              setShowMenu(false);
-              setMessages(initial);
-              setInput('');
-              AsyncStorage.setItem(CHAT_KEY, JSON.stringify(initial));
+              if (messages.length > 2) {
+                showAlert('新建对话', '当前对话将被清空，确定继续？', [
+                  { text: '取消', style: 'cancel' },
+                  { text: '确定', style: 'destructive', onPress: () => doNewChat() },
+                ]);
+              } else {
+                doNewChat();
+              }
+              function doNewChat() {
+                const initial: Msg[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+                  { role: 'assistant', content: '你好！我是妙笔AI写作助手。告诉我你想写什么，我会记住你说的每一句话，帮你创作。' },
+                ];
+                setShowMenu(false);
+                setMessages(initial);
+                setInput('');
+                AsyncStorage.setItem(CHAT_KEY, JSON.stringify(initial));
+              }
             }}>
               <Icon.add size={16} color={T.text} />
               <Text style={s.headerMenuText}>新建对话</Text>
